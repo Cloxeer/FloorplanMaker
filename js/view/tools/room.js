@@ -86,7 +86,7 @@ export function createRoomTool(app, opts = {}) {
 
   function promptAndCommit(build) {
     const defaultVal = app.lastNumber ? nextNumber(app.lastNumber) : '';
-    app.prompt('Room number', defaultVal).then((value) => {
+    app.prompt('Room number', defaultVal, { validate: 'roomNumber' }).then((value) => {
       if (value == null) return;
       const item = build();
       item.number = value;

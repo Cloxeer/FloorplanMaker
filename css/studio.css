@@ -210,6 +210,8 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 .modal .form-row { margin-bottom: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .modal-error { color: var(--danger); font-size: 12px; margin-top: 4px; }
+.prompt-example { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.modal-actions .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .toast {
   position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
