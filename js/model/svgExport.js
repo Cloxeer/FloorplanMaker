@@ -36,6 +36,7 @@ function roomLabelLines(item) {
   const pos = labelPos(item);
   const cls = labelClass(item);
   const text = item.showName && item.name ? (item.number || '') : labelText(item);
+  if (!text) return lines; // an unnumbered shape gets no label at all
   const fontAttr = item.label && item.label.fontSize ? ` font-size="${r(item.label.fontSize)}"` : '';
   lines.push(`${IND}<text class="${cls}" x="${r(pos.x)}" y="${r(pos.y)}"${fontAttr}>${esc(text)}</text>`);
   if (item.showName && item.name) {
@@ -121,8 +122,8 @@ export function exportSvg(doc) {
   lines.push('    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }');
-  lines.push('.compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }');
-  lines.push('.compass-north  { fill: #8C0B42; }');
+  lines.push('    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }');
+  lines.push('    .compass-north  { fill: #8C0B42; }');
   lines.push('  </style>');
   lines.push('');
 
