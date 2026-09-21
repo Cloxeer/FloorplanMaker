@@ -1,15 +1,18 @@
 // stepStrip.js
-// Small "1 Photo · 2 Trace · 3 Export" strip shown at the top of the studio.
-// Step 1 always reopens the photo step; step 3 runs export. The current step
-// is inferred from doc state (no photo -> 1, photo but no rooms/floor -> 2,
-// otherwise -> 2/3 depending on validation). Purely presentational; owns no
-// state beyond what it reads from `app` on each update().
+// Small "1 Photo · 2 Trace · 3 Preview · 4 Export" strip shown at the top of
+// the studio. Step 1 always reopens the photo step; steps 3 and 4 both open
+// the Preview (clicking Export never skips straight to downloading — see
+// js/view/panels/previewStep.js). The current step is inferred from doc
+// state (no photo -> 1, photo but no rooms/floor -> 2, otherwise -> 2).
+// Purely presentational; owns no state beyond what it reads from `app` on
+// each update().
 // Depends on: app.project, app.doc, app.exportAll, callbacks passed in.
 
 const STEPS = [
   { n: 1, label: 'Photo' },
   { n: 2, label: 'Trace' },
-  { n: 3, label: 'Export' },
+  { n: 3, label: 'Preview' },
+  { n: 4, label: 'Export' },
 ];
 
 export function mountStepStrip(el, app, { onPhoto, onExport }) {
@@ -31,7 +34,7 @@ export function mountStepStrip(el, app, { onPhoto, onExport }) {
       btn.addEventListener('click', () => {
         const n = parseInt(btn.dataset.step, 10);
         if (n === 1) onPhoto();
-        else if (n === 3) onExport();
+        else if (n === 3 || n === 4) onExport();
       });
     });
   }

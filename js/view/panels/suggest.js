@@ -57,6 +57,7 @@ export function mountSuggest(app) {
   let worker = null;
   let ghosts = [];
   let bar = null;
+  let ocrStatus = null; // "12/39" while OCR is running, shown in the suggest bar
 
   function makeBar() {
     const host = document.getElementById('dialogs');
@@ -68,8 +69,11 @@ export function mountSuggest(app) {
 
   function renderBar() {
     if (!bar) return;
+    const statusText = ocrStatus
+      ? `Reading room numbers… ${ocrStatus}`
+      : `We found ${ghosts.length} room${ghosts.length === 1 ? '' : 's'}. Tap a room to keep it, or Keep all.`;
     bar.innerHTML = `
-      <span>We found ${ghosts.length} room${ghosts.length === 1 ? '' : 's'}. Tap a room to keep it, or Keep all.</span>
+      <span>${statusText}</span>
       <button type="button" id="sg-accept-all">Keep all</button>
       <button type="button" id="sg-dismiss">Dismiss</button>
     `;
@@ -86,15 +90,30 @@ export function mountSuggest(app) {
     acceptOne(idx);
   }
 
-  function acceptOne(index) {
+  function keepGhost(index, number) {
     const g = ghosts[index];
     if (!g) return;
-    const item = makeRoom('room', g.x, g.y, g.w, g.h, g.number || '');
+    const item = makeRoom('room', g.x, g.y, g.w, g.h, number || '');
     app.commit(addItem(app.doc, item), 'Accept suggestion');
     ghosts = ghosts.filter((_, i) => i !== index).map((gg, i) => ({ ...gg, index: i }));
     pushGhostsToCanvas();
     renderBar();
     if (ghosts.length === 0) dismiss();
+  }
+
+  function acceptOne(index) {
+    const g = ghosts[index];
+    if (!g) return;
+    if (!g.number) {
+      // No number was read off the photo (ghost shows "?") — ask before
+      // keeping it, same prompt used elsewhere for room numbers.
+      app.prompt('Room number', '', { validate: 'roomNumber' }).then((value) => {
+        if (value == null) return;
+        keepGhost(index, value);
+      });
+      return;
+    }
+    keepGhost(index, g.number);
   }
 
   function acceptAll() {
@@ -110,6 +129,7 @@ export function mountSuggest(app) {
 
   function dismiss() {
     ghosts = [];
+    ocrStatus = null;
     app.canvas.setGhosts([]);
     if (bar) { bar.remove(); bar = null; }
     app.setHint('');
@@ -157,6 +177,7 @@ export function mountSuggest(app) {
 
     bar = makeBar();
     ghosts = [];
+    ocrStatus = null;
     renderBar();
     app.setHint('Tracing rooms from the photo…');
 
@@ -173,7 +194,8 @@ export function mountSuggest(app) {
         app.setHint(`We found ${ghosts.length} rooms. Running text recognition…`);
         worker.postMessage({ id: 'ocr', kind: 'ocr', width: pixelData.width, height: pixelData.height, data: pixelData.data, regions: ghosts });
       } else if (msg.kind === 'ocr-progress') {
-        app.setHint(`Reading room numbers… ${msg.progress != null ? Math.round(msg.progress * 100) + '%' : ''}`);
+        ocrStatus = `${msg.done}/${msg.total}`;
+        renderBar();
       } else if (msg.kind === 'ocr-result') {
         const idx = msg.index;
         if (ghosts[idx]) {
@@ -181,14 +203,17 @@ export function mountSuggest(app) {
           pushGhostsToCanvas();
         }
       } else if (msg.kind === 'ocr-done') {
+        ocrStatus = null;
+        renderBar();
         app.setHint(ghosts.length ? 'Review the suggested rooms, then accept or dismiss.' : 'No rooms detected.');
       } else if (msg.kind === 'error') {
         app.toast(`Suggest rooms failed: ${msg.message || 'unknown error'}`);
       }
     });
 
+    const outline = app.doc && app.doc.floor && app.doc.floor.points ? app.doc.floor.points : null;
     worker.postMessage({
-      id: 'trace', kind: 'trace', width: pixelData.width, height: pixelData.height, data: pixelData.data,
+      id: 'trace', kind: 'trace', width: pixelData.width, height: pixelData.height, data: pixelData.data, outline,
     });
   }
 

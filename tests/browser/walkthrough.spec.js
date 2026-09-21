@@ -119,10 +119,12 @@ test.describe('Guided walkthrough', () => {
     await page.click('#p-rotate-cw');
     await expect.poll(async () => (await doc(page)).items.find((i) => i.type === 'compass').deg).toBe(15);
 
-    // ---- Export: intercept the .svg download and save it ----
+    // ---- Export: Preview opens first, then "Download files" ----
+    await page.click('#btn-export');
+    await expect(page.locator('#preview')).toBeVisible();
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btn-export'),
+      page.click('#preview-download'),
     ]);
     const outPath = path.join(ROOT, 'samples', 'hjlc-1-walkthrough.svg');
     await download.saveAs(outPath);

@@ -5,6 +5,7 @@
 // Depends on: js/view/panels/paletteIcons.js, app.canvas (js/view/stage.js).
 
 import { chipSvg, ghostSvg } from './paletteIcons.js';
+import { legendHtml, LEGEND_NOTE } from './legend.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -42,6 +43,11 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
     </div>
+    <details class="palette-legend">
+      <summary>Legend</summary>
+      ${legendHtml('legend-list')}
+      <p class="legend-note">${LEGEND_NOTE}</p>
+    </details>
   `;
 
   const chipRow = el.querySelector('#chip-row');

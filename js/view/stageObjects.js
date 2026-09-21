@@ -258,7 +258,7 @@ export function buildGhost(g, index) {
     fill: 'rgba(47,111,235,0.12)', stroke: '#2f6feb', strokeWidth: 2,
     strokeDashArray: [7, 5], strokeUniform: true, objectCaching: false,
   });
-  const t = new fabric.FabricText(g.number ? String(g.number) : String(index + 1), {
+  const t = new fabric.FabricText(g.number ? String(g.number) : '?', {
     left: g.x + g.w / 2, top: g.y + g.h / 2, originX: 'center', originY: 'center',
     fontSize: 22, fill: '#2f6feb', fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
   });

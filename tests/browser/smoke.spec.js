@@ -203,10 +203,13 @@ test.describe('NMSU Floor Plan Studio smoke test', () => {
     await expect(page.locator('#studio')).toBeVisible();
     await expect.poll(async () => (await doc(page)).items.length).toBe(itemsBefore);
 
-    // ---- 13. Export downloads the SVG (hallways excluded) ----
+    // ---- 13. Export opens the Preview first, then downloads the SVG on
+    // "Download files" (hallways excluded) ----
+    await page.click('#btn-export');
+    await expect(page.locator('#preview')).toBeVisible();
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#btn-export'),
+      page.click('#preview-download'),
     ]);
     expect(download.suggestedFilename()).toMatch(/\.(svg|jpg)$/);
     await page.waitForEvent('download', { timeout: 4000 }).catch(() => {});
