@@ -244,6 +244,11 @@ export function createCanvas(svgEl, app) {
     img.setAttribute('opacity', on ? 1 : onionOpacity);
   }
 
+  const PLAN_OPACITY_LAYERS = ['floor', 'rooms', 'labels', 'stairs', 'doors'];
+  function setPlanOpacity(op) {
+    for (const name of PLAN_OPACITY_LAYERS) layers[name].style.opacity = String(op);
+  }
+
   function setGrid(on) {
     layers.grid.style.display = on ? '' : 'none';
     if (on) ensureGridPattern(layers.grid, svgEl, el);
@@ -336,6 +341,7 @@ export function createCanvas(svgEl, app) {
     setOnion,
     flashPhoto,
     setGrid,
+    setPlanOpacity,
     toPlan,
     zoomTo,
     setView,
