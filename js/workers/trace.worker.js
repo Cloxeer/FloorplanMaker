@@ -17,6 +17,17 @@
 //   { id, kind:'ocr', width, height, data, regions }
 //     -> posts progress { id, kind:'ocr-progress', done, total }
 //     -> posts { id, kind:'ocr', numbers:{ [regionIndex]: '128B' } }
+//   { id, kind:'halls', width, height, data, outline }
+//     Reuses the same adaptive-threshold ink mask as 'trace'. Finds light
+//     (non-ink) regions inside `outline` (required to be meaningful; regions
+//     outside it, or touching the image border, are dropped) that are:
+//       - hallways: bbox aspect ratio (long/short side) >= 3, long side >=
+//         120 plan units, short side between 20 and 140.
+//       - stair candidates: short side between 30 and 120, and the region's
+//         interior contains >= 3 dark (ink) line runs parallel to the
+//         region's short axis, each consecutive pair spaced <= 40 units
+//         apart (i.e. evenly spaced stair treads).
+//     -> posts { id, kind:'halls', halls:[{x,y,w,h}], stairs:[{x,y,w,h}] }
 // On error: posts { id, error: message }
 
 const NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
@@ -57,6 +68,9 @@ self.onmessage = async (e) => {
     } else if (kind === 'ocr') {
       await ocrRegions(id, msg.width, msg.height, msg.data, msg.regions);
       self.postMessage({ id, kind: 'ocr-done' });
+    } else if (kind === 'halls') {
+      const { halls, stairs } = findHallsAndStairs(msg.width, msg.height, msg.data, msg.outline || null);
+      self.postMessage({ id, kind: 'halls', halls, stairs });
     } else {
       self.postMessage({ id, kind: 'error', message: `unknown kind: ${kind}` });
     }
@@ -89,7 +103,10 @@ function polygonBboxArea(poly) {
   return Math.max(0, w) * Math.max(0, h);
 }
 
-function trace(width, height, data, minArea, maxAreaFrac, outline) {
+// Grayscale -> adaptive threshold (via summed-area table local mean) -> 3px
+// dilation. Shared by trace() and findHallsAndStairs() so both classifiers
+// see the same wall mask.
+function computeInkMask(width, height, data) {
   const n = width * height;
   const gray = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -151,29 +168,29 @@ function trace(width, height, data, minArea, maxAreaFrac, outline) {
     }
     dilated = next;
   }
+  return { ink, dilated };
+}
 
-  // Flood fill non-ink (walkable) regions, 4-connectivity, iterative scanline-ish BFS.
+// Calls `visit({ minX, minY, maxX, maxY, area, touchesBorder })` for every
+// connected non-`dilated` (walkable) region, 4-connectivity, iterative BFS.
+function floodFillRegions(width, height, dilated, visit) {
+  const n = width * height;
   const labels = new Int32Array(n).fill(-1);
-  const regions = [];
   const stack = new Int32Array(n);
-  const outlineArea = outline && outline.length >= 3 ? polygonBboxArea(outline) : null;
-  const maxArea = maxAreaFrac * (outlineArea || (width * height));
 
   for (let start = 0; start < n; start++) {
     if (dilated[start] || labels[start] !== -1) continue;
     let sp = 0;
     stack[sp++] = start;
-    labels[start] = -2; // in-progress marker
+    labels[start] = 1; // visited marker
     let minX = width, minY = height, maxX = -1, maxY = -1, area = 0;
     let touchesBorder = false;
-    const cellsForThisRegion = [];
 
     while (sp > 0) {
       const idx = stack[--sp];
       const x = idx % width;
       const y = (idx / width) | 0;
       area++;
-      cellsForThisRegion.push(idx);
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -188,17 +205,22 @@ function trace(width, height, data, minArea, maxAreaFrac, outline) {
         const ni = nb[k];
         if (ni < 0 || ni >= n) continue;
         if (dilated[ni] || labels[ni] !== -1) continue;
-        labels[ni] = -2;
+        labels[ni] = 1;
         stack[sp++] = ni;
-      }
-      if (area > maxArea + 1) {
-        // bail early; region too large to matter
       }
     }
 
-    const regionId = regions.length;
-    for (const idx of cellsForThisRegion) labels[idx] = regionId;
+    visit({ minX, minY, maxX, maxY, area, touchesBorder });
+  }
+}
 
+function trace(width, height, data, minArea, maxAreaFrac, outline) {
+  const { dilated } = computeInkMask(width, height, data);
+  const outlineArea = outline && outline.length >= 3 ? polygonBboxArea(outline) : null;
+  const maxArea = maxAreaFrac * (outlineArea || (width * height));
+  const regions = [];
+
+  floodFillRegions(width, height, dilated, ({ minX, minY, maxX, maxY, area, touchesBorder }) => {
     const w = maxX - minX + 1;
     const h = maxY - minY + 1;
     const bboxArea = w * h;
@@ -215,16 +237,75 @@ function trace(width, height, data, minArea, maxAreaFrac, outline) {
       insideOutline
     ) {
       regions.push({ x: minX, y: minY, w, h, area });
-    } else {
-      regions.push(null); // placeholder to keep regionId indexing simple; filtered below
     }
-  }
+  });
 
-  const kept = regions.filter(Boolean);
-  kept.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  regions.sort((a, b) => (a.y - b.y) || (a.x - b.x));
   // eslint-disable-next-line no-console
-  console.log(`[trace.worker] regions before filter: ${regions.length}, kept: ${kept.length}`);
-  return kept;
+  console.log(`[trace.worker] regions kept: ${regions.length}`);
+  return regions;
+}
+
+// ---------- halls: same ink mask, classify light regions by shape ----------
+
+// Counts, within `ink`, rows/columns (whichever run parallel to the region's
+// short axis) that are mostly dark, clustering adjacent hits into a single
+// "line run". Returns true when there are >= 3 runs each <= 40 units apart
+// (evenly spaced stair treads).
+function countLineRuns(ink, width, bbox) {
+  const { x, y, w, h } = bbox;
+  const vertical = h >= w; // long axis is y -> tread lines are horizontal rows
+  const primary = vertical ? h : w;
+  const secondary = vertical ? w : h;
+  const positions = [];
+  for (let p = 0; p < primary; p++) {
+    let dark = 0;
+    for (let s = 0; s < secondary; s++) {
+      const xi = vertical ? x + s : x + p;
+      const yi = vertical ? y + p : y + s;
+      if (ink[yi * width + xi]) dark++;
+    }
+    if (secondary > 0 && dark / secondary >= 0.5) positions.push(p);
+  }
+  if (!positions.length) return false;
+  const runs = [positions[0]];
+  for (let i = 1; i < positions.length; i++) {
+    if (positions[i] - positions[i - 1] > 3) runs.push(positions[i]);
+  }
+  if (runs.length < 3) return false;
+  for (let i = 1; i < runs.length; i++) {
+    if (runs[i] - runs[i - 1] > 40) return false;
+  }
+  return true;
+}
+
+function findHallsAndStairs(width, height, data, outline) {
+  const { ink, dilated } = computeInkMask(width, height, data);
+  const halls = [];
+  const stairs = [];
+
+  floodFillRegions(width, height, dilated, ({ minX, minY, maxX, maxY, touchesBorder }) => {
+    if (touchesBorder) return;
+    const w = maxX - minX + 1;
+    const h = maxY - minY + 1;
+    const cx = minX + w / 2;
+    const cy = minY + h / 2;
+    if (outline && outline.length >= 3 && !pointInPolygon([cx, cy], outline)) return;
+
+    const longSide = Math.max(w, h);
+    const shortSide = Math.min(w, h);
+    const aspect = shortSide > 0 ? longSide / shortSide : Infinity;
+
+    if (aspect >= 3 && longSide >= 120 && shortSide >= 20 && shortSide <= 140) {
+      halls.push({ x: minX, y: minY, w, h });
+    } else if (shortSide >= 30 && shortSide <= 120) {
+      if (countLineRuns(ink, width, { x: minX, y: minY, w, h })) {
+        stairs.push({ x: minX, y: minY, w, h });
+      }
+    }
+  });
+
+  return { halls, stairs };
 }
 
 // ---------- ocr: lazy-load Tesseract.js, crop + recognize each region ----------

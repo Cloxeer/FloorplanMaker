@@ -5,7 +5,6 @@
 // Depends on: js/view/panels/paletteIcons.js, app.canvas (js/view/stage.js).
 
 import { chipSvg, ghostSvg } from './paletteIcons.js';
-import { legendHtml, LEGEND_NOTE } from './legend.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -18,7 +17,12 @@ const PIECES = [
   { key: 'compass', label: 'Compass' },
 ];
 
-const LOCKED_TITLE = 'Draw the outline first';
+const HALL_PIECES = [
+  { key: 'hall', label: 'Hallway' },
+  { key: 'stair', label: 'Stairs' },
+];
+
+const LOCKED_TITLE = 'Finish the previous step first';
 
 export function mountPalette(el, app) {
   el.innerHTML = `
@@ -33,9 +37,10 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
     </div>
     <div class="palette-step" data-step="hall">
-      <h4>3. Add hallways</h4>
+      <h4>3. Add hallways and stairs</h4>
       <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
+      <div id="hall-chip-row"></div>
     </div>
     <div class="palette-step" data-step="room">
       <h4>4. Add rooms</h4>
@@ -43,14 +48,10 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
     </div>
-    <details class="palette-legend">
-      <summary>Legend</summary>
-      ${legendHtml('legend-list')}
-      <p class="legend-note">${LEGEND_NOTE}</p>
-    </details>
   `;
 
   const chipRow = el.querySelector('#chip-row');
+  const hallChipRow = el.querySelector('#hall-chip-row');
   const toolButtons = {
     floor: el.querySelector('#btn-tool-floor'),
     door: el.querySelector('#btn-tool-door'),
@@ -69,27 +70,55 @@ export function mountPalette(el, app) {
     chipRow.appendChild(chip);
   });
 
+  HALL_PIECES.forEach((piece) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.dataset.piece = piece.key;
+    chip.innerHTML = `<span class="chip-preview">${chipSvg(piece.key)}</span><span class="chip-label">${piece.label}</span>`;
+    hallChipRow.appendChild(chip);
+  });
+
   function hasFloor() {
     const doc = app.doc;
     return !!(doc && doc.floor && doc.floor.points && doc.floor.points.length >= 3);
   }
+  function hasDoor() {
+    const doc = app.doc;
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door'));
+  }
+  function hasHallOrStair() {
+    const doc = app.doc;
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall' || it.type === 'stair'));
+  }
+
+  const STEP_UNLOCKED = {
+    floor: () => true,
+    door: hasFloor,
+    hall: hasDoor,
+    room: hasHallOrStair,
+  };
 
   function refresh() {
-    const unlocked = hasFloor();
     Object.entries(toolButtons).forEach(([name, btn]) => {
       if (!btn) return;
       btn.setAttribute('aria-pressed', String(name === app.toolName));
-      const locked = name !== 'floor' && !unlocked;
+      const locked = !STEP_UNLOCKED[name]();
       btn.disabled = locked;
       btn.title = locked ? LOCKED_TITLE : '';
     });
     el.querySelectorAll('.palette-step').forEach((step) => {
-      const locked = step.dataset.step !== 'floor' && !unlocked;
+      const name = step.dataset.step;
+      const locked = !STEP_UNLOCKED[name]();
       step.classList.toggle('locked', locked);
       step.title = locked ? LOCKED_TITLE : '';
     });
+    const roomsUnlocked = STEP_UNLOCKED.room();
     chipRow.querySelectorAll('.chip').forEach((chip) => {
-      chip.classList.toggle('disabled', !unlocked);
+      chip.classList.toggle('disabled', !roomsUnlocked);
+    });
+    const hallUnlocked = STEP_UNLOCKED.hall();
+    hallChipRow.querySelectorAll('.chip').forEach((chip) => {
+      chip.classList.toggle('disabled', !hallUnlocked);
     });
   }
   refresh();
@@ -126,8 +155,10 @@ export function mountPalette(el, app) {
 
   function onPointerDown(e) {
     const chip = e.target.closest('.chip');
-    if (!chip || !hasFloor()) return;
-    const piece = PIECES.find((p) => p.key === chip.dataset.piece);
+    if (!chip) return;
+    const inHallRow = chip.parentElement === hallChipRow;
+    if (inHallRow ? !STEP_UNLOCKED.hall() : !STEP_UNLOCKED.room()) return;
+    const piece = (inHallRow ? HALL_PIECES : PIECES).find((p) => p.key === chip.dataset.piece);
     if (!piece) return;
     dragStart = { x: e.clientX, y: e.clientY };
     dragging = false;
@@ -166,6 +197,7 @@ export function mountPalette(el, app) {
   }
 
   chipRow.addEventListener('pointerdown', onPointerDown);
+  hallChipRow.addEventListener('pointerdown', onPointerDown);
   const unsub = app.subscribe((evt) => {
     if (evt.type === 'tool' || evt.type === 'doc' || evt.type === 'project') refresh();
   });
@@ -174,6 +206,7 @@ export function mountPalette(el, app) {
     update: refresh,
     destroy() {
       chipRow.removeEventListener('pointerdown', onPointerDown);
+      hallChipRow.removeEventListener('pointerdown', onPointerDown);
       unsub();
       el.innerHTML = '';
     },

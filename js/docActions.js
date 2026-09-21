@@ -7,7 +7,7 @@
 import { getItem, addItem, newId, nextNumber } from './model/document.js';
 import { bbox } from './model/geometry.js';
 import { validate } from './model/validate.js';
-import { exportSvg } from './model/svgExport.js';
+import { exportSvg, exportFileNames } from './model/svgExport.js';
 import { showExportDialog } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
 
@@ -108,7 +108,10 @@ export function createActions(app, deps) {
     }
     const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    showPreviewStep({ svgText, validation: results }, {
+    const names = exportFileNames(doc.meta);
+    const svgName = names.svg.split('/').pop();
+    const jpgName = names.jpg.split('/').pop();
+    showPreviewStep({ svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName }, {
       onDownload: () => showExportDialog({ svgText, jpgDataUrl, meta: doc.meta }),
     });
   }
