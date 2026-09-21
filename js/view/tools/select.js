@@ -295,7 +295,7 @@ export function createSelectTool(app) {
         return;
       }
     }
-    app.prompt('Room number', item.number).then((value) => {
+    app.prompt('Room number', item.number, { validate: 'roomNumber' }).then((value) => {
       if (value == null) return;
       const doc = updateItem(app.doc, item.id, { number: value });
       app.commit(doc, 'Rename');

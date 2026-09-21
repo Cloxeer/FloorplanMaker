@@ -4,7 +4,7 @@
 // A plain click on a chip places it at the center of the current view.
 // Depends on: js/model/document.js (STD, makeRoom, newId).
 
-import { STD, makeRoom, newId } from '../../model/document.js';
+import { STD, makeRoom, newId, NUMBERED_CLASSES } from '../../model/document.js';
 import { chipSvg, ghostSvg } from './paletteIcons.js';
 
 const TOOLS = [
@@ -148,9 +148,13 @@ export function mountPalette(el, app) {
       return;
     }
 
-    const number = await app.prompt('Room number', '');
-    if (number === null) return;
-    const item = makeRoom(std.cls, snapped.x, snapped.y, std.w, std.h, number.trim());
+    let number = '';
+    if (NUMBERED_CLASSES.has(std.cls)) {
+      const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
+      if (value === null) return;
+      number = value;
+    }
+    const item = makeRoom(std.cls, snapped.x, snapped.y, std.w, std.h, number);
     if (std.name) {
       item.name = std.name;
       item.showName = true;

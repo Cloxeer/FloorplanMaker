@@ -36,7 +36,7 @@ export function createActions(app, deps) {
     let newY = box.y;
     if (newX + box.w > limit.x + limit.w) { newX = box.x; newY = box.y + box.h; }
     const clone = cloneItemAt(item, newX - box.x, newY - box.y);
-    app.prompt('Room number', nextNumber(item.number || '')).then((value) => {
+    app.prompt('Room number', nextNumber(item.number || ''), { validate: 'roomNumber' }).then((value) => {
       if (value == null) return;
       clone.number = value;
       app.commit(addItem(app.doc, clone), 'Duplicate');

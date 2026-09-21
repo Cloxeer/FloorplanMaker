@@ -129,7 +129,14 @@ export function showBlueprint() {
   });
 }
 
-export function showPrompt(title, defaultValue = '') {
+const ROOM_NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
+
+// title: string. opts.validate === 'roomNumber' turns on live validation
+// against ROOM_NUMBER_RE (uppercased automatically), disables OK while
+// invalid, and blocks Enter. Any other title/opts leaves the old free-text
+// behavior (used for names, slugs, etc. via other callers if ever added).
+export function showPrompt(title, defaultValue = '', opts = {}) {
+  const roomNumberMode = opts.validate === 'roomNumber';
   return new Promise((resolve) => {
     const host = dialogsEl();
     const { backdrop, modal } = makeBackdrop();
@@ -138,6 +145,7 @@ export function showPrompt(title, defaultValue = '') {
       <h3>${escapeHtml(title)}</h3>
       <div class="form-row">
         <input type="text" id="pr-value" autocomplete="off">
+        ${roomNumberMode ? '<div class="prompt-example">like 101, 128B or S117</div>' : ''}
       </div>
       <div class="modal-actions">
         <button type="button" id="pr-cancel">Cancel</button>
@@ -147,23 +155,43 @@ export function showPrompt(title, defaultValue = '') {
     host.appendChild(backdrop);
 
     const input = modal.querySelector('#pr-value');
+    const okBtn = modal.querySelector('#pr-ok');
     input.value = defaultValue || '';
+
+    function isValid() {
+      if (!roomNumberMode) return true;
+      return ROOM_NUMBER_RE.test(input.value.trim().toUpperCase());
+    }
+    function refreshValidity() {
+      if (!roomNumberMode) return;
+      if (input.value !== input.value.toUpperCase()) {
+        const pos = input.selectionStart;
+        input.value = input.value.toUpperCase();
+        try { input.setSelectionRange(pos, pos); } catch (e) { /* ignore */ }
+      }
+      okBtn.disabled = !isValid();
+    }
+    if (roomNumberMode) {
+      input.addEventListener('input', refreshValidity);
+      refreshValidity();
+    }
 
     function cleanup() {
       document.removeEventListener('keydown', onKeyDown);
       backdrop.remove();
     }
     function submit() {
-      const v = input.value.trim();
+      if (!isValid()) return;
+      const v = input.value.trim().toUpperCase();
       cleanup();
-      resolve(v);
+      resolve(roomNumberMode ? v : input.value.trim());
     }
     function onKeyDown(e) {
       if (e.key === 'Enter') { e.preventDefault(); submit(); }
       else if (e.key === 'Escape') { e.preventDefault(); cleanup(); resolve(null); }
     }
 
-    modal.querySelector('#pr-ok').addEventListener('click', submit);
+    okBtn.addEventListener('click', submit);
     modal.querySelector('#pr-cancel').addEventListener('click', () => { cleanup(); resolve(null); });
     document.addEventListener('keydown', onKeyDown);
 
