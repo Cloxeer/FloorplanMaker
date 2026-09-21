@@ -95,18 +95,18 @@ app.commit = function commit(newDoc, label) {
   app.doc = newDoc;
   app.project.doc = newDoc;
   app.canvas.setDoc(newDoc);
+  scheduleValidate();
   emit({ type: 'doc', label });
   actions.scheduleRouteValidation();
-  scheduleValidate();
   updateUndoRedoButtons();
 };
 app.replaceDoc = function replaceDoc(newDoc) {
   app.doc = newDoc;
   if (app.project) app.project.doc = newDoc;
   if (app.canvas) app.canvas.setDoc(newDoc);
+  scheduleValidate();
   emit({ type: 'doc' });
   actions.scheduleRouteValidation();
-  scheduleValidate();
   updateUndoRedoButtons();
 };
 app.undo = function undo() {

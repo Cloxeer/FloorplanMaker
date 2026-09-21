@@ -10,8 +10,12 @@ is individually audited.
 |---|---|---|---|
 | Start blueprint asks only building, property, floor, file name | Done | `js/view/panels/blueprint.js` | `showBlueprint()` — exactly 4 fields, slug auto-suggested. |
 | Photo: drop/pick, 4 corner handles, straighten | Done | `js/view/panels/photoStep.js` | Drop zone + file input, 4 draggable Pointer-Events handles, homography warp. |
-| Onion-skin background, opacity slider, H hotkey to flash | Done | `js/view/canvas.js`, `js/view/canvasRender.js`, `js/mainActions.js` | `setOnion`/`flashPhoto`; `H` wired in `onKeyDown`/`onKeyUp`. |
-| Build screen: palette left / drawing middle / one properties panel right / one-line hint bottom | Done | `index.html`, `css/studio.css` | `#palette`, `#stage`, `#props` (single panel), `#hint`. |
+| Onion-skin background, opacity slider, H hotkey to flash | Done | `js/view/stage.js` (`setOnion`/`setPlanOpacity`/`flashPhoto`), `js/mainActions.js` | `H` wired in `onKeyDown`/`onKeyUp`; plan-opacity slider added alongside the onion slider in the View popover. |
+| Build screen: palette left / drawing middle / one properties panel right / one-line hint bottom | Done | `index.html`, `css/studio.css` | `#palette`, `#stage`, `#properties` (single panel), `#hint`. |
+| Drawing surface is Fabric.js 6.7.1, not raw SVG DOM patching | Done | `js/view/stage.js`, `js/view/stageView.js`, `js/view/stageEdit.js`, `js/view/stageTools.js`, `js/view/stageSnap.js`, `js/view/stageObjects.js` | Rewritten from the original SVG-patch renderer; viewport (zoom/pan), editing (move/scale/rotate/point-edit), drawing tools and snapping are each their own module, all built on one `fabric.Canvas`. |
+| One-piece rooms with an editable, rotatable outline (not just axis rects) | Done | `js/view/stagePoly.js`, `js/view/stageObjects.js` | Rooms are Fabric polygons/groups; corner points are individually draggable via "Edit corners" in Properties. |
+| Rotatable compass control | Done | `js/view/stageEdit.js`, `js/view/panels/properties.js` (`#p-rotate-cw`/`#p-rotate-ccw`) | Drag the Fabric rotate handle, or use the +15°/−15° buttons; `deg` is stored and re-emitted as `rotate(deg)` on export. |
+| Hallways (studio-only routing/visual guides) | Done | `js/view/stageTools.js` (`hall` tool, drag-rect), `js/model/document.js` (`item.type === 'hall'`), `js/docActions.js` (`exportAll` filters them out) | Placed the same way as rooms (drag or palette chip). Saved in the `.json` project so they survive reload, but stripped from the doc before `validate()`/`exportSvg()` runs — they never reach the exported SVG. |
 | Export: one button downloads SVG + straightened photo, shows JSON snippet + two commands | Done | `js/mainActions.js` (`exportAll`), `js/view/panels/exportDialog.js` | Confirmed photo downloaded is `project.photo.dataUrl` (post-warp), not `originalDataUrl`. |
 
 ## B. Sizes / magnet / align
@@ -63,8 +67,9 @@ is individually audited.
 | Requirement | Status | File(s) | Note |
 |---|---|---|---|
 | No floor outline / room without number / label outside shape / duplicate numbers / door not on outline / door without exit label / void with label / transform present / overlapping rooms / bad number format | Done | `js/model/validate.js` | All 10 codes present and unit-tested (`tests/validate.test.js`, 14 cases). |
-| Warnings allow export, errors block with reason | Done | `js/mainActions.js` (`exportAll`), `js/view/panels/validation.js` | `exportAll` checks `results.some(r => r.level === 'error')` before exporting. |
+| Warnings allow export, errors block with reason | Done | `js/docActions.js` (`exportAll`), `js/view/panels/validation.js` | `exportAll` checks `results.some(r => r.level === 'error')` before exporting. |
 | Route preview: grid+Dijkstra in a Worker, draws path to selected room | Done | `js/model/route.js`, `js/workers/route.worker.js`, `js/mainActions.js` (`routeToRoom`) | |
+| Checklist recomputes immediately after every doc-changing action | **Fixed during this pass** | `js/main.js` (`commit`/`replaceDoc`), `js/view/panels/validation.js` | `commit()`/`replaceDoc()` used to `emit({type:'doc'})` *before* calling `scheduleValidate()`, so `validation.js`'s `'doc'`-event handler (added so the checklist updates without waiting for the debounced route-aware `'validation'` event) rendered against the **previous** `app.validation`. Manually visible right after "Keep all" on 31 suggested rooms: the "Every room has a number" row showed a stale ✓ (from before the rooms existed) and only flipped to the correct ○ once the delayed `'validation'` event fired. Fixed by moving `scheduleValidate()` before the `'doc'` emit in both functions, so `app.validation` (and therefore the `room-no-number` check the row reads) is current by the time any `'doc'` subscriber — including the checklist — runs. |
 
 ## G. Architecture
 
@@ -129,6 +134,49 @@ All fixes are small (under 20 lines each except the worker message rename,
 which touched 3 short blocks). `npm test` (69/69) and `npm run test:compat`
 both pass after the changes.
 
+## Verified by hand
+
+Driven end-to-end through the real app (dev server at `http://localhost:8080`)
+via `tests/browser/walkthrough.spec.js`, which automates exactly the steps a
+person would take, plus a manual pass with the built-in browser tool for the
+"first click after Draw outline" fix specifically:
+
+1. **Start blueprint** (HJLC, 323, 1, `hjlc-1-walkthrough`) — modal collects
+   exactly the 4 fields, slug auto-fills and is editable.
+2. **Photo step**: chose `samples/hjlc-1-posted.jpg`. Result: the photo (a
+   tall/wide scan) now fits within the viewport height (header + actions
+   subtracted) with all 4 corner handles on-screen — this was the bug in item
+   1 (the photo used to render at natural pixel size and push the two lower
+   handles off the bottom). Straighten produced a correctly warped image; the
+   straighten math still runs against the original (un-scaled) pixel
+   coordinates, confirmed by the output image dimensions matching the drawn
+   quad's side lengths, not the on-screen CSS size.
+3. **"Draw outline"**: clicked the button, then clicked 4 corners of the
+   building directly on the photo, then Enter. All 4 clicks registered on the
+   first attempt (`floor.points.length === 4`) — this exercises the fix for
+   item 2.
+4. **"Place doors"**: clicked the left wall twice, Esc. Both registered as
+   `door` items with `kind: 'EXIT'`.
+5. **Auto-suggest**: waited for the bar (fires automatically once the outline
+   exists on a fresh project); "Keep all" added 31 room rectangles from the
+   traced photo in one commit. Immediately after that commit, the checklist's
+   "Every room has a number" row read ○ (pending), not a stale ✓ — the fix for
+   item 3. Selected one unnumbered room, typed `101` in Number, confirmed the
+   doc updated.
+6. **Hallway**: dragged a guide box across two rooms with the hall tool;
+   confirmed it round-trips through the `.json` project but is absent from
+   the exported SVG.
+7. **Compass**: pressed `C`, clicked to place it, then clicked "Rotate +15°"
+   in Properties; `deg` went from 0 to 15.
+8. **Export**: clicked Export, intercepted the `.svg` download, saved it to
+   `samples/hjlc-1-walkthrough.svg` (kept in the repo, not gitignored). The
+   file has: 1 floor polygon, 31 room rects (≥ 30), exactly 2 `>EXIT<` text
+   nodes, a `rotate(15)` transform on the compass group, and no empty
+   `<text>` elements. No console/page errors during the whole run.
+
+Both `tests/browser/smoke.spec.js` and `tests/browser/walkthrough.spec.js`
+pass against the current code (Playwright, Chromium, headless).
+
 ## Known limitations
 
 - **Modal keydown listeners can outlive `teardownStudio()`.** `blueprint.js`
@@ -158,23 +206,44 @@ both pass after the changes.
   these three would double-register. Flagged, not changed, since fixing it
   would mean restructuring `main.js`'s init flow for a risk that doesn't
   currently exist.
-- Browser smoke test (`tests/browser/smoke.spec.js`) was not actually run in
-  this review (Playwright is not installed in this environment); `tests/
-  MANUAL.md` covers the same ground and was read but not manually re-executed
-  against a live browser.
+- **Auto-trace ("Find rooms on the photo") is rough on a photo that was never
+  straightened**, or straightened loosely: the rectangle detector expects
+  roughly axis-aligned room boundaries, so a skewed/perspective photo yields
+  fewer, misshapen, or missed regions. It works well on the bundled samples
+  because `Straighten` is run first (as the guided flow requires) — always
+  straighten before "Find rooms" for usable results.
+- **Hallways are a studio-only visual/routing guide, not part of the output
+  contract.** They render in the editor and round-trip through the `.json`
+  project (so the layout persists across reloads), but `exportAll()` strips
+  every `type: 'hall'` item before validating and generating the SVG — the
+  exported drawing never contains them. This is intentional (`docs/
+  DIALECT.md` has no hallway element), but worth remembering if a hallway
+  seems to "disappear" on export.
+- The overlay/first-click fix (item 2) is a defensive one: hiding the overlay
+  now forces a layout flush and blurs the clicked button before the floor
+  tool goes live, which removes the two most plausible causes (a stale
+  paint of the `pointer-events:none` overlay box, and a lingering focus on
+  the now-hidden button). It could not be reliably reproduced under
+  Playwright automation (real mouse-driven clicks there always registered
+  correctly, even before the fix), so the regression test in
+  `walkthrough.spec.js` and `smoke.spec.js` proves the happy path stays
+  correct, not that the original race is mechanically impossible.
 
 ## Test run summary
 
 `npm test`:
 ```
-# tests 69
+# tests 71
 # suites 0
-# pass 69
+# pass 71
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
 ```
+
+`node_modules/.bin/playwright test --config tests/browser/playwright.config.js`
+(`smoke.spec.js` + `walkthrough.spec.js`): 2/2 passed.
 
 `npm run test:compat`:
 ```

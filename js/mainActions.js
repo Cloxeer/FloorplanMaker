@@ -180,9 +180,19 @@ export function createStudio(app, deps) {
     onStudio(document.getElementById('btn-export'), 'click', () => app.exportAll());
     onStudio(document.getElementById('btn-close'), 'click', () => closeProject());
     onStudio(document.getElementById('btn-hand-toggle'), 'click', toggleHandTool);
-    onStudio(document.getElementById('btn-overlay-draw'), 'click', () => {
+    onStudio(document.getElementById('btn-overlay-draw'), 'click', (e) => {
       const overlay = document.getElementById('start-overlay');
-      if (overlay) overlay.hidden = true;
+      if (overlay) {
+        overlay.hidden = true;
+        // Force the hide to land in the render tree before the canvas goes
+        // "hot" for drawing, so the very next physical click can't be eaten
+        // by a stale layout/paint of the (pointer-events:none) overlay box.
+        void overlay.offsetHeight;
+      }
+      // A mouse click can leave the button focused; an invisible focused
+      // element occasionally swallows the immediately-following pointer
+      // event while the browser resolves focus, so drop it explicitly.
+      if (e.currentTarget && typeof e.currentTarget.blur === 'function') e.currentTarget.blur();
       app.setTool('floor');
     });
     wireViewPopover();

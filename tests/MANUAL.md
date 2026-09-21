@@ -1,89 +1,109 @@
 # Manual test checklist
 
-Mirrors `tests/browser/smoke.spec.js`. Run against `npx --yes serve -l 8080 .`
-at <http://localhost:8080/>. Numbers match the automated spec's steps.
+Mirrors `tests/browser/smoke.spec.js` and `tests/browser/walkthrough.spec.js`
+(the guided, "as a person would actually use it" flow). Run against
+`npx --yes serve -l 8080 .` at <http://localhost:8080/>.
 
-## 1. Start blueprint
+## The guided four-step flow
+
+The app's own step strip (top of the studio) names these steps: **1 Photo ·
+2 Trace · 3 Export**; blueprint entry is the implicit step before Photo. This
+checklist walks all four in order, matching `walkthrough.spec.js`.
+
+### Step 1 — Start blueprint
 
 1. On the start screen, click **Start blueprint**.
-2. Fill Building name, NMSU property number, Floor number. File name auto-fills
-   as you type (e.g. "Hardman Jacobs Learning Center" / floor 1 -> `hjlc-1`).
+2. Fill Building name (`HJLC`), NMSU property number (`323`), Floor number
+   (`1`). File name auto-fills as you type (e.g. `hjlc-1`); edit it to
+   `hjlc-1-walkthrough` if you want a throwaway project.
 3. Click **Start**.
    - Expected: the "Straighten the evacuation plan photo" screen appears.
 
-## 2. Add photo
+### Step 2 — Photo: choose, straighten
 
-4. Drop `samples/hjlc-1-straight.jpg` (or another sample) onto the drop zone,
-   or use "Choose a photo".
-5. Drag the four blue corner handles onto the map outline in the photo (or
-   leave the default 5%-inset corners for a quick check).
+4. Choose `samples/hjlc-1-posted.jpg` (drop it or use "Choose a photo").
+   - Expected: the photo fills the available area **without overflowing the
+     viewport** — all 4 blue corner handles must be visible on screen, even
+     on a short window. (This is the fix for the "handles off-screen on a
+     tall photo" bug: the image is scaled to fit `viewport height - header`,
+     handles scale with it, and the straighten math still runs in the
+     original photo's pixel space.)
+5. Drag the four corner handles onto the building outline in the photo.
 6. Click **Straighten**.
-   - Expected: the studio screen appears, with the photo as a faint
-     onion-skin background sized to fill the canvas.
+   - Expected: the studio screen appears, with the straightened photo as a
+     faint onion-skin background, and the **"Start by outlining the
+     building"** overlay card centered on the canvas.
 
-## 3. Draw the floor outline
+### Step 3 — Trace: outline, doors, rooms, hallway, compass
 
-7. Click **Outline (F)** in the palette (or press `F`).
-8. Click 4 points inside the canvas to trace the outer wall.
-9. Press **Enter** to close the outline.
-   - Expected: a floor polygon appears; the hint bar no longer prompts for
-     outline corners.
+7. Click **Draw outline** on the overlay card.
+   - Expected: the overlay disappears and the floor tool is active
+     immediately — click 4 corners of the building **right away**; the very
+     first click must register as the first outline point (this was
+     previously lost, requiring a second attempt).
+8. Press **Enter** to close the outline.
+   - Expected: a floor polygon appears.
+9. Click **Door (O)** in the palette, then click the left wall twice.
+10. Press **Esc** to leave the door tool.
+    - Expected: two door marks (white gap + EXIT text) appear on the wall.
+11. Wait for the **"We found N rooms"** bar at the bottom (auto-suggest runs
+    on its own once the outline exists on a fresh project; it can also be
+    run again via View > Find rooms on the photo).
+12. Click **Keep all**.
+    - Expected: all suggested rooms are added in one commit. Open the
+      **Checklist** panel immediately (don't wait) — "Every room has a
+      number" must show the correct pending mark (○) right away if any
+      room lacks a number, not a stale ✓ that "corrects itself" a moment
+      later.
+13. Click an unnumbered room, type `101` in the **Number** field.
+    - Expected: the room's label updates immediately.
+14. Click **Hallway (A)**, drag a guide box across a corridor.
+    - Expected: a translucent hallway guide appears. It will **not** appear
+      in the exported SVG (hallways are a studio-only guide) — confirm this
+      in step 16.
+15. Press `C`, then click to place the compass; select it and click
+    **Rotate +15°** in Properties.
+    - Expected: the compass rotates 15° clockwise.
 
-## 4. Draw a room
+### Step 4 — Export
 
-10. Click **Room (R)** (or press `R`).
-11. Drag a rectangle inside the floor outline (at least 10x10 plan units).
-12. On release, a number-entry dialog appears. Type `128B` and click **OK**
-    (or press Enter).
-    - Expected: a room rectangle with label "128B" appears.
-
-## 5. Duplicate in a row
-
-13. Switch to **Select (V)**, click the room's edge or corner (not dead on
-    its number label, which instead starts a label drag).
-14. Press `D`.
-    - Expected: a new room appears flush to the right (or below, if it would
-      overflow the floor), with the number field pre-filled `128C`.
-15. Click **OK**.
-
-## 6. Drop a door
-
-16. Click **Door (O)** (or press `O`).
-17. Click a point on the floor outline edge (within ~12 plan units).
-    - Expected: a door mark (white gap + EXIT text) appears on the wall.
-
-## 7. Validation
-
-18. Open the **Validation** panel (right side, below Properties).
-    - Expected: "0 errors" (a "room unreachable" warning is fine if no other
-      door/room path exists to it — this only requires 0 *errors*).
-
-## 8. Reload / autosave
-
-19. Wait ~1 second (autosave debounces 300ms before writing to IndexedDB),
-    then reload the page (F5).
-    - Expected: you land back on the start screen and a project card for
-      this building/floor is present.
-20. Click **Open** on that card.
-    - Expected: the same floor outline, rooms and door reappear.
-
-## 9. Export
-
-21. Click **Export**.
+16. Click **Export**.
     - Expected: two files download — `<slug>.svg` and `<slug>-posted.jpg` —
-      and a dialog shows the `building-extras.json` snippet plus two commands
-      to run, each with a Copy button.
-22. Close the dialog.
+      and a dialog shows the `building-extras.json` snippet plus two
+      commands to run, each with a Copy button. Open the `.svg`: it should
+      contain one floor polygon, all the kept room rects, exactly 2 `EXIT`
+      texts, a `rotate(15)` on the compass, no hallway shapes, and no empty
+      `<text>` elements.
+17. Close the dialog.
 
-## 10. Import .svg round-trip
+## Extra checks (not part of the 4-step flow)
 
-23. Click **Projects** to return to the start screen.
-24. Click **Import .svg** and choose the `.svg` file downloaded in step 21.
-    - Expected: the studio reopens with the same floor/rooms/door recreated
-      from the SVG (no crash, no toast error).
-25. Click **Export** again.
+### Duplicate in a row
+
+18. Switch to **Select (V)**, click a room's edge or corner (not its number
+    label, which instead starts a label drag), press `D`.
+    - Expected: a new room appears flush to the right (or below, if it
+      would overflow the floor), with the number field pre-filled with the
+      next letter (e.g. `128B -> 128C`).
+
+### Reload / autosave
+
+19. Wait ~1 second (autosave debounces before writing to IndexedDB), reload
+    (F5), then **Open** the project card.
+    - Expected: the same floor outline, rooms, doors, hallway and compass
+      reappear.
+
+### Import .svg round-trip
+
+20. From the start screen, click **Import .svg** and choose the `.svg` from
+    step 16.
+    - Expected: the studio reopens with the same floor/rooms/doors recreated
+      from the SVG (no crash, no toast error; hallways will be absent, since
+      they were never in the SVG to begin with).
+21. Click **Export** again.
     - Expected: the newly downloaded `.svg` is byte-identical to the one
-      from step 21 (diff the two files if you want to confirm exactly).
+      from step 16 for everything except hallways (which round-trip through
+      the `.json` project only, not the SVG).
 
 ---
 
