@@ -7,7 +7,12 @@
 //
 // Messages in:
 //   { id, kind:'trace', width, height, data:Uint8ClampedArray(RGBA),
-//     minArea=1500, maxAreaFrac=0.25 }
+//     minArea=1500, maxAreaFrac=0.6, outline?:[[x,y],...] }
+//     When `outline` (the floor polygon, in the same photo-pixel space) is
+//     given, regions whose centre falls outside it are dropped, and the
+//     max-area check uses the outline's own bbox area instead of the whole
+//     photo (so a big lecture hall inside a small building doesn't get
+//     dropped just because the photo has wide margins).
 //     -> posts { id, kind:'trace', regions:[{x,y,w,h,area}] } (top-to-bottom, left-to-right)
 //   { id, kind:'ocr', width, height, data, regions }
 //     -> posts progress { id, kind:'ocr-progress', done, total }
@@ -15,14 +20,39 @@
 // On error: posts { id, error: message }
 
 const NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
+const EMBEDDED_NUMBER_RE = /\d{3}/;
 let tesseractWorkerPromise = null;
+
+// Common OCR confusions, fixed up only in the digit run of a candidate token
+// (so a real letter prefix/suffix like "A" or "B" in "A101"/"101B" survives).
+function normalizeDigits(token) {
+  const m = token.match(/^([A-Z]?)(.+?)([A-Z]?)$/);
+  if (!m) return token;
+  const [, prefix, mid, suffix] = m;
+  const fixed = mid.replace(/O/g, '0').replace(/[Il]/g, '1').replace(/S/g, '5').replace(/B/g, '8');
+  return prefix + fixed + suffix;
+}
+
+function extractRoomNumber(text) {
+  const tokens = (text || '').split(/\s+/).map((t) => t.trim().toUpperCase()).filter(Boolean);
+  for (const raw of tokens) {
+    const token = normalizeDigits(raw);
+    if (NUMBER_RE.test(token)) return token;
+  }
+  for (const raw of tokens) {
+    const token = normalizeDigits(raw);
+    const m = token.match(EMBEDDED_NUMBER_RE);
+    if (m) return m[0];
+  }
+  return null;
+}
 
 self.onmessage = async (e) => {
   const msg = e.data || {};
   const { id, kind } = msg;
   try {
     if (kind === 'trace') {
-      const regions = trace(msg.width, msg.height, msg.data, msg.minArea ?? 1500, msg.maxAreaFrac ?? 0.25);
+      const regions = trace(msg.width, msg.height, msg.data, msg.minArea ?? 1500, msg.maxAreaFrac ?? 0.6, msg.outline || null);
       self.postMessage({ id, kind: 'trace-result', regions });
     } else if (kind === 'ocr') {
       await ocrRegions(id, msg.width, msg.height, msg.data, msg.regions);
@@ -37,7 +67,29 @@ self.onmessage = async (e) => {
 
 // ---------- trace: grayscale -> adaptive threshold -> dilate -> flood fill ----------
 
-function trace(width, height, data, minArea, maxAreaFrac) {
+// Point-in-polygon (ray casting); `pt` and `poly` points are [x,y] pairs.
+function pointInPolygon(pt, poly) {
+  const [px, py] = pt;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    const intersects = (yi > py) !== (yj > py)
+      && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonBboxArea(poly) {
+  const xs = poly.map((p) => p[0]);
+  const ys = poly.map((p) => p[1]);
+  const w = Math.max(...xs) - Math.min(...xs);
+  const h = Math.max(...ys) - Math.min(...ys);
+  return Math.max(0, w) * Math.max(0, h);
+}
+
+function trace(width, height, data, minArea, maxAreaFrac, outline) {
   const n = width * height;
   const gray = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -79,10 +131,11 @@ function trace(width, height, data, minArea, maxAreaFrac) {
     }
   }
 
-  // Dilate ink by 2px (two passes of 1px 4-connected dilation via SAT-free
-  // simple neighbour scan for correctness on small kernel).
+  // Dilate ink by 3px (three passes of 1px 4-connected dilation via SAT-free
+  // simple neighbour scan for correctness on small kernel) so hairline
+  // breaks in walls close up instead of leaking regions together.
   let dilated = ink;
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 3; pass++) {
     const next = new Uint8Array(n);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -103,7 +156,8 @@ function trace(width, height, data, minArea, maxAreaFrac) {
   const labels = new Int32Array(n).fill(-1);
   const regions = [];
   const stack = new Int32Array(n);
-  const maxArea = maxAreaFrac * width * height;
+  const outlineArea = outline && outline.length >= 3 ? polygonBboxArea(outline) : null;
+  const maxArea = maxAreaFrac * (outlineArea || (width * height));
 
   for (let start = 0; start < n; start++) {
     if (dilated[start] || labels[start] !== -1) continue;
@@ -149,12 +203,16 @@ function trace(width, height, data, minArea, maxAreaFrac) {
     const h = maxY - minY + 1;
     const bboxArea = w * h;
     const fillRatio = bboxArea > 0 ? area / bboxArea : 0;
+    const cx = minX + w / 2;
+    const cy = minY + h / 2;
+    const insideOutline = !outline || pointInPolygon([cx, cy], outline);
 
     if (
       area >= minArea &&
       area <= maxArea &&
-      fillRatio > 0.6 &&
-      !touchesBorder
+      fillRatio > 0.45 &&
+      !touchesBorder &&
+      insideOutline
     ) {
       regions.push({ x: minX, y: minY, w, h, area });
     } else {
@@ -164,6 +222,8 @@ function trace(width, height, data, minArea, maxAreaFrac) {
 
   const kept = regions.filter(Boolean);
   kept.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  // eslint-disable-next-line no-console
+  console.log(`[trace.worker] regions before filter: ${regions.length}, kept: ${kept.length}`);
   return kept;
 }
 
@@ -177,6 +237,7 @@ async function getTesseractWorker() {
       const worker = await Tesseract.createWorker('eng');
       await worker.setParameters({
         tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+        tessedit_pageseg_mode: '7', // single line, the common case for a room-number tag
       });
       return worker;
     })();
@@ -195,8 +256,8 @@ async function ocrRegions(id, width, height, data, regions) {
 
   for (let ri = 0; ri < regions.length; ri++) {
     const region = regions[ri];
-    const pad = 4;
-    const scale = 2;
+    const pad = 6;
+    const scale = 3;
     const sx = Math.max(0, region.x - pad);
     const sy = Math.max(0, region.y - pad);
     const ex = Math.min(width, region.x + region.w + pad);
@@ -225,11 +286,15 @@ async function ocrRegions(id, width, height, data, regions) {
     outCtx.drawImage(srcCanvas, 0, 0, cw * scale, ch * scale);
 
     const { data: result } = await worker.recognize(outCanvas);
-    let best = null;
-    const words = (result && result.words) || [];
-    for (const w of words) {
-      const token = (w.text || '').trim().toUpperCase();
-      if (NUMBER_RE.test(token)) { best = token; break; }
+    let best = extractRoomNumber(result && result.text);
+    if (!best) {
+      // Fall back to "assume a block of text" segmentation when the
+      // single-line pass found nothing (e.g. the number wraps or sits next
+      // to other text in the crop).
+      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+      const retry = await worker.recognize(outCanvas);
+      best = extractRoomNumber(retry.data && retry.data.text);
+      await worker.setParameters({ tessedit_pageseg_mode: '7' });
     }
     if (best) numbers[ri] = best;
     self.postMessage({ id, kind: 'ocr-result', index: ri, number: best || '' });

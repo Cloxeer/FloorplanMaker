@@ -1,0 +1,65 @@
+// previewStep.js
+// Full-screen "Preview" step shown when the user clicks Export (top bar or
+// step 4). Renders the exact exported SVG (already built by docActions.js'
+// exportAll, halls filtered out) scaled to fit, beside a legend and the
+// current checklist state. "Back to editing" closes the panel with no side
+// effects; "Download files" runs the existing export dialog (download +
+// building-extras.json snippet).
+// Depends on: js/view/panels/legend.js, js/view/panels/validation.js (checklistHtml).
+
+import { legendHtml, LEGEND_NOTE } from './legend.js';
+import { checklistHtml } from './validation.js';
+
+export function showPreviewStep({ svgText, validation }, { onBack, onDownload }) {
+  const host = document.getElementById('dialogs');
+  const el = document.createElement('div');
+  el.id = 'preview';
+  el.className = 'preview-screen';
+  el.innerHTML = `
+    <header class="preview-header">
+      <h2>Preview</h2>
+      <p>This is exactly what BetterNMSUMaps will show. Hallway guides are left out.</p>
+    </header>
+    <div class="preview-body">
+      <div class="preview-svg-wrap" id="preview-svg-wrap"></div>
+      <aside class="preview-side">
+        <div class="section-title">Legend</div>
+        ${legendHtml('legend-list')}
+        <p class="legend-note">${LEGEND_NOTE}</p>
+        <div class="section-title">Checklist</div>
+        <ul class="checklist">${checklistHtml(validation || [])}</ul>
+      </aside>
+    </div>
+    <div class="preview-actions">
+      <button type="button" id="preview-back">Back to editing</button>
+      <button type="button" id="preview-download" class="btn-primary">Download files</button>
+    </div>
+  `;
+  host.appendChild(el);
+
+  // Inline the exported SVG verbatim so the preview matches the download
+  // byte-for-byte (only CSS scales it to fit the panel).
+  el.querySelector('#preview-svg-wrap').innerHTML = svgText;
+  const svgEl = el.querySelector('#preview-svg-wrap svg');
+  if (svgEl) {
+    svgEl.removeAttribute('width');
+    svgEl.removeAttribute('height');
+    svgEl.style.width = '100%';
+    svgEl.style.height = '100%';
+    svgEl.style.background = '#ffffff';
+  }
+
+  function close() {
+    document.removeEventListener('keydown', onKeyDown);
+    el.remove();
+  }
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { close(); if (onBack) onBack(); }
+  }
+  document.addEventListener('keydown', onKeyDown);
+
+  el.querySelector('#preview-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
+  el.querySelector('#preview-download').addEventListener('click', () => { if (onDownload) onDownload(); });
+
+  return { close };
+}

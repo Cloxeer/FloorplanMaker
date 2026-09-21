@@ -9,6 +9,7 @@ import { bbox } from './model/geometry.js';
 import { validate } from './model/validate.js';
 import { exportSvg } from './model/svgExport.js';
 import { showExportDialog } from './view/panels/exportDialog.js';
+import { showPreviewStep } from './view/panels/previewStep.js';
 
 function boxOfItem(item) {
   if (item.shape === 'poly') return bbox(item.points);
@@ -107,7 +108,9 @@ export function createActions(app, deps) {
     }
     const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    showExportDialog({ svgText, jpgDataUrl, meta: doc.meta });
+    showPreviewStep({ svgText, validation: results }, {
+      onDownload: () => showExportDialog({ svgText, jpgDataUrl, meta: doc.meta }),
+    });
   }
 
   return { duplicateInRow, copy, paste, routeToRoom, exportAll, scheduleRouteValidation };

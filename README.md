@@ -26,10 +26,13 @@ Then open <http://localhost:8080/>. On GitHub Pages just publish the repo root.
 
 ## The flow
 
+The top bar's step strip tracks four steps: **1 Photo &middot; 2 Trace &middot; 3 Preview &middot; 4 Export**.
+
 1. **Start blueprint.** Building name, NMSU property number, floor number, file name (e.g. `hjlc-1`).
-2. **Add the reference photo.** Drop the photo, drag the four corners onto the map's corners, press *Straighten*. The photo becomes the onion-skin background (opacity slider, hold **H** to flash it).
-3. **Build.** Palette on the left (four guided steps: outline, doors, hallways, rooms — steps 2-4 unlock once the outline exists), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are studio-only guides and are never exported.
-4. **Export.** Downloads `<slug>.svg` and `<slug>-posted.jpg` and shows the `building-extras.json` snippet plus the two commands to run.
+2. **Flatten the photo.** Drop the photo, drag the four corners onto the map's corners, press *Flatten*. The photo becomes the onion-skin background (opacity slider, hold **H** to flash it).
+3. **Build.** Palette on the left (four guided steps: outline, doors, hallways, rooms — steps 2-4 unlock once the outline exists, plus a collapsible *Legend* at the bottom), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are studio-only guides and are never exported.
+4. **Preview.** Clicking *Export* (top bar or step 4) opens a full-screen Preview first: the exact SVG that will be exported, rendered on white next to a legend and the checklist. *Back to editing* returns to the plan with no changes; *Download files* runs the download.
+5. **Export.** Downloads `<slug>.svg` and `<slug>-posted.jpg` and shows the `building-extras.json` snippet plus the two commands to run.
 
 Everything autosaves to IndexedDB (and on pointer-up, tab hide and page close).
 *Save .json* writes a single project file with the photo embedded so it can be

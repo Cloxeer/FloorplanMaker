@@ -367,4 +367,29 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 /* guided palette: steps locked until the outline exists */
 .palette-step.locked { opacity: 0.45; }
 .palette-step.locked .btn-big-tool { cursor: not-allowed; }
+
+/* --- Legend (shared by the palette's collapsible section and Preview) --- */
+.legend-list { list-style: none; padding: 0; margin: 6px 0; }
+.legend-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 12px; }
+.legend-swatch { flex: none; }
+.legend-note { color: var(--muted); font-size: 11px; margin: 4px 0 12px; }
+.palette-legend { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.palette-legend summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+
+/* --- Preview step (full-screen panel shown before Export downloads) --- */
+.preview-screen {
+  position: fixed; inset: 0; z-index: 500; background: var(--panel, #fff);
+  display: flex; flex-direction: column; padding: 16px 24px;
+  pointer-events: auto;
+}
+.preview-header h2 { margin: 0 0 2px; }
+.preview-header p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.preview-body { flex: 1; display: flex; gap: 20px; min-height: 0; }
+.preview-svg-wrap {
+  flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius, 8px);
+  background: #ffffff; display: flex; align-items: center; justify-content: center; overflow: auto;
+}
+.preview-svg-wrap svg { max-width: 100%; max-height: 100%; }
+.preview-side { width: 260px; flex: none; overflow-y: auto; }
+.preview-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; }
 .chip.disabled { opacity: 0.45; pointer-events: none; }

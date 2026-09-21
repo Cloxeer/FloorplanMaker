@@ -107,8 +107,9 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
           <canvas id="ps-canvas"></canvas>
           <svg id="ps-overlay"></svg>
         </div>
+        <p class="ps-tip">Best results: shoot straight on, fill the frame, no glare.</p>
         <div class="ps-actions">
-          <button type="button" id="ps-straighten" class="btn-primary">Straighten</button>
+          <button type="button" id="ps-straighten" class="btn-primary">Flatten</button>
           <button type="button" id="ps-skip">Skip for now</button>
         </div>
       </div>
@@ -130,6 +131,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     .ps-canvas-wrap svg { position:absolute; top:0; left:0; width:100%; height:100%; }
     .ps-handle { fill:#2f6feb; stroke:#fff; stroke-width:2; cursor:grab; }
     .ps-actions { display:flex; gap:10px; margin-top:10px; }
+    .ps-tip { margin:8px 0 0; font-size:12px; color:#6b7078; }
   `;
   containerEl.appendChild(style);
 

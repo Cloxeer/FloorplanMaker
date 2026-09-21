@@ -11,21 +11,32 @@ const CHECKLIST = [
   { label: 'Labels sit inside their rooms', codes: ['label-outside-shape', 'label-in-other-room'] },
 ];
 
+// Shared with previewStep.js, so the preview panel's checklist always
+// matches the one in the properties sidebar.
+export function checklistHtml(results) {
+  const byCode = new Set(results.map((r) => r.code));
+  return CHECKLIST.map((row) => {
+    const satisfied = !row.codes.some((c) => byCode.has(c));
+    return `<li class="check-${satisfied ? 'ok' : 'pending'}"><span class="check-mark">${satisfied ? '✓' : '○'}</span> ${escapeHtml(row.label)}</li>`;
+  }).join('');
+}
+export function checklistReady(results) {
+  const byCode = new Set(results.map((r) => r.code));
+  const checklistCodes = new Set(CHECKLIST.flatMap((row) => row.codes));
+  const remainingErrors = results.filter((r) => r.level === 'error' && !checklistCodes.has(r.code));
+  return CHECKLIST.every((row) => !row.codes.some((c) => byCode.has(c))) && remainingErrors.length === 0;
+}
+
 export function mountValidation(el, app) {
   function render() {
     const results = app.validation || [];
     const byCode = new Set(results.map((r) => r.code));
 
-    const checklistHtml = CHECKLIST.map((row) => {
-      const satisfied = !row.codes.some((c) => byCode.has(c));
-      return `<li class="check-${satisfied ? 'ok' : 'pending'}"><span class="check-mark">${satisfied ? '✓' : '○'}</span> ${escapeHtml(row.label)}</li>`;
-    }).join('');
-
     const checklistCodes = new Set(CHECKLIST.flatMap((row) => row.codes));
     const remainingErrors = results.filter((r) => r.level === 'error' && !checklistCodes.has(r.code));
     const remainingWarnings = results.filter((r) => r.level === 'warning');
 
-    const allSatisfied = CHECKLIST.every((row) => !row.codes.some((c) => byCode.has(c))) && remainingErrors.length === 0;
+    const allSatisfied = checklistReady(results);
 
     const readyHtml = allSatisfied ? '<div class="checklist-ready">Ready to export &#10003;</div>' : '';
 
@@ -41,7 +52,7 @@ export function mountValidation(el, app) {
 
     el.innerHTML = `
       <div class="section-title">Checklist</div>
-      <ul class="checklist">${checklistHtml}</ul>
+      <ul class="checklist">${checklistHtml(results)}</ul>
       ${readyHtml}
       ${fixListHtml}
       ${notesHtml}
