@@ -125,22 +125,22 @@ export function createStudio(app, deps) {
     chip.offsetWidth; // force reflow so the fade-in restarts
     chip.classList.add('flash');
   }
-  function hasDoor(doc) {
-    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door'));
+  function hasDoorOrStair(doc) {
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door' || it.type === 'stair'));
   }
-  function hasHallOrStair(doc) {
-    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall' || it.type === 'stair'));
+  function hasHall(doc) {
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall'));
   }
   function updateSuggestButton() {
     const btn = document.getElementById('btn-suggest');
     if (btn) {
-      const ok = hasHallOrStair(app.doc);
+      const ok = hasHall(app.doc);
       btn.disabled = !ok;
       btn.title = ok ? '' : 'Finish the previous step first';
     }
     const hallsBtn = document.getElementById('btn-suggest-halls');
     if (hallsBtn) {
-      const ok = hasDoor(app.doc);
+      const ok = hasDoorOrStair(app.doc);
       hallsBtn.disabled = !ok;
       hallsBtn.title = ok ? '' : 'Finish the previous step first';
     }
