@@ -11,7 +11,18 @@ export function boxOf(item) {
   if (item.shape === 'poly') return bbox(item.points);
   if (item.type === 'stair') return { x: item.x, y: item.y, w: item.w, h: item.h };
   if (item.type === 'compass') return { x: item.x - 26, y: item.y - 26, w: 52, h: 52 };
+  if (item.type === 'door') {
+    const x1 = Math.min(item.x1, item.x2), x2 = Math.max(item.x1, item.x2);
+    const y1 = Math.min(item.y1, item.y2), y2 = Math.max(item.y1, item.y2);
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
   return { x: 0, y: 0, w: 0, h: 0 };
+}
+
+// Apply a move patch to any item type (room/stair/compass), for live-drag
+// preview. Doors are excluded upstream (not movable).
+export function patchedItem(item, dx, dy) {
+  return { ...item, ...moveItem(item, dx, dy) };
 }
 
 export function moveItem(item, dx, dy) {

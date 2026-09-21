@@ -1,14 +1,18 @@
 // select.js
-// Select tool: click/shift-click, marquee, move selection (magnet snap),
-// resize via handles, label drag (pins label), repeat handle -> duplicateInRow,
-// arrow-key nudge, delete, 1-5 class change, floor vertex drag, double-click
-// rename. Depends on: js/model/document.js (updateItem, setFloor, getItem),
-// js/model/geometry.js (bbox), ./common.js (boxOf, moveItem, resizeRect,
-// collectSnapTargets).
+// Select tool: click/shift-click, marquee, move selection (magnet snap;
+// clicking a label moves the whole item, it never drags independently),
+// resize via handles, repeat handle -> duplicateInRow, arrow-key nudge,
+// delete, 1-5 class change, floor vertex drag, double-click rename. Every
+// pointermove patches shape+label+selection overlay together via
+// canvas.patchItem/setSelection so nothing lags a frame; the handle scale is
+// cached at pointerdown so no layout read happens during the drag. Depends
+// on: js/model/document.js (updateItem, setFloor, getItem), js/model/geometry.js
+// (bbox), ./common.js (boxOf, moveItem, resizeRect, collectSnapTargets,
+// patchedItem).
 
 import { updateItem, setFloor, getItem, removeItems } from '../../model/document.js';
 import { bbox, dist } from '../../model/geometry.js';
-import { boxOf, moveItem, resizeRect, collectSnapTargets } from './common.js';
+import { boxOf, moveItem, resizeRect, collectSnapTargets, patchedItem } from './common.js';
 
 export function createSelectTool(app) {
   let drag = null; // { kind, ... }
@@ -33,6 +37,7 @@ export function createSelectTool(app) {
         const it = getItem(app.doc, id);
         return it && it.type !== 'door';
       }), unionBox,
+      scale: app.canvas.getHandleScale(),
     };
   }
 
@@ -41,7 +46,11 @@ export function createSelectTool(app) {
 
     if (hit && hit.id === 'floor' && hit.part.startsWith('floor-vertex:') && app.selection.has('floor')) {
       const i = parseInt(hit.part.split(':')[1], 10);
-      drag = { kind: 'floor-vertex', index: i, startPts: app.doc.floor.points.map((p) => [...p]) };
+      drag = {
+        kind: 'floor-vertex', index: i, startPts: app.doc.floor.points.map((p) => [...p]),
+        scale: app.canvas.getHandleScale(),
+        floorNode: document.querySelector('[data-id="floor"]'),
+      };
       return;
     }
 
@@ -54,7 +63,10 @@ export function createSelectTool(app) {
       const i = parseInt(hit.part.split(':')[1], 10);
       const item = getItem(app.doc, hit.id);
       if (item && item.shape === 'poly') {
-        drag = { kind: 'vertex', id: hit.id, index: i, startPts: item.points.map((p) => [...p]) };
+        drag = {
+          kind: 'vertex', id: hit.id, index: i, startPts: item.points.map((p) => [...p]),
+          scale: app.canvas.getHandleScale(),
+        };
       }
       return;
     }
@@ -62,19 +74,18 @@ export function createSelectTool(app) {
     if (hit && hit.part && hit.part.startsWith('handle:')) {
       const handleName = hit.part.split(':')[1];
       const item = getItem(app.doc, hit.id);
-      if (item) drag = { kind: 'resize', id: hit.id, handle: handleName, startItem: item };
-      return;
-    }
-
-    if (hit && hit.part === 'label') {
-      const item = getItem(app.doc, hit.id);
       if (item) {
-        if (!app.selection.has(hit.id)) app.setSelection([hit.id]);
-        drag = { kind: 'label', id: hit.id, startPt: pt, startLabel: { ...(item.label || {}) } };
+        drag = {
+          kind: 'resize', id: hit.id, handle: handleName, startItem: item,
+          scale: app.canvas.getHandleScale(),
+        };
       }
       return;
     }
 
+    // Clicking a label (data-part="label") behaves exactly like clicking the
+    // item body: select it and start a move. Labels never drag independently
+    // any more (label.pinned is left untouched for imported docs).
     if (hit && hit.id) {
       let ids = [...app.selection];
       if (e.shiftKey) {
@@ -111,43 +122,27 @@ export function createSelectTool(app) {
       const dy = snapped.y - drag.unionBox.y;
       drag.lastDx = dx;
       drag.lastDy = dy;
+      // Patch shape+label (one piece) for every dragged item, then redraw
+      // the selection outline/handles/repeat handle from the same patched
+      // geometry, all within this one pointermove tick.
+      const overrides = new Map();
       for (const id of drag.ids) {
         const item = getItem(app.doc, id);
         if (!item) continue;
-        const patch = moveItem(item, dx, dy);
-        if (item.shape === 'poly') {
-          app.canvas.patchNode(id, {}); // polygon points handled via patchLabel-less path
-          const node = document.querySelector(`[data-id="${id}"][data-part="body"]`);
-          if (node) node.setAttribute('points', patch.points.map((p) => p.join(',')).join(' '));
-        } else {
-          app.canvas.patchNode(id, { x: patch.x, y: patch.y });
-        }
-        const p = { x: (item.x != null ? item.x + dx : 0), y: (item.y != null ? item.y + dy : 0) };
-        if (item.type === 'room') {
-          app.canvas.patchLabel(id, {});
-        }
+        const patched = patchedItem(item, dx, dy);
+        app.canvas.patchItem(patched);
+        overrides.set(id, patched);
       }
+      app.canvas.setSelection([...app.selection], { scale: drag.scale, overrides });
       return;
     }
 
     if (drag.kind === 'resize') {
       const patch = resizeRect(drag.startItem, drag.handle, pt);
       drag.lastPatch = patch;
-      app.canvas.patchNode(drag.id, { x: patch.x, y: patch.y, width: patch.w, height: patch.h });
-      return;
-    }
-
-    if (drag.kind === 'label') {
-      const dx = pt.x - drag.startPt.x;
-      const dy = pt.y - drag.startPt.y;
-      if (!drag.lastLabel && Math.abs(dx) < 3 && Math.abs(dy) < 3) return; // a click, not a drag: keep the label unpinned
-      const baseX = drag.startLabel.x != null ? drag.startLabel.x : 0;
-      const baseY = drag.startLabel.y != null ? drag.startLabel.y : 0;
-      const item = getItem(app.doc, drag.id);
-      const x = Math.round((drag.startLabel.pinned ? baseX : (item ? itemCentroidX(item) : 0)) + dx);
-      const y = Math.round((drag.startLabel.pinned ? baseY : (item ? itemCentroidY(item) : 0)) + dy);
-      drag.lastLabel = { x, y };
-      app.canvas.patchLabel(drag.id, { x, y });
+      const patched = { ...drag.startItem, ...patch };
+      app.canvas.patchItem(patched);
+      app.canvas.setSelection([...app.selection], { scale: drag.scale, overrides: new Map([[drag.id, patched]]) });
       return;
     }
 
@@ -156,8 +151,10 @@ export function createSelectTool(app) {
       const pts = drag.startPts.map((p) => [...p]);
       pts[drag.index] = [Math.round(snapped.x), Math.round(snapped.y)];
       drag.lastPts = pts;
-      const node = document.querySelector(`[data-id="${drag.id}"][data-part="body"]`);
-      if (node) node.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+      const item = getItem(app.doc, drag.id);
+      const patched = { ...item, points: pts };
+      app.canvas.patchItem(patched);
+      app.canvas.setSelection([...app.selection], { scale: drag.scale, overrides: new Map([[drag.id, patched]]) });
       return;
     }
 
@@ -165,23 +162,14 @@ export function createSelectTool(app) {
       const pts = drag.startPts.map((p) => [...p]);
       pts[drag.index] = [Math.round(pt.x), Math.round(pt.y)];
       drag.lastPts = pts;
-      const node = document.querySelector('[data-id="floor"]');
-      if (node) node.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+      if (drag.floorNode) drag.floorNode.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+      app.canvas.setSelection([...app.selection], { scale: drag.scale, floor: { points: pts } });
       return;
     }
 
     if (drag.kind === 'marquee') {
       drag.lastPt = pt;
     }
-  }
-
-  function itemCentroidX(item) {
-    const b = boxOf(item);
-    return b.x + b.w / 2;
-  }
-  function itemCentroidY(item) {
-    const b = boxOf(item);
-    return b.y + b.h / 2;
   }
 
   function onUp(e, pt) {
@@ -198,9 +186,6 @@ export function createSelectTool(app) {
     } else if (drag.kind === 'resize' && drag.lastPatch) {
       const doc = updateItem(app.doc, drag.id, drag.lastPatch);
       app.commit(doc, 'Resize');
-    } else if (drag.kind === 'label' && drag.lastLabel) {
-      const doc = updateItem(app.doc, drag.id, { label: { pinned: true, x: drag.lastLabel.x, y: drag.lastLabel.y } });
-      app.commit(doc, 'Move label');
     } else if (drag.kind === 'vertex' && drag.lastPts) {
       const doc = updateItem(app.doc, drag.id, { points: drag.lastPts });
       app.commit(doc, 'Edit corner');

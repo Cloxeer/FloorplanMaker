@@ -7,58 +7,52 @@
 import { STD, makeRoom, newId, NUMBERED_CLASSES } from '../../model/document.js';
 import { chipSvg, ghostSvg } from './paletteIcons.js';
 
-const TOOLS = [
-  { name: 'select', label: 'Select', key: 'V' },
-  { name: 'room', label: 'Room', key: 'R' },
-  { name: 'poly', label: 'Polygon room', key: 'P' },
-  { name: 'floor', label: 'Outline', key: 'F' },
-  { name: 'door', label: 'Door', key: 'O' },
-  { name: 'stair', label: 'Stair', key: 'S' },
-  { name: 'compass', label: 'Compass', key: 'C' },
-  { name: 'pan', label: 'Pan', key: '' },
-];
-
+// Pieces shown as draggable chips in section 2 ("Add rooms"). Stairs and
+// compass are covered here rather than via dedicated tool buttons.
 const PIECES = [
   { key: 'room', label: 'Room', cls: 'room' },
-  { key: 'small', label: 'Small room', cls: 'room' },
   { key: 'big', label: 'Big room', cls: 'big' },
   { key: 'ours', label: 'Our room', cls: 'ours' },
-  { key: 'restroom', label: 'Restroom core', cls: 'core' },
-  { key: 'elevator', label: 'Elevator core', cls: 'core' },
-  { key: 'stair', label: 'Stair block', cls: null },
-  { key: 'door', label: 'Door', cls: null },
+  { key: 'restroom', label: 'Restroom', cls: 'core' },
+  { key: 'elevator', label: 'Elevator', cls: 'core' },
+  { key: 'stair', label: 'Stairs', cls: null },
   { key: 'void', label: 'Void', cls: 'void' },
   { key: 'compass', label: 'Compass', cls: null },
 ];
 
 export function mountPalette(el, app) {
   el.innerHTML = `
-    <div class="palette-section">
-      <h4>Tools</h4>
-      <div class="tool-row" id="tool-row"></div>
+    <div class="palette-step">
+      <h4>1. Outline the building</h4>
+      <p class="step-desc">Trace the outer walls once, from the photo.</p>
+      <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
     </div>
-    <div class="palette-section">
-      <h4>Pieces</h4>
+    <div class="palette-step">
+      <h4>2. Add rooms</h4>
+      <p class="step-desc">Draw a room, or drag a piece onto the plan.</p>
+      <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
+    </div>
+    <div class="palette-step">
+      <h4>3. Add doors</h4>
+      <p class="step-desc">Click a spot along the outline for each door.</p>
+      <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
     </div>
   `;
 
-  const toolRow = el.querySelector('#tool-row');
   const chipRow = el.querySelector('#chip-row');
-
-  TOOLS.forEach((t) => {
-    const btn = document.createElement('button');
-    btn.className = 'tool-btn';
-    btn.type = 'button';
-    btn.textContent = t.key ? `${t.label} (${t.key})` : t.label;
-    btn.dataset.tool = t.name;
-    btn.addEventListener('click', () => app.setTool(t.name));
-    toolRow.appendChild(btn);
+  const toolButtons = {
+    floor: el.querySelector('#btn-tool-floor'),
+    room: el.querySelector('#btn-tool-room'),
+    door: el.querySelector('#btn-tool-door'),
+  };
+  Object.entries(toolButtons).forEach(([name, btn]) => {
+    if (btn) btn.addEventListener('click', () => app.setTool(name));
   });
 
   function refreshToolButtons() {
-    toolRow.querySelectorAll('button').forEach((btn) => {
-      btn.setAttribute('aria-pressed', String(btn.dataset.tool === app.toolName));
+    Object.entries(toolButtons).forEach(([name, btn]) => {
+      if (btn) btn.setAttribute('aria-pressed', String(name === app.toolName));
     });
   }
   refreshToolButtons();
