@@ -37,6 +37,16 @@ Everything autosaves to IndexedDB (and on pointer-up, tab hide and page close).
 *Save .json* writes a single project file with the photo embedded so it can be
 moved or committed.
 
+### Where files are saved
+
+If your browser supports it, you can pick a local folder (from the start
+screen, or the modal offered when you start a blueprint). Once a folder is
+set, every save writes one `<slug>.floorplan.json` per plan into it &mdash;
+atomically (via a temp file and rename) on every change, with undo history
+included &mdash; alongside the IndexedDB copy. Browsers without folder access
+(File System Access API) fall back to browser storage only; use *Save* to
+download a copy by hand.
+
 ## Hotkeys
 
 | Key | Action |

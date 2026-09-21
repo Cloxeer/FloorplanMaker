@@ -35,6 +35,7 @@ test.describe('Guided walkthrough', () => {
     // ---- Start blueprint (HJLC, 323, 1, hjlc-1-walkthrough) ----
     await page.goto('/');
     await page.click('#btn-start-blueprint');
+    await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
     await page.fill('#bp-building', 'HJLC');
     await page.fill('#bp-property', '323');
     await page.fill('#bp-floor', '1');
