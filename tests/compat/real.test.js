@@ -1,8 +1,8 @@
-// real.test.js — the real BetterNMSUMaps Python parsers (build_rooms.py,
+// real.test.js — the real map site's tools Python parsers (build_rooms.py,
 // build_entrances.py, indoor_routes.py) must read our re-exported fixtures
 // exactly like the originals: same rooms, names, outlines, routes and doors.
 // Also checks our route.js port against indoor_routes.py. Skips when the
-// repo is absent ($BETTERNMSUMAPS, default D:/BetterNMSUMapTest).
+// repo is absent (read from $MAP_TOOLS_REPO, or tests/compat/repo-path.txt).
 // Depends on: js/model/{svgImport,svgExport,route}.js, tests/compat/real_tools.py
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,8 +15,15 @@ import { exportSvg } from '../../js/model/svgExport.js';
 import { routesForFloor } from '../../js/model/route.js';
 
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
-const repo = process.env.BETTERNMSUMAPS || 'D:/BetterNMSUMapTest';
-const available = fs.existsSync(path.join(repo, 'tools', 'build_rooms.py'));
+function repoPathFromFile() {
+  try {
+    return fs.readFileSync(path.join(here, 'repo-path.txt'), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+const repo = process.env.MAP_TOOLS_REPO || repoPathFromFile();
+const available = !!repo && fs.existsSync(path.join(repo, 'tools', 'build_rooms.py'));
 
 function realRead(svgText, floor) {
   const tmp = path.join(os.tmpdir(), `fps-${process.pid}-${Math.random().toString(36).slice(2)}.svg`);
@@ -30,7 +37,7 @@ function realRead(svgText, floor) {
 
 for (const name of ['hjlc-1', 'hjlc-2']) {
   const floor = Number(name.split('-')[1]);
-  test(`real parsers: ${name} original vs re-exported`, { skip: !available && 'BetterNMSUMaps repo not found' }, () => {
+  test(`real parsers: ${name} original vs re-exported`, { skip: !available && 'map tools repo not found' }, () => {
     const original = fs.readFileSync(path.join(here, '..', 'fixtures', `${name}.svg`), 'utf8');
     const { doc } = importSvg(original);
     const a = realRead(original, floor);

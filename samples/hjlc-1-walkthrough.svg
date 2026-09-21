@@ -22,7 +22,7 @@
   </style>
 
   <!-- OUTSIDE WALLS -->
-  <polygon class="floor" points="-215,160 1615,160 1615,1680 -215,1680"/>
+  <polygon class="floor" points="-225,160 1620,160 1620,1680 -225,1680"/>
 
   <!-- ROOMS -->
   <rect class="room" x="852" y="104" width="122" height="133"/><text class="lbl" x="913" y="171">101</text>
@@ -59,11 +59,10 @@
   <rect class="room" x="804" y="1385" width="40" height="72"/>
   <rect class="room" x="758" y="1428" width="38" height="53"/>
 
-  <line class="door" x1="-215" y1="633" x2="-215" y2="597"/><text class="exit" x="-160" y="615">EXIT</text>
-  <line class="door" x1="-215" y1="1243" x2="-215" y2="1207"/><text class="exit" x="-160" y="1225">EXIT</text>
-  <!-- Which way the building really faces. The angle comes from NMSU Space Planning's outline of the
-       building, and matches the compass on the posted evacuation map. -->
-  <g class="compass" transform="translate(1495,220) rotate(15)">
+  <line class="door" x1="-225" y1="633" x2="-225" y2="597"/><text class="exit" x="-170" y="615">EXIT</text>
+  <line class="door" x1="-225" y1="1243" x2="-225" y2="1207"/><text class="exit" x="-170" y="1225">EXIT</text>
+  <!-- Which way the building really faces; matches the compass on the posted evacuation map. -->
+  <g class="compass" transform="translate(1505,220) rotate(15)">
     <circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>
     <circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>
     <path d="M0,-38 L11,0 L-11,0 Z" fill="#8C0B42"/>

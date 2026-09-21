@@ -1,5 +1,5 @@
 // tests/compat/parsers.js
-// A regex-based, DOM-free JS reader of the BetterNMSUMaps SVG dialect,
+// A regex-based, DOM-free JS reader of the map site's SVG dialect,
 // mirroring what tools/build_rooms.py and tools/build_entrances.py are
 // described to do in docs/DIALECT.md (their source is unavailable; this
 // implements the described rules). No dependency on js/model/*.

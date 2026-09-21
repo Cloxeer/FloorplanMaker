@@ -1,4 +1,4 @@
-// validate.js — pure validation of a floorplan doc against the BetterNMSUMaps
+// validate.js — pure validation of a floorplan doc against the 
 // SVG dialect rules (docs/DIALECT.md). No DOM, no window.
 // Depends on: ./geometry.js (isOnOutline, dist), ./document.js (roomPolygon,
 // labelPos, NUMBER_RE, getItem).

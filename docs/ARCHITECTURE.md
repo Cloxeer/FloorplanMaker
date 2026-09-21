@@ -161,11 +161,11 @@ above 1. Target = walkable cells adjacent to the room polygon (within 1 cell).
 
 ## `store/autosave.js`
 
-IndexedDB database `nmsu-floorplan-studio`, store `projects` keyed by `id`.
+IndexedDB database `floorplan-studio`, store `projects` keyed by `id`.
 `listProjects() -> [{id,slug,name,savedAt,floor,building}]`, `loadProject(id)`,
 `saveProject(project)` (debounced 300ms; `flush()` saves now), `deleteProject(id)`,
 `exportProjectJson(project) -> string`, `importProjectJson(text) -> project`,
-`onExternalChange(cb)`: `BroadcastChannel('nmsu-fps')` posts `{id, savedAt, tab}`
+`onExternalChange(cb)`: `BroadcastChannel('fps-studio')` posts `{id, savedAt, tab}`
 after each save; a tab that receives a change for its open project shows
 "Changed in another tab. Reload?" and suspends autosave until reload (prevents
 two-tab races). `lastSaved()` -> Date for the "Saved · just now" chip.

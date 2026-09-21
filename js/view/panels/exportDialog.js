@@ -49,7 +49,7 @@ export function showExportDialog({ svgText, jpgDataUrl, meta }) {
   modal.innerHTML = `
     <h3>Exported ${escapeHtml(names.svg)}</h3>
     <p style="color:var(--muted)">Downloads started for <code>${escapeHtml(names.svg)}</code> and <code>${escapeHtml(names.jpg)}</code>.</p>
-    <div class="section-title">building-extras.json snippet</div>
+    <div class="section-title">Add this to data/source/building-extras.json, then run:</div>
     <div class="export-snippet" id="ed-snippet">${escapeHtml(snippet)}</div>
     <button type="button" id="ed-copy-snippet">Copy snippet</button>
     <div class="section-title">Run</div>

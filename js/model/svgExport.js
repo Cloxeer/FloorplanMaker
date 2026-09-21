@@ -1,4 +1,4 @@
-// svgExport.js — renders a floorplan doc to the exact BetterNMSUMaps SVG
+// svgExport.js — renders a floorplan doc to the exact SVG
 // dialect described in docs/DIALECT.md. Pure string building, no DOM.
 // Depends on: ./document.js (roomPolygon, labelPos, labelClass, labelText,
 // stairTreads, STD).
@@ -76,11 +76,10 @@ function doorLines(item) {
 }
 
 function compassLines(item) {
-  // Copied verbatim from data/floors/hjlc-1.svg (only the translate/rotate values change).
+  // Same drawing as the existing hand-traced plans (only the translate/rotate values change).
   const I2 = IND + IND;
   return [
-    `${IND}<!-- Which way the building really faces. The angle comes from NMSU Space Planning's outline of the`,
-    `${IND}     building, and matches the compass on the posted evacuation map. -->`,
+    `${IND}<!-- Which way the building really faces; matches the compass on the posted evacuation map. -->`,
     `${IND}<g class="compass" transform="translate(${r(item.x)},${r(item.y)}) rotate(${r(item.deg || 0)})">`,
     `${I2}<circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>`,
     `${I2}<circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>`,

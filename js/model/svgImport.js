@@ -1,4 +1,4 @@
-// svgImport.js — parses the BetterNMSUMaps SVG dialect (docs/DIALECT.md) back
+// svgImport.js — parses the SVG dialect (docs/DIALECT.md) back
 // into a floorplan doc, using a hand-written regex tokenizer (no DOM, works
 // in Node). Must be the exact inverse of svgExport.js.
 // Depends on: ./document.js (createDoc, newId, STD, NUMBER_RE).

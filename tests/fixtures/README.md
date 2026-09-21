@@ -2,8 +2,8 @@
 
 `hjlc-1.svg` and `hjlc-2.svg` were hand-traced directly from the posted
 "Emergency Evacuation Plan" photos (floors 1 and 2 of Hardman and Jacobs
-Undergraduate Learning Center, NMSU property 323, 2902 McFie Circle), because
-the BetterNMSUMaps repository was not available in this environment to pull
+Undergraduate Learning Center, property 323, 2902 McFie Circle), because
+the map site's tools/build_rooms.py repository was not available in this environment to pull
 an existing trace from.
 
 `hjlc-1.svg` was traced from `samples/hjlc-1-straight.jpg`, a

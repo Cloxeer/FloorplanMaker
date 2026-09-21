@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """tests/compat/parsers.py
-A regex-based, DOM-free Python reader of the BetterNMSUMaps SVG dialect,
+A regex-based, DOM-free Python reader of the map site's SVG dialect,
 mirroring tests/compat/parsers.js. Uses xml.etree only incidentally (not for
 parsing, to keep parity with the described build_rooms.py / build_entrances.py
 regex approach). Prints JSON with the same shape and ordering as parsers.js

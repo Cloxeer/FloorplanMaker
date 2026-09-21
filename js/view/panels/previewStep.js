@@ -18,7 +18,7 @@ export function showPreviewStep({ svgText, validation }, { onBack, onDownload })
   el.innerHTML = `
     <header class="preview-header">
       <h2>Preview</h2>
-      <p>This is exactly what BetterNMSUMaps will show. Hallway guides are left out.</p>
+      <p>This is exactly what will be exported. Hallway guides are left out.</p>
     </header>
     <div class="preview-body">
       <div class="preview-svg-wrap" id="preview-svg-wrap"></div>

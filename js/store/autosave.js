@@ -5,10 +5,10 @@
 // suspend, resume, lastSavedAt, formatSavedAgo, installAutosaveHooks.
 // Guarded so importing this module in Node (no indexedDB) does not throw.
 
-const DB_NAME = 'nmsu-floorplan-studio';
+const DB_NAME = 'floorplan-studio';
 const DB_VERSION = 1;
 const STORE = 'projects';
-const CHANNEL_NAME = 'nmsu-fps';
+const CHANNEL_NAME = 'fps-studio';
 const DEBOUNCE_MS = 300;
 const HAS_IDB = typeof indexedDB !== 'undefined';
 const HAS_BC = typeof BroadcastChannel !== 'undefined';
