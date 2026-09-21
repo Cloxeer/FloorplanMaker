@@ -4,6 +4,7 @@
 // Depends on: js/model/document.js (getItem, updateItem, roomPolygon, STD).
 
 import { getItem, updateItem, STD } from '../../model/document.js';
+import { rectToPoints, bbox, dist } from '../../model/geometry.js';
 
 const CLASS_OPTIONS = ['room', 'big', 'ours', 'core', 'void'];
 
@@ -96,6 +97,11 @@ export function mountProperties(el, app) {
         <div class="form-row"><label>W</label><input type="number" id="p-w" value="${b.w}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
         <div class="form-row"><label>H</label><input type="number" id="p-h" value="${b.h}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
       </div>
+      <div class="form-row-inline">
+        ${item.shape === 'poly'
+          ? '<button type="button" id="p-add-corner">Add corner</button><button type="button" id="p-make-rect">Make rectangle</button>'
+          : '<button type="button" id="p-edit-corners">Edit corners</button>'}
+      </div>
       <button type="button" id="p-route">Route preview</button>
     `;
 
@@ -138,6 +144,36 @@ export function mountProperties(el, app) {
     }
 
     el.querySelector('#p-route').addEventListener('click', () => app.routeToRoom(item.id));
+
+    const editCornersBtn = el.querySelector('#p-edit-corners');
+    if (editCornersBtn) {
+      editCornersBtn.addEventListener('click', () => {
+        const points = rectToPoints(bboxOf(item));
+        commitField(item.id, { shape: 'poly', points }, 'Edit corners');
+      });
+    }
+    const addCornerBtn = el.querySelector('#p-add-corner');
+    if (addCornerBtn) {
+      addCornerBtn.addEventListener('click', () => {
+        const pts = item.points;
+        let best = null;
+        for (let i = 0; i < pts.length; i++) {
+          const a = pts[i], b = pts[(i + 1) % pts.length];
+          const len = dist(a, b);
+          if (!best || len > best.len) best = { len, i, mid: [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)] };
+        }
+        if (!best) return;
+        const newPts = pts.slice(0, best.i + 1).concat([best.mid], pts.slice(best.i + 1));
+        commitField(item.id, { points: newPts }, 'Add corner');
+      });
+    }
+    const makeRectBtn = el.querySelector('#p-make-rect');
+    if (makeRectBtn) {
+      makeRectBtn.addEventListener('click', () => {
+        const b = bboxOf(item);
+        commitField(item.id, { shape: 'rect', x: b.x, y: b.y, w: b.w, h: b.h }, 'Make rectangle');
+      });
+    }
   }
 
   function sectionSelect(item) {

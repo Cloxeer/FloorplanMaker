@@ -1,13 +1,12 @@
 // mainActions.js — kept separate from main.js to stay under 400 lines each.
-// Document-editing actions attached to `app` (duplicateInRow, copy/paste, routeToRoom, exportAll,
-// debounced room-unreachable check) AND the studio screen controller (canvas/tools/panels wiring,
-// hotkeys, enter/close/photo-step flow, .json/.svg import). main.js keeps only the `app` core and startup.
+// The studio screen controller (canvas/tools/panels wiring, hotkeys,
+// enter/close/photo-step flow, .json/.svg import). Document-editing actions
+// (duplicateInRow, copy/paste, routeToRoom, exportAll) live in js/docActions.js
+// to keep this file under the line budget. main.js keeps only the `app` core
+// and startup, and re-exports createActions from js/docActions.js.
 // Depends on: js/model/*, js/store/autosave.js, js/view/canvas.js, js/view/tools/*.js, js/view/panels/*.js.
 
-import { getItem, addItem, newId, nextNumber, createDoc } from './model/document.js';
-import { bbox } from './model/geometry.js';
-import { validate } from './model/validate.js';
-import { exportSvg } from './model/svgExport.js';
+import { createDoc } from './model/document.js';
 import { importSvg } from './model/svgImport.js';
 import {
   loadProject, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
@@ -21,113 +20,14 @@ import { createStairTool } from './view/tools/stair.js';
 import { createCompassTool } from './view/tools/compass.js';
 import { createPanTool } from './view/tools/pan.js';
 import { mountPalette } from './view/panels/palette.js';
+import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
 import { mountValidation } from './view/panels/validation.js';
-import { showExportDialog } from './view/panels/exportDialog.js';
 import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
 
-function boxOfItem(item) {
-  if (item.shape === 'poly') return bbox(item.points);
-  return { x: item.x, y: item.y, w: item.w, h: item.h };
-}
-function cloneItemAt(item, dx, dy) {
-  const clone = JSON.parse(JSON.stringify(item));
-  clone.id = newId();
-  if (clone.shape === 'poly') clone.points = clone.points.map(([x, y]) => [x + dx, y + dy]);
-  else if (typeof clone.x === 'number') { clone.x += dx; clone.y += dy; }
-  if (clone.label) clone.label = { pinned: false, x: null, y: null, fontSize: clone.label.fontSize || null };
-  return clone;
-}
-
-// ---- document-editing actions ----
-export function createActions(app, deps) {
-  const { routeRequest } = deps;
-  let routeAllTimer = null;
-
-  function duplicateInRow(id) {
-    const item = getItem(app.doc, id);
-    if (!item || item.type !== 'room') return;
-    const box = boxOfItem(item);
-    const limit = app.doc.floor ? bbox(app.doc.floor.points) : app.doc.viewBox;
-    let newX = box.x + box.w;
-    let newY = box.y;
-    if (newX + box.w > limit.x + limit.w) { newX = box.x; newY = box.y + box.h; }
-    const clone = cloneItemAt(item, newX - box.x, newY - box.y);
-    app.prompt('Room number', nextNumber(item.number || '')).then((value) => {
-      if (value == null) return;
-      clone.number = value;
-      app.commit(addItem(app.doc, clone), 'Duplicate');
-      app.lastNumber = value;
-    });
-  }
-  function copy() {
-    const items = [...app.selection].filter((id) => id !== 'floor').map((id) => getItem(app.doc, id)).filter(Boolean);
-    if (items.length) app.clipboard = items.map((it) => JSON.parse(JSON.stringify(it)));
-  }
-
-  async function paste() {
-    if (!app.clipboard || !app.clipboard.length) return;
-    const clones = app.clipboard.map((it) => cloneItemAt(it, 20, 20));
-    const hasNumbers = clones.some((it) => it.type === 'room' && it.number);
-    if (hasNumbers && await app.confirm('Auto-increment room numbers?')) {
-      let n = null;
-      for (const it of clones) {
-        if (it.type !== 'room' || !it.number) continue;
-        n = n ? nextNumber(n) : it.number;
-        it.number = n;
-      }
-    }
-    let doc = app.doc;
-    for (const it of clones) doc = addItem(doc, it);
-    app.commit(doc, 'Paste');
-    app.setSelection(clones.map((it) => it.id));
-  }
-
-  async function routeToRoom(id) {
-    try {
-      const result = await routeRequest('route', { doc: app.doc, roomId: id, cell: 10 });
-      app.canvas.setRoutePath(result.path || []);
-      app.emit({ type: 'route', roomId: id, reachable: result.reachable, path: result.path });
-    } catch { app.toast('Route preview failed.'); }
-  }
-  function scheduleRouteValidation() {
-    if (routeAllTimer) clearTimeout(routeAllTimer);
-    routeAllTimer = setTimeout(async () => {
-      routeAllTimer = null;
-      const doc = app.doc;
-      try {
-        const result = await routeRequest('all', { doc, cell: 10 });
-        if (app.doc !== doc) return;
-        const base = (app.validation || []).filter((v) => v.code !== 'room-unreachable');
-        const extra = [];
-        for (const room of doc.items) {
-          if (room.type !== 'room' || room.cls === 'void') continue;
-          if (result[room.id] === false) {
-            extra.push({ level: 'warning', code: 'room-unreachable', message: `Room ${room.number || room.id} is not reachable from an entrance.`, itemId: room.id });
-          }
-        }
-        app.validation = base.concat(extra);
-        app.emit({ type: 'validation' });
-      } catch { /* leave validation as-is */ }
-    }, 400);
-  }
-  function exportAll() {
-    const results = validate(app.doc);
-    app.validation = results;
-    app.emit({ type: 'validation' });
-    if (results.some((r) => r.level === 'error')) {
-      app.toast('Fix the errors listed in Validation before exporting.');
-      return;
-    }
-    const svgText = exportSvg(app.doc);
-    const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    showExportDialog({ svgText, jpgDataUrl, meta: app.doc.meta });
-  }
-
-  return { duplicateInRow, copy, paste, routeToRoom, exportAll, scheduleRouteValidation };
-}
+export { createActions } from './docActions.js';
 
 // ---- studio screen controller ----
 const TOOL_KEYS = { v: 'select', r: 'room', p: 'poly', f: 'floor', o: 'door', s: 'stair', c: 'compass' };
@@ -135,7 +35,7 @@ const TOOL_KEYS = { v: 'select', r: 'room', p: 'poly', f: 'floor', o: 'door', s:
 export function createStudio(app, deps) {
   const { screens, showScreen, scheduleValidate, updateUndoRedoButtons } = deps;
   let tools = null;
-  let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null;
+  let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null;
   let photoStepHandle = null, studioUnsub = null, reloadBarShown = false;
   const studioListeners = [];
   function onStudio(target, type, fn, opts) { target.addEventListener(type, fn, opts); studioListeners.push([target, type, fn, opts]); }
@@ -224,6 +124,13 @@ export function createStudio(app, deps) {
     propertiesHandle = mountProperties(document.getElementById('properties'), app);
     validationHandle = mountValidation(document.getElementById('validation'), app);
     suggestHandle = mountSuggest(app);
+    const stripEl = document.getElementById('step-strip');
+    if (stripEl) {
+      stepStripHandle = mountStepStrip(stripEl, app, {
+        onPhoto: () => onChangePhoto(),
+        onExport: () => app.exportAll(),
+      });
+    }
     studioUnsub = app.subscribe((evt) => {
       if (evt.type === 'doc') updateUndoRedoButtons();
       if (evt.type === 'saved' || evt.type === 'view') updateSavedChip();
@@ -284,7 +191,8 @@ export function createStudio(app, deps) {
     if (propertiesHandle) propertiesHandle.destroy();
     if (validationHandle) validationHandle.destroy();
     if (suggestHandle) suggestHandle.destroy();
-    paletteHandle = propertiesHandle = validationHandle = suggestHandle = null;
+    if (stepStripHandle) stepStripHandle.destroy();
+    paletteHandle = propertiesHandle = validationHandle = suggestHandle = stepStripHandle = null;
     if (studioUnsub) { studioUnsub(); studioUnsub = null; }
     if (app.canvas) app.canvas.destroy();
     app.canvas = null;
@@ -329,6 +237,10 @@ export function createStudio(app, deps) {
     updateTopbar();
     updateUndoRedoButtons();
     updateSavedChip();
+
+    if (opts.autoSuggest && suggestHandle) {
+      suggestHandle.run();
+    }
   }
 
   async function closeProject() {
@@ -349,7 +261,8 @@ export function createStudio(app, deps) {
         project.photo = photo;
         if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
-        enterStudio(project, { freshView: true });
+        const hasRooms = project.doc.items.some((it) => it.type === 'room');
+        enterStudio(project, { freshView: true, autoSuggest: !hasRooms });
       },
       onSkip: () => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
