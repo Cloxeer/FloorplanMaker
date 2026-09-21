@@ -112,6 +112,8 @@ export function attachTools(ctx, editing) {
     };
   }
 
+  const MIN_STAIR = 20;
+
   async function finishBox(kind, box) {
     if (kind === 'hall') {
       const item = { id: newId(), type: 'hall', x: box.x, y: box.y, w: box.w, h: box.h };
@@ -119,14 +121,31 @@ export function attachTools(ctx, editing) {
       return;
     }
     if (kind === 'stair') {
+      if (box.w < MIN_STAIR || box.h < MIN_STAIR) return;
       const item = { id: newId(), type: 'stair', x: box.x, y: box.y, w: box.w, h: box.h, dir: 'v' };
       app.commit(addItem(app.doc, item), 'Draw stairs');
       return;
     }
-    const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
-    if (value == null) return;
-    app.commit(addItem(app.doc, makeRoom('room', box.x, box.y, box.w, box.h, value)), 'Draw room');
-    app.lastNumber = value;
+    // Room-tool box draw: the active piece (set by the palette chip that
+    // switched into this tool) picks the class/name; plain "Draw a room"
+    // defaults to the bare 'room' piece.
+    const pieceKey = app.pendingRoomPiece || 'room';
+    const std = STD.palette[pieceKey] || STD.palette.room;
+    const cls = std.cls || 'room';
+    if (cls === 'void') {
+      app.commit(addItem(app.doc, makeRoom('void', box.x, box.y, box.w, box.h, '')), 'Draw void');
+      return;
+    }
+    let number = '';
+    if (NUMBERED_CLASSES.has(cls)) {
+      const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
+      if (value == null) return;
+      number = value;
+      app.lastNumber = value;
+    }
+    const item = makeRoom(cls, box.x, box.y, box.w, box.h, number);
+    if (std.name) { item.name = std.name; item.showName = true; }
+    app.commit(addItem(app.doc, item), 'Draw room');
   }
 
   // --------------------------------------------------------------- doors --

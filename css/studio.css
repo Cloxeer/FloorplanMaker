@@ -106,6 +106,9 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 /* ---------- studio layout ---------- */
 #studio {
   height: 100vh;
+  margin: 0;
+  padding: 0;
+  gap: 0;
   display: grid;
   grid-template-columns: 200px 1fr 300px;
   grid-template-rows: auto 1fr 26px;
@@ -148,13 +151,15 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
   overflow-y: auto;
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 12px;
+  padding: 8px;
 }
 
 #stage {
   grid-area: stage;
   position: relative;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
   background: #e9ebee;
   min-width: 300px;
 }
@@ -170,8 +175,8 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
   display: flex;
   flex-direction: column;
 }
-#properties { padding: 12px; border-bottom: 1px solid var(--border); }
-#validation { padding: 12px; }
+#properties { padding: 8px; border-bottom: 1px solid var(--border); }
+#validation { padding: 8px; }
 
 #hint {
   grid-area: hint;
@@ -376,6 +381,17 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 .hand-toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.zoom-controls {
+  position: absolute; right: 14px; bottom: 14px; z-index: 30;
+  display: flex; gap: 4px;
+}
+.zoom-controls button {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--panel); font-size: 15px; line-height: 1; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 0; display: flex; align-items: center; justify-content: center;
+}
+#btn-zoom-fit { width: auto; border-radius: 16px; padding: 0 10px; font-size: 11px; }
 
 .palette-step { margin-bottom: 16px; }
 .palette-step h4 { margin: 0 0 4px; font-size: 13px; line-height: 1.3; }
