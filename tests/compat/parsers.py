@@ -19,7 +19,7 @@ DOOR_RE = re.compile(
     r'<line class="door" x1="(-?\d+(?:\.\d+)?)" y1="(-?\d+(?:\.\d+)?)" x2="(-?\d+(?:\.\d+)?)" y2="(-?\d+(?:\.\d+)?)"/>'
 )
 EXIT_RE = re.compile(
-    r'<text class="exit"(?:\s+fill="[^"]*")?\s+x="(-?\d+(?:\.\d+)?)"\s+y="(-?\d+(?:\.\d+)?)">([^<]*)</text>'
+    r'<text class="exit"[^>]*?\sx="(-?\d+(?:\.\d+)?)"[^>]*?\sy="(-?\d+(?:\.\d+)?)"[^>]*>([^<]*)</text>'
 )
 STAIR_GROUP_RE = re.compile(r'<g class="stair">([\s\S]*?)</g>')
 STAIR_LINE_RE = re.compile(

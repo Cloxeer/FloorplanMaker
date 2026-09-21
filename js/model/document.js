@@ -34,6 +34,8 @@ export const STD = {
 };
 
 export const NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
+// Classes whose label must be a room number. Cores may carry free text ("Elev", "ST1") or nothing.
+export const NUMBERED_CLASSES = new Set(['room', 'big', 'ours']);
 
 let idCounter = 0;
 
@@ -171,6 +173,7 @@ export function makeRoom(cls, x, y, w, h, number = '') {
 }
 
 export function stairTreads(item) {
+  if (item.treads && item.treads.length) return item.treads.map((t) => ({ ...t }));
   const treads = [];
   const { x, y, w, h, dir } = item;
   if (dir === 'v') {

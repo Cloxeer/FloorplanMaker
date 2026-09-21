@@ -1,18 +1,18 @@
 // make-demo.mjs — build a ready-to-open project file (.floorplan.json) from a
 // dialect SVG and its straightened photo, so a traced building can be opened
 // in the studio with "Open .json project".
-// Usage: node tools/make-demo.mjs tests/fixtures/hjlc-1.svg samples/hjlc-1-straight.jpg samples/hjlc-1.floorplan.json
+// Usage: node tools/make-demo.mjs tests/fixtures/hjlc-1.svg samples/hjlc-1-posted.jpg samples/hjlc-1.floorplan.json 1200 1600
 // Depends on: js/model/svgImport.js, js/store/autosave.js (exportProjectJson)
 import fs from 'node:fs';
 import { importSvg } from '../js/model/svgImport.js';
 import { exportProjectJson } from '../js/store/autosave.js';
 
-const [svgPath, jpgPath, outPath] = process.argv.slice(2);
+const [svgPath, jpgPath, outPath, pw, ph] = process.argv.slice(2); // optional photo width/height (photo sits at 0,0)
 const { doc, problems } = importSvg(fs.readFileSync(svgPath, 'utf8'));
 if (problems.length) console.warn('import problems:', problems);
 const jpg = fs.readFileSync(jpgPath);
 const dataUrl = 'data:image/jpeg;base64,' + jpg.toString('base64');
-const w = doc.viewBox.w, h = doc.viewBox.h;
+const w = Number(pw) || doc.viewBox.w, h = Number(ph) || doc.viewBox.h;
 const project = {
   id: 'demo-' + doc.meta.slug,
   slug: doc.meta.slug,

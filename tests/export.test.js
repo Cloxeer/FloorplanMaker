@@ -9,21 +9,21 @@ import { exportSvg } from '../js/model/svgExport.js';
 import { makeSampleDoc } from './helpers.js';
 
 const STYLE_BLOCK = [
-  '<style>',
-  '.floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }',
-  '.room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }',
-  '.big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }',
-  '.ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
-  '.core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
-  '.stair { stroke: #8f959c; stroke-width: 2; }',
-  '.door  { stroke: #ffffff; stroke-width: 10; }',
-  '.lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }',
-  '.lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }',
-  '.name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
-  '.exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
+  '  <style>',
+  '    .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }',
+  '    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }',
+  '    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }',
+  '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
+  '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
+  '    .stair { stroke: #8f959c; stroke-width: 2; }',
+  '    .door  { stroke: #ffffff; stroke-width: 10; }',
+  '    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }',
+  '    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }',
+  '    .name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
+  '    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
   '.compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }',
   '.compass-north  { fill: #8C0B42; }',
-  '</style>',
+  '  </style>',
 ].join('\n');
 
 const doc = makeSampleDoc();
@@ -37,12 +37,12 @@ test('exact root tag', () => {
 
 test('header comment lines', () => {
   const expected = [
-    '<!--',
-    `  ${doc.meta.building} (bldg ${doc.meta.property}) - FLOOR ${doc.meta.floor}`,
-    '  Traced from the posted "Emergency Evacuation Plan" photo. Coordinates use the',
-    "  photo's own pixel positions, so any shape can be checked against the photo.",
-    '  One wall weight for outside walls, one for inside walls; nothing in between.',
-    '-->',
+    '  <!--',
+    `    ${doc.meta.building} (bldg ${doc.meta.property}) - FLOOR ${doc.meta.floor}`,
+    '    Traced from the posted "Emergency Evacuation Plan" photo. Coordinates use the',
+    "    photo's own pixel positions, so any shape can be checked against the photo.",
+    '    One wall weight for outside walls, one for inside walls; nothing in between.',
+    '  -->',
   ].join('\n');
   assert.ok(svg.includes(expected));
 });
@@ -60,7 +60,8 @@ test('all coordinates are integers', () => {
   const numRe = /(?:x1|y1|x2|y2|x|y|width|height|r)="(-?\d+(?:\.\d+)?)"/g;
   let m;
   let count = 0;
-  while ((m = numRe.exec(svg))) {
+  const body = svg.replace(/<g class="compass"[\s\S]*?<\/g>/, ''); // the compass is copied verbatim (r="4.5")
+  while ((m = numRe.exec(body))) {
     count++;
     assert.ok(Number.isInteger(Number(m[1])), `non-integer coordinate: ${m[0]}`);
   }

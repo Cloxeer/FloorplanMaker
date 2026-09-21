@@ -3,7 +3,8 @@
 // in Node). Must be the exact inverse of svgExport.js.
 // Depends on: ./document.js (createDoc, newId, STD, NUMBER_RE).
 
-import { createDoc, newId, roomCentroid, STD } from './document.js';
+import { createDoc, newId, roomCentroid, roomPolygon, STD } from './document.js';
+import { pointInPolygon, polygonArea } from './geometry.js';
 
 const TAG_RE = /<!--([\s\S]*?)-->|<([a-zA-Z][\w-]*)((?:\s+[\w:-]+="[^"]*")*)\s*\/?>|<\/([a-zA-Z][\w-]*)>/g;
 
@@ -78,6 +79,50 @@ function nameFromLabelText(text, number) {
   return text.slice(0, idx).trim();
 }
 
+// Post-pass: a core rect holding a stair group becomes that stair's box; each
+// label goes to the SMALLEST room shape containing it (build_rooms.py rule).
+function attachTextsAndStairs(items, texts, problems) {
+  for (const st of items.filter((it) => it.type === 'stair')) {
+    const box = items.find((it) => it.type === 'room' && it.cls === 'core' && it.shape === 'rect' &&
+      st.treads.every((l) => l.x1 >= it.x && l.x2 <= it.x + it.w && l.y1 >= it.y && l.y2 <= it.y + it.h));
+    if (box) {
+      Object.assign(st, { x: box.x, y: box.y, w: box.w, h: box.h });
+      items.splice(items.indexOf(box), 1);
+    }
+  }
+  const smallest = (x, y) => {
+    let best = null, bestArea = Infinity;
+    for (const it of items) {
+      if (it.type === 'stair') {
+        if (x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + it.h && it.w * it.h < bestArea) { best = it; bestArea = it.w * it.h; }
+      } else if (it.type === 'room' && it.cls !== 'void') {
+        const pts = roomPolygon(it);
+        if (pointInPolygon([x, y], pts)) {
+          const a = Math.abs(polygonArea(pts));
+          if (a < bestArea) { best = it; bestArea = a; }
+        }
+      }
+    }
+    return best;
+  };
+  for (const tx of texts) {
+    const it = smallest(tx.x, tx.y);
+    if (!it) { problems.push({ code: 'label-orphan', message: `Label "${tx.text}" is not inside any shape` }); continue; }
+    if (it.type === 'stair') { it.label = tx.text; continue; }
+    if (tx.cls === 'name') {
+      it.showName = true;
+      it.name = it.name ? `${it.name} ${tx.text}` : tx.text;
+      continue;
+    }
+    const number = numberFromLabelText(tx.text);
+    it.number = number || tx.text; // cores may carry free text such as "Elev"
+    if (number && !it.showName) it.name = nameFromLabelText(tx.text, number);
+    const c = roomCentroid(it);
+    if (tx.x !== c.x || tx.y !== c.y) it.label = { ...it.label, pinned: true, x: tx.x, y: tx.y };
+    if (tx.fontSize) it.label.fontSize = tx.fontSize;
+  }
+}
+
 export function importSvg(svgText) {
   const problems = [];
   const tokens = tokenize(svgText);
@@ -99,7 +144,7 @@ export function importSvg(svgText) {
   const items = [];
 
   // Track state while walking tokens
-  let lastRoom = null; // most recently emitted room item, for attaching lbl/name texts
+  const texts = []; // every lbl/lblS/name text, attached to shapes in a post-pass (like build_rooms.py)
   const headerRe = /^\s*(.+?) \(bldg (\S+)\) - FLOOR (\d+)/;
 
   for (let i = 0; i < tokens.length; i++) {
@@ -157,7 +202,6 @@ export function importSvg(svgText) {
         section: currentSectionId,
       };
       items.push(item);
-      lastRoom = item;
       continue;
     }
 
@@ -175,40 +219,12 @@ export function importSvg(svgText) {
         section: currentSectionId,
       };
       items.push(item);
-      lastRoom = item;
       continue;
     }
 
-    if (t.kind === 'open' && t.name === 'text' && /^(lbl|lblS)$/.test(t.attrs.class || '')) {
-      const textContent = decodeEntities((t.trailingText || '').trim());
-      const number = numberFromLabelText(textContent);
-      const name = nameFromLabelText(textContent, number);
-      if (lastRoom) {
-        lastRoom.number = number;
-        lastRoom.name = name;
-        const x = Number(t.attrs.x);
-        const y = Number(t.attrs.y);
-        const centroid = roomCentroid(lastRoom);
-        const diff = Math.hypot(x - centroid.x, y - centroid.y);
-        if (diff > 1) {
-          lastRoom.label.pinned = true;
-          lastRoom.label.x = x;
-          lastRoom.label.y = y;
-        }
-        if (t.attrs['font-size']) {
-          const fm = /^(\d+(?:\.\d+)?)px$/.exec(t.attrs['font-size']);
-          if (fm) lastRoom.label.fontSize = Number(fm[1]);
-        }
-      }
-      continue;
-    }
-
-    if (t.kind === 'open' && t.name === 'text' && t.attrs.class === 'name') {
-      const textContent = decodeEntities((t.trailingText || '').trim());
-      if (lastRoom) {
-        lastRoom.showName = true;
-        lastRoom.name = textContent;
-      }
+    if (t.kind === 'open' && t.name === 'text' && /^(lbl|lblS|name)$/.test(t.attrs.class || '')) {
+      const fs = t.attrs['font-size'] ? Number(String(t.attrs['font-size']).replace('px', '')) : null;
+      texts.push({ cls: t.attrs.class, text: decodeEntities((t.trailingText || '').trim()), x: Number(t.attrs.x), y: Number(t.attrs.y), fontSize: fs });
       continue;
     }
 
@@ -249,6 +265,7 @@ export function importSvg(svgText) {
           type: 'stair',
           x, y, w, h,
           dir: horizontal ? 'v' : 'h',
+          treads: lines.map((l) => ({ x1: Number(l.x1), y1: Number(l.y1), x2: Number(l.x2), y2: Number(l.y2) })),
         });
       }
       continue;
@@ -261,17 +278,18 @@ export function importSvg(svgText) {
       // find following exit text within 100 units
       let kind = null;
       let label = { x: midX, y: midY };
-      for (let j = i + 1; j < tokens.length && j < i + 6; j++) {
-        const tt = tokens[j];
+      // the closest exit text anywhere in the file within 100 units (build_entrances.py rule)
+      let best = 100.000001;
+      for (const tt of tokens) {
         if (tt.kind === 'open' && tt.name === 'text' && tt.attrs.class === 'exit') {
           const lx = Number(tt.attrs.x), ly = Number(tt.attrs.y);
           const dist = Math.hypot(lx - midX, ly - midY);
-          if (dist <= 100) {
+          if (dist < best) {
+            best = dist;
             const content = decodeEntities((tt.trailingText || '').trim());
             kind = content === 'Door' ? 'Door' : 'EXIT';
             label = { x: lx, y: ly };
           }
-          break;
         }
       }
       items.push({
@@ -315,6 +333,7 @@ export function importSvg(svgText) {
   }
 
   doc0.meta = meta;
+  attachTextsAndStairs(items, texts, problems);
   doc0.items = items;
   doc0.sections = sectionsById;
 

@@ -64,14 +64,31 @@ Element order in the file: header comment, style, floor polygon, then rooms
 (grouped under section comments; each room shape followed immediately by its
 label texts), then stairs, then doors + exit labels, then compass.
 
+## Layout (matches data/floors/hjlc-1.svg)
+
+* Everything inside the root is indented two spaces; style rules four.
+* A shape and its label share one line: `  <rect class="room" .../><text class="lblS" x y>128B</text>`.
+* `<text class="name">` lines follow the shape; several are allowed and the parser joins them with spaces.
+* A `core` rect may carry free text (`Elev`, `ST1`) or no label. Unlabelled shapes are allowed but are not searchable.
+* A stair is `<rect class="core">` + `<g class="stair"><line/>...</g>` on the next line, plus an optional label.
+* `font-size="15"` overrides have no `px`.
+* Doors: `  <line class="door" .../><text class="exit" x y>EXIT</text>` on one line.
+
 ## Compass group (verbatim)
 
 ```
+<!-- Which way the building really faces. The angle comes from NMSU Space Planning's outline of the
+     building, and matches the compass on the posted evacuation map. -->
 <g class="compass" transform="translate(X,Y) rotate(DEG)">
-  <circle r="26" fill="none" stroke="#8a8690" stroke-width="2"/>
-  <polygon class="compass-north" points="0,-24 7,0 -7,0"/>
-  <polygon points="0,24 7,0 -7,0" fill="#8a8690"/>
-  <text class="compass-letter" y="-32">N</text>
+  <circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>
+  <circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>
+  <path d="M0,-38 L11,0 L-11,0 Z" fill="#8C0B42"/>
+  <path d="M0,38 L11,0 L-11,0 Z" fill="#c7c7cc"/>
+  <circle r="4.5" fill="#ffffff" stroke="#8a8690" stroke-width="2"/>
+  <text class="compass-letter compass-north" x="0" y="-52">N</text>
+  <text class="compass-letter" x="0" y="62">S</text>
+  <text class="compass-letter" x="57" y="6">E</text>
+  <text class="compass-letter" x="-57" y="6">W</text>
 </g>
 ```
 
@@ -91,8 +108,8 @@ label texts), then stairs, then doors + exit labels, then compass.
 
 ```json
 "<property number>": {
-  "name": "<Building name>",
-  "floors": { "<n>": "<slug>" }
+  "floorImages": { "<n>": "data/floors/<slug>.svg" },
+  "postedImages": { "<n>": "data/floors/<slug>-posted.jpg" }
 }
 ```
 
