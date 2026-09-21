@@ -19,9 +19,12 @@ const PIECES = [
   { key: 'compass', label: 'Compass' },
 ];
 
+const STAIR_PIECES = [
+  { key: 'stair', label: 'Stairs' },
+];
+
 const HALL_PIECES = [
   { key: 'hall', label: 'Hallway' },
-  { key: 'stair', label: 'Stairs' },
 ];
 
 const LOCKED_TITLE = 'Finish the previous step first';
@@ -35,16 +38,18 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
     </div>
     <div class="palette-step" data-step="door">
-      <h4>2. Add doors</h4>
+      <h4>2. Add doors and stairs</h4>
       <p class="step-desc">Click a spot along the outline for each door.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
+      <div id="stair-chip-row"></div>
+      <button type="button" class="btn-secondary" id="btn-detect-doors">Detect doors and stairs</button>
     </div>
     <div class="palette-step" data-step="hall">
-      <h4>3. Add hallways and stairs</h4>
+      <h4>3. Add hallways</h4>
       <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
       <div id="hall-chip-row"></div>
-      <button type="button" class="btn-secondary" id="btn-detect-halls">Detect hallways and stairs</button>
+      <button type="button" class="btn-secondary" id="btn-detect-halls">Detect hallways</button>
     </div>
     <div class="palette-step" data-step="room">
       <h4>4. Add rooms</h4>
@@ -57,6 +62,7 @@ export function mountPalette(el, app) {
 
   const chipRow = el.querySelector('#chip-row');
   const hallChipRow = el.querySelector('#hall-chip-row');
+  const stairChipRow = el.querySelector('#stair-chip-row');
   const toolButtons = {
     floor: el.querySelector('#btn-tool-floor'),
     door: el.querySelector('#btn-tool-door'),
@@ -84,8 +90,14 @@ export function mountPalette(el, app) {
     if (btn) btn.addEventListener('click', () => toggleTool(name));
   });
 
+  const detectDoorsBtn = el.querySelector('#btn-detect-doors');
   const detectHallsBtn = el.querySelector('#btn-detect-halls');
   const detectRoomsBtn = el.querySelector('#btn-detect-rooms');
+  if (detectDoorsBtn) {
+    detectDoorsBtn.addEventListener('click', () => {
+      if (app.suggest && typeof app.suggest.runStairs === 'function') app.suggest.runStairs();
+    });
+  }
   if (detectHallsBtn) {
     detectHallsBtn.addEventListener('click', () => {
       if (app.suggest && typeof app.suggest.runHalls === 'function') app.suggest.runHalls();
@@ -122,24 +134,32 @@ export function mountPalette(el, app) {
     hallChipRow.appendChild(chip);
   });
 
+  STAIR_PIECES.forEach((piece) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.dataset.piece = piece.key;
+    chip.innerHTML = `<span class="chip-preview">${chipSvg(piece.key)}</span><span class="chip-label">${piece.label}</span>`;
+    stairChipRow.appendChild(chip);
+  });
+
   function hasFloor() {
     const doc = app.doc;
     return !!(doc && doc.floor && doc.floor.points && doc.floor.points.length >= 3);
   }
-  function hasDoor() {
+  function hasDoorOrStair() {
     const doc = app.doc;
-    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door'));
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door' || it.type === 'stair'));
   }
-  function hasHallOrStair() {
+  function hasHall() {
     const doc = app.doc;
-    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall' || it.type === 'stair'));
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall'));
   }
 
   const STEP_UNLOCKED = {
     floor: () => true,
     door: hasFloor,
-    hall: hasDoor,
-    room: hasHallOrStair,
+    hall: hasDoorOrStair,
+    room: hasHall,
   };
 
   function refresh() {
@@ -156,6 +176,7 @@ export function mountPalette(el, app) {
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
+    if (detectDoorsBtn) detectDoorsBtn.disabled = !STEP_UNLOCKED.door();
     if (detectHallsBtn) detectHallsBtn.disabled = !STEP_UNLOCKED.hall();
     if (detectRoomsBtn) detectRoomsBtn.disabled = !STEP_UNLOCKED.room();
     el.querySelectorAll('.palette-step').forEach((step) => {
@@ -175,6 +196,12 @@ export function mountPalette(el, app) {
     const hallUnlocked = STEP_UNLOCKED.hall();
     hallChipRow.querySelectorAll('.chip').forEach((chip) => {
       chip.classList.toggle('disabled', !hallUnlocked);
+      const key = chip.dataset.piece;
+      chip.classList.toggle('active', app.toolName === chipToolName(key));
+    });
+    const doorUnlocked = STEP_UNLOCKED.door();
+    stairChipRow.querySelectorAll('.chip').forEach((chip) => {
+      chip.classList.toggle('disabled', !doorUnlocked);
       const key = chip.dataset.piece;
       chip.classList.toggle('active', app.toolName === chipToolName(key));
     });
@@ -214,8 +241,11 @@ export function mountPalette(el, app) {
     const chip = e.target.closest('.chip');
     if (!chip) return;
     const inHallRow = chip.parentElement === hallChipRow;
-    if (inHallRow ? !STEP_UNLOCKED.hall() : !STEP_UNLOCKED.room()) return;
-    const piece = (inHallRow ? HALL_PIECES : PIECES).find((p) => p.key === chip.dataset.piece);
+    const inStairRow = chip.parentElement === stairChipRow;
+    const stepName = inStairRow ? 'door' : inHallRow ? 'hall' : 'room';
+    if (!STEP_UNLOCKED[stepName]()) return;
+    const pieces = inStairRow ? STAIR_PIECES : inHallRow ? HALL_PIECES : PIECES;
+    const piece = pieces.find((p) => p.key === chip.dataset.piece);
     if (!piece) return;
     dragStart = { x: e.clientX, y: e.clientY };
     dragging = false;
@@ -254,6 +284,7 @@ export function mountPalette(el, app) {
 
   chipRow.addEventListener('pointerdown', onPointerDown);
   hallChipRow.addEventListener('pointerdown', onPointerDown);
+  stairChipRow.addEventListener('pointerdown', onPointerDown);
   const unsub = app.subscribe((evt) => {
     if (evt.type === 'tool' || evt.type === 'doc' || evt.type === 'project') refresh();
   });
@@ -263,6 +294,7 @@ export function mountPalette(el, app) {
     destroy() {
       chipRow.removeEventListener('pointerdown', onPointerDown);
       hallChipRow.removeEventListener('pointerdown', onPointerDown);
+      stairChipRow.removeEventListener('pointerdown', onPointerDown);
       unsub();
       el.innerHTML = '';
     },

@@ -9,7 +9,7 @@ const CHECKLIST = [
   { label: 'No two rooms share a number', codes: ['duplicate-number'] },
   { label: 'Doors sit on the outline with an EXIT label', codes: ['door-off-outline', 'door-no-exit-label', 'door-no-floor'] },
   { label: 'Labels sit inside their rooms', codes: ['label-outside-shape', 'label-in-other-room'] },
-  { label: 'At least one door', codes: ['checklist-no-door'] },
+  { label: 'At least one door or stairs', codes: ['checklist-no-door'] },
   { label: 'At least one hallway or stairs', codes: ['checklist-no-hall'] },
   { label: 'At least one room with a number', codes: ['checklist-no-numbered-room'] },
 ];
@@ -20,11 +20,11 @@ const CHECKLIST = [
 // treat them the same as any other validation code.
 export function docChecklistCodes(doc) {
   const items = (doc && doc.items) || [];
-  const hasDoor = items.some((it) => it.type === 'door');
+  const hasDoorOrStair = items.some((it) => it.type === 'door' || it.type === 'stair');
   const hasHallOrStair = items.some((it) => it.type === 'hall' || it.type === 'stair');
   const hasNumberedRoom = items.some((it) => it.type === 'room' && it.number);
   const out = [];
-  if (!hasDoor) out.push({ level: 'error', code: 'checklist-no-door', message: 'Add at least one door.' });
+  if (!hasDoorOrStair) out.push({ level: 'error', code: 'checklist-no-door', message: 'Add at least one door or stairs.' });
   if (!hasHallOrStair) out.push({ level: 'error', code: 'checklist-no-hall', message: 'Add at least one hallway or stairs.' });
   if (!hasNumberedRoom) out.push({ level: 'error', code: 'checklist-no-numbered-room', message: 'Add at least one room with a number.' });
   return out;

@@ -17,17 +17,23 @@
 //   { id, kind:'ocr', width, height, data, regions }
 //     -> posts progress { id, kind:'ocr-progress', done, total }
 //     -> posts { id, kind:'ocr', numbers:{ [regionIndex]: '128B' } }
-//   { id, kind:'halls', width, height, data, outline }
+//   { id, kind:'stairs', width, height, data, outline }
 //     Reuses the same adaptive-threshold ink mask as 'trace'. Finds light
 //     (non-ink) regions inside `outline` (required to be meaningful; regions
-//     outside it, or touching the image border, are dropped) that are:
-//       - hallways: bbox aspect ratio (long/short side) >= 3, long side >=
-//         120 plan units, short side between 20 and 140.
-//       - stair candidates: short side between 30 and 120, and the region's
-//         interior contains >= 3 dark (ink) line runs parallel to the
-//         region's short axis, each consecutive pair spaced <= 40 units
-//         apart (i.e. evenly spaced stair treads).
-//     -> posts { id, kind:'halls', halls:[{x,y,w,h}], stairs:[{x,y,w,h}] }
+//     outside it, or touching the image border, are dropped) that are stair
+//     candidates: short side between 30 and 120, and the region's interior
+//     contains >= 3 dark (ink) line runs parallel to the region's short
+//     axis, each consecutive pair spaced <= 40 units apart (i.e. evenly
+//     spaced stair treads). Also scans along the outline edges for door
+//     candidates: a green EXIT sign (g>r+40 && g>b+40) or red exit marker
+//     (r>g+60 && r>b+60) found in a 40x40 window sampled every 10 units
+//     along each edge; hits closer than 50 units are merged.
+//     -> posts { id, kind:'stairs', stairs:[{x,y,w,h}], doors:[{x1,y1,x2,y2}] }
+//   { id, kind:'halls', width, height, data, outline }
+//     Same ink mask; finds light regions inside `outline` that are
+//     hallways: bbox aspect ratio (long/short side) >= 3, long side >=
+//     120 plan units, short side between 20 and 140.
+//     -> posts { id, kind:'halls', halls:[{x,y,w,h}] }
 // On error: posts { id, error: message }
 
 const NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
@@ -68,9 +74,12 @@ self.onmessage = async (e) => {
     } else if (kind === 'ocr') {
       await ocrRegions(id, msg.width, msg.height, msg.data, msg.regions);
       self.postMessage({ id, kind: 'ocr-done' });
+    } else if (kind === 'stairs') {
+      const { stairs, doors } = findStairsAndDoors(msg.width, msg.height, msg.data, msg.outline || null);
+      self.postMessage({ id, kind: 'stairs', stairs, doors });
     } else if (kind === 'halls') {
-      const { halls, stairs } = findHallsAndStairs(msg.width, msg.height, msg.data, msg.outline || null);
-      self.postMessage({ id, kind: 'halls', halls, stairs });
+      const { halls } = findHalls(msg.width, msg.height, msg.data, msg.outline || null);
+      self.postMessage({ id, kind: 'halls', halls });
     } else {
       self.postMessage({ id, kind: 'error', message: `unknown kind: ${kind}` });
     }
@@ -279,10 +288,9 @@ function countLineRuns(ink, width, bbox) {
   return true;
 }
 
-function findHallsAndStairs(width, height, data, outline) {
-  const { ink, dilated } = computeInkMask(width, height, data);
+function findHalls(width, height, data, outline) {
+  const { dilated } = computeInkMask(width, height, data);
   const halls = [];
-  const stairs = [];
 
   floodFillRegions(width, height, dilated, ({ minX, minY, maxX, maxY, touchesBorder }) => {
     if (touchesBorder) return;
@@ -298,14 +306,100 @@ function findHallsAndStairs(width, height, data, outline) {
 
     if (aspect >= 3 && longSide >= 120 && shortSide >= 20 && shortSide <= 140) {
       halls.push({ x: minX, y: minY, w, h });
-    } else if (shortSide >= 30 && shortSide <= 120) {
+    }
+  });
+
+  return { halls };
+}
+
+function findStairsAndDoors(width, height, data, outline) {
+  const { ink, dilated } = computeInkMask(width, height, data);
+  const stairs = [];
+
+  floodFillRegions(width, height, dilated, ({ minX, minY, maxX, maxY, touchesBorder }) => {
+    if (touchesBorder) return;
+    const w = maxX - minX + 1;
+    const h = maxY - minY + 1;
+    const cx = minX + w / 2;
+    const cy = minY + h / 2;
+    if (outline && outline.length >= 3 && !pointInPolygon([cx, cy], outline)) return;
+
+    const shortSide = Math.min(w, h);
+    if (shortSide >= 30 && shortSide <= 120) {
       if (countLineRuns(ink, width, { x: minX, y: minY, w, h })) {
         stairs.push({ x: minX, y: minY, w, h });
       }
     }
   });
 
-  return { halls, stairs };
+  const doors = findDoors(width, height, data, outline);
+  return { stairs, doors };
+}
+
+// Strong-green (EXIT sign) or strong-red (exit marker) pixel anywhere in a
+// 40x40 window centred at (cx, cy).
+function hasExitColor(width, height, data, cx, cy) {
+  const half = 20;
+  const x0 = Math.max(0, Math.round(cx - half));
+  const y0 = Math.max(0, Math.round(cy - half));
+  const x1 = Math.min(width - 1, Math.round(cx + half));
+  const y1 = Math.min(height - 1, Math.round(cy + half));
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const o = (y * width + x) * 4;
+      const r = data[o], g = data[o + 1], b = data[o + 2];
+      if ((g > r + 40 && g > b + 40) || (r > g + 60 && r > b + 60)) return true;
+    }
+  }
+  return false;
+}
+
+// Slides a 40x40 window every 10 units along each outline edge, looking for
+// an EXIT sign/marker within 60px of the edge. Hits closer than 50 units are
+// merged; each survivor becomes a short candidate segment along its edge
+// (the caller re-snaps it onto the outline via doorFor()).
+function findDoors(width, height, data, outline) {
+  if (!outline || outline.length < 3) return [];
+  const raw = [];
+  const n = outline.length;
+  for (let i = 0; i < n; i++) {
+    const a = outline[i];
+    const b = outline[(i + 1) % n];
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy);
+    if (len === 0) continue;
+    const ux = dx / len;
+    const uy = dy / len;
+    for (let s = 0; s <= len; s += 10) {
+      const cx = a[0] + ux * s;
+      const cy = a[1] + uy * s;
+      if (hasExitColor(width, height, data, cx, cy)) {
+        raw.push({ x: cx, y: cy, edgeA: a, edgeB: b });
+      }
+    }
+  }
+
+  const merged = [];
+  for (const hit of raw) {
+    if (merged.some((m) => Math.hypot(m.x - hit.x, m.y - hit.y) < 50)) continue;
+    merged.push(hit);
+  }
+
+  return merged.map((hit) => {
+    const dx = hit.edgeB[0] - hit.edgeA[0];
+    const dy = hit.edgeB[1] - hit.edgeA[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const half = 18;
+    return {
+      x1: Math.round(hit.x - ux * half),
+      y1: Math.round(hit.y - uy * half),
+      x2: Math.round(hit.x + ux * half),
+      y2: Math.round(hit.y + uy * half),
+    };
+  });
 }
 
 // ---------- ocr: lazy-load Tesseract.js, crop + recognize each region ----------
