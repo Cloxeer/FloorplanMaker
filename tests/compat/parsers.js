@@ -7,7 +7,7 @@
 const LABEL_RE = /<text class="(lbl|lblS)"[^>]*\sx="(-?\d+(?:\.\d+)?)"[^>]*\sy="(-?\d+(?:\.\d+)?)"[^>]*>([^<]*)<\/text>/g;
 const SHAPE_RE = /<(rect|polygon) class="(room|big|ours|core)"([^>]*)\/>/g;
 const DOOR_RE = /<line class="door" x1="(-?\d+(?:\.\d+)?)" y1="(-?\d+(?:\.\d+)?)" x2="(-?\d+(?:\.\d+)?)" y2="(-?\d+(?:\.\d+)?)"\/>/g;
-const EXIT_RE = /<text class="exit"(?:\s+fill="[^"]*")?\s+x="(-?\d+(?:\.\d+)?)"\s+y="(-?\d+(?:\.\d+)?)">([^<]*)<\/text>/g;
+const EXIT_RE = /<text class="exit"[^>]*?\sx="(-?\d+(?:\.\d+)?)"[^>]*?\sy="(-?\d+(?:\.\d+)?)"[^>]*>([^<]*)<\/text>/g;
 const STAIR_GROUP_RE = /<g class="stair">([\s\S]*?)<\/g>/g;
 const STAIR_LINE_RE = /<line x1="(-?\d+(?:\.\d+)?)" y1="(-?\d+(?:\.\d+)?)" x2="(-?\d+(?:\.\d+)?)" y2="(-?\d+(?:\.\d+)?)"\/>/g;
 const FLOOR_RE = /<polygon class="floor" points="([^"]*)"\/>/;

@@ -248,8 +248,8 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 .handle { fill: #ffffff; stroke: #2f6feb; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .repeat-handle { fill: #2f6feb; stroke: #ffffff; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .route { stroke: #ff8a00; stroke-width: 3; fill: none; vector-effect: non-scaling-stroke; }
-.grid { opacity: 0.5; }
-.photo { pointer-events: none; }
+.layer-grid { opacity: 0.5; }
+.layer-photo { pointer-events: none; }
 .pinned { fill: #b7791f; }
 
 /* ---------- responsive: keep panels usable on narrow screens ---------- */
