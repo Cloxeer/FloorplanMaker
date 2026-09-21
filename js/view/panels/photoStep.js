@@ -120,8 +120,13 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
   style.textContent = `
     .ps-wrap { display:flex; flex-direction:column; gap:12px; align-items:center; }
     .ps-drop { border:2px dashed #c7cbd1; border-radius:10px; padding:40px; text-align:center; width:100%; max-width:600px; }
-    .ps-canvas-wrap { position:relative; max-width:100%; touch-action:none; }
+    .ps-canvas-wrap { position:relative; max-width:100%; touch-action:none; display:inline-block; }
     .ps-canvas-wrap canvas { display:block; max-width:100%; height:auto; }
+    /* Cap the image's on-screen height to whatever room is left below the
+       header/actions so tall photos never push the corner handles off the
+       bottom of the viewport; width scales to match (aspect preserved via
+       the canvas's own intrinsic width/height attributes). */
+    .ps-canvas-wrap.ps-fit canvas { max-height: var(--ps-max-h, 60vh); width: auto; }
     .ps-canvas-wrap svg { position:absolute; top:0; left:0; width:100%; height:100%; }
     .ps-handle { fill:#2f6feb; stroke:#fff; stroke-width:2; cursor:grab; }
     .ps-actions { display:flex; gap:10px; margin-top:10px; }
@@ -131,6 +136,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
   const dropEl = containerEl.querySelector('#ps-drop');
   const editorEl = containerEl.querySelector('#ps-editor');
   const fileInput = containerEl.querySelector('#ps-file');
+  const canvasWrap = containerEl.querySelector('.ps-canvas-wrap');
   const canvas = containerEl.querySelector('#ps-canvas');
   const overlay = containerEl.querySelector('#ps-overlay');
   const straightenBtn = containerEl.querySelector('#ps-straighten');
@@ -138,6 +144,22 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
   const skipInitialBtn = containerEl.querySelector('#ps-skip-initial');
   const errorEl = containerEl.querySelector('#ps-error');
   const ctx = canvas.getContext('2d');
+
+  // Fit the photo (and its handle overlay, which scales with it) into
+  // whatever vertical room is left below the header/actions, so the bottom
+  // corner handles of a tall photo stay on screen. The canvas's own
+  // width/height attributes (and therefore `corners`/straighten math) stay
+  // in original downscaled-image pixel space regardless of display size.
+  function fitToViewport() {
+    if (!canvasWrap || editorEl.hidden) return;
+    const top = canvasWrap.getBoundingClientRect().top;
+    const actionsEl = containerEl.querySelector('.ps-actions');
+    const actionsH = actionsEl ? actionsEl.getBoundingClientRect().height + 20 : 60;
+    const maxH = Math.max(200, window.innerHeight - top - actionsH - 16);
+    canvasWrap.style.setProperty('--ps-max-h', `${maxH}px`);
+    canvasWrap.classList.add('ps-fit');
+  }
+  window.addEventListener('resize', fitToViewport);
 
   function showError(err) {
     if (!errorEl) return;
@@ -226,6 +248,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     dropEl.hidden = true;
     editorEl.hidden = false;
     drawOverlay();
+    fitToViewport();
   }
 
   function onFileChange() {
@@ -335,6 +358,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
       fileInput.removeEventListener('change', onFileChange);
       dropEl.removeEventListener('dragover', onDragOver);
       dropEl.removeEventListener('drop', onDrop);
+      window.removeEventListener('resize', fitToViewport);
       containerEl.innerHTML = '';
     },
   };
