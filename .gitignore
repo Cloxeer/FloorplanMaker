@@ -2,3 +2,4 @@ node_modules/
 ocr-out/
 .playwright/
 test-results/
+samples/_*

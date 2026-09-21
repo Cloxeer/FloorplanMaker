@@ -46,30 +46,31 @@
   <!-- STUDIO -->
   <section id="studio" hidden>
     <header id="topbar">
-      <div class="topbar-title">
-        <strong id="project-name">Untitled</strong>
-        <span id="project-floor"></span>
+      <div class="topbar-left">
+        <button id="btn-close" class="btn-link" type="button">&larr; Projects</button>
+        <div class="topbar-title">
+          <strong id="project-name">Untitled</strong>
+          <span id="project-floor"></span>
+        </div>
       </div>
       <div class="topbar-group" id="step-strip"></div>
-      <div class="topbar-group">
+      <div class="topbar-right">
         <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
         <button id="btn-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-      </div>
-      <div class="topbar-group">
-        <button id="btn-suggest">Suggest rooms</button>
-        <button id="btn-photo">Change photo</button>
-      </div>
-      <div class="topbar-group">
-        <label class="onion-label">Photo
-          <input type="range" id="onion" min="0" max="1" step="0.05" value="0.5">
-        </label>
-        <button id="btn-grid" title="Toggle grid" aria-pressed="true">Grid</button>
-      </div>
-      <div class="topbar-group">
+        <div class="view-popover-wrap">
+          <button id="btn-view" type="button">View</button>
+          <div id="view-popover" class="popover" hidden>
+            <label class="onion-label">Photo
+              <input type="range" id="onion" min="0" max="1" step="0.05" value="0.5">
+            </label>
+            <button id="btn-grid" title="Toggle grid" aria-pressed="true">Grid</button>
+            <button id="btn-photo">Change photo</button>
+            <button id="btn-suggest">Find rooms on the photo</button>
+          </div>
+        </div>
         <span id="saved-chip" class="saved-chip">Saved</span>
-        <button id="btn-save-json">Save .json</button>
+        <button id="btn-save-json" class="btn-quiet">Save</button>
         <button id="btn-export" class="btn-primary">Export</button>
-        <button id="btn-close">Projects</button>
       </div>
     </header>
 
@@ -77,6 +78,14 @@
 
     <div id="stage">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="start-overlay" class="start-overlay" hidden>
+        <div class="start-overlay-card">
+          <h3>Start by outlining the building</h3>
+          <p>Click the corners of the building on the photo.</p>
+          <button id="btn-overlay-draw" class="btn btn-primary" type="button">Draw outline</button>
+        </div>
+      </div>
+      <button id="btn-hand-toggle" class="hand-toggle" type="button" title="Pan (touch)" aria-pressed="false">&#9995;</button>
     </div>
 
     <aside id="props">

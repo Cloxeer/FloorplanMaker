@@ -4,8 +4,7 @@
 // handle drawing. Depends on: js/model/document.js (labelPos, labelClass,
 // labelText, roomPolygon, stairTreads), js/model/geometry.js (bbox).
 
-import { labelPos, labelClass, labelText, roomPolygon, stairTreads } from '../model/document.js';
-import { bbox } from '../model/geometry.js';
+import { labelPos, labelClass, labelText, stairTreads } from '../model/document.js';
 
 const XLINK = 'http://www.w3.org/1999/xlink';
 
@@ -106,6 +105,12 @@ export function renderRoom(item, roomsLayer, labelsLayer, el, rec) {
 
 export function renderDoor(item, doorsLayer, el, rec) {
   if (!rec) {
+    const hit = el('line', {
+      x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2,
+      stroke: 'transparent', 'stroke-width': 14,
+      'data-id': item.id, 'data-part': 'body',
+    });
+    doorsLayer.appendChild(hit);
     const line = el('line', {
       class: 'door', x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2,
       'data-id': item.id, 'data-part': 'body',
@@ -118,12 +123,18 @@ export function renderDoor(item, doorsLayer, el, rec) {
     if (item.kind === 'Door') label.setAttribute('fill', '#5f6368');
     label.textContent = item.kind === 'Door' ? 'Door' : 'EXIT';
     doorsLayer.appendChild(label);
-    return { root: line, label, kind: 'door' };
+    return { root: line, hit, label, kind: 'door' };
   }
   rec.root.setAttribute('x1', item.x1);
   rec.root.setAttribute('y1', item.y1);
   rec.root.setAttribute('x2', item.x2);
   rec.root.setAttribute('y2', item.y2);
+  if (rec.hit) {
+    rec.hit.setAttribute('x1', item.x1);
+    rec.hit.setAttribute('y1', item.y1);
+    rec.hit.setAttribute('x2', item.x2);
+    rec.hit.setAttribute('y2', item.y2);
+  }
   rec.label.setAttribute('x', item.label.x);
   rec.label.setAttribute('y', item.label.y);
   rec.label.textContent = item.kind === 'Door' ? 'Door' : 'EXIT';
@@ -136,6 +147,9 @@ export function renderStair(item, stairsLayer, el, rec) {
   const treads = stairTreads(item);
   if (!rec) {
     const g = el('g', { class: 'stair', 'data-id': item.id, 'data-part': 'body' });
+    g.appendChild(el('rect', {
+      x: item.x, y: item.y, width: item.w, height: item.h, fill: 'transparent',
+    }));
     for (const t of treads) {
       g.appendChild(el('line', { x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2 }));
     }
@@ -143,6 +157,9 @@ export function renderStair(item, stairsLayer, el, rec) {
     return { root: g, kind: 'stair' };
   }
   while (rec.root.firstChild) rec.root.removeChild(rec.root.firstChild);
+  rec.root.appendChild(el('rect', {
+    x: item.x, y: item.y, width: item.w, height: item.h, fill: 'transparent',
+  }));
   for (const t of treads) {
     rec.root.appendChild(el('line', { x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2 }));
   }
@@ -155,6 +172,7 @@ export function renderCompass(item, floorLayer, el, rec) {
       class: 'compass', transform: `translate(${item.x},${item.y}) rotate(${item.deg})`,
       'data-id': item.id, 'data-part': 'body',
     });
+    g.appendChild(el('circle', { r: 30, fill: 'transparent' }));
     g.appendChild(el('circle', { r: 26, fill: 'none', stroke: '#8a8690', 'stroke-width': 2 }));
     g.appendChild(el('polygon', { class: 'compass-north', points: '0,-24 7,0 -7,0' }));
     g.appendChild(el('polygon', { points: '0,24 7,0 -7,0', fill: '#8a8690' }));
@@ -189,33 +207,50 @@ function handlePoints(x, y, w, h) {
   };
 }
 
-export function updateSelectionHandles(doc, ids, selectionLayer, el, view, svgEl) {
-  const scale = view && view.w ? (svgEl.clientWidth || 1) / view.w : 1;
+// itemMap: Map id -> item (live/patched geometry). floor: doc.floor (or a
+// live-patched override). scale: current px-per-plan-unit (caller computes
+// this once, e.g. at pointerdown or on a non-drag selection change, so this
+// function itself never touches layout).
+export function updateSelectionHandles(itemMap, floor, ids, selectionLayer, el, scale) {
   const handleSize = scale > 0 ? 10 / scale : 10;
 
   for (const id of ids) {
     if (id === 'floor') {
-      if (!doc.floor) continue;
-      doc.floor.points.forEach((p, i) => {
+      if (!floor) continue;
+      floor.points.forEach((p, i) => {
         selectionLayer.appendChild(el('circle', {
           cx: p[0], cy: p[1], r: Math.max(3, handleSize / 2.5),
           class: 'floor-vertex-handle', 'data-id': 'floor', 'data-part': `floor-vertex:${i}`,
         }));
       });
-      const pts = doc.floor.points.map((p) => p.join(',')).join(' ');
+      const pts = floor.points.map((p) => p.join(',')).join(' ');
       selectionLayer.appendChild(el('polygon', {
         points: pts, class: 'selection-outline', fill: 'none',
       }));
       continue;
     }
-    const item = doc.items.find((it) => it.id === id);
+    const item = itemMap.get(id);
     if (!item) continue;
-    const pts = roomPolygonSafe(item);
-    const b = bbox(pts);
-    const outline = el(item.shape === 'poly' ? 'polygon' : 'rect', {
+
+    if (item.type === 'compass') {
+      selectionLayer.appendChild(el('circle', {
+        cx: item.x, cy: item.y, r: 30, class: 'selection-outline', fill: 'none', 'stroke-dasharray': '4 3',
+      }));
+      continue;
+    }
+    if (item.type === 'door') {
+      selectionLayer.appendChild(el('line', {
+        x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2,
+        class: 'selection-outline', stroke: '#1a73e8', 'stroke-width': 4,
+      }));
+      continue;
+    }
+
+    const isPoly = item.shape === 'poly';
+    const outline = el(isPoly ? 'polygon' : 'rect', {
       class: 'selection-outline', fill: 'none', 'stroke-dasharray': '4 3',
     });
-    if (item.shape === 'poly') {
+    if (isPoly) {
       outline.setAttribute('points', item.points.map((p) => p.join(',')).join(' '));
     } else {
       outline.setAttribute('x', item.x);
@@ -225,7 +260,7 @@ export function updateSelectionHandles(doc, ids, selectionLayer, el, view, svgEl
     }
     selectionLayer.appendChild(outline);
 
-    if (ids.length === 1 && item.shape === 'poly') {
+    if (ids.length === 1 && isPoly) {
       item.points.forEach((p, i) => {
         selectionLayer.appendChild(el('circle', {
           cx: p[0], cy: p[1], r: Math.max(3, handleSize / 2.5),
@@ -234,7 +269,7 @@ export function updateSelectionHandles(doc, ids, selectionLayer, el, view, svgEl
       });
     }
 
-    if (ids.length === 1 && item.shape === 'rect') {
+    if (ids.length === 1 && !isPoly) {
       const hp = handlePoints(item.x, item.y, item.w, item.h);
       for (const key of HANDLE_ORDER) {
         const [hx, hy] = hp[key];
@@ -244,19 +279,16 @@ export function updateSelectionHandles(doc, ids, selectionLayer, el, view, svgEl
           class: 'resize-handle', 'data-id': id, 'data-part': `handle:${key}`,
         }));
       }
-      const repeatX = item.x + item.w + handleSize * 1.5;
-      const repeatY = item.y + item.h / 2;
-      selectionLayer.appendChild(el('circle', {
-        cx: repeatX, cy: repeatY, r: Math.max(4, handleSize / 2),
-        class: 'repeat-handle', 'data-id': id, 'data-part': 'repeat',
-      }));
+      if (item.type === 'room') {
+        const repeatX = item.x + item.w + handleSize * 1.5;
+        const repeatY = item.y + item.h / 2;
+        selectionLayer.appendChild(el('circle', {
+          cx: repeatX, cy: repeatY, r: Math.max(4, handleSize / 2),
+          class: 'repeat-handle', 'data-id': id, 'data-part': 'repeat',
+        }));
+      }
     }
   }
-}
-
-function roomPolygonSafe(item) {
-  if (item.shape === 'poly') return item.points;
-  return [[item.x, item.y], [item.x + item.w, item.y], [item.x + item.w, item.y + item.h], [item.x, item.y + item.h]];
 }
 
 // ---- overlay builders (guides, ghosts, route, photo, grid) ----

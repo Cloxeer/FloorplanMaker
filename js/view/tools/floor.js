@@ -19,6 +19,50 @@ export function createFloorTool(app) {
     return !!(app.doc.floor && app.doc.floor.points && app.doc.floor.points.length >= 3);
   }
 
+  // --- pointer ghost: a dot at the snapped point + a rubber-band line from
+  // the last placed corner, drawn straight into the guides layer. ---
+  function guidesLayer() {
+    const svg = document.getElementById('canvas');
+    return svg && svg.querySelector('.layer-guides');
+  }
+  function clearGhost() {
+    const layer = guidesLayer();
+    if (!layer) return;
+    const dot = layer.querySelector('.floor-ghost-dot');
+    const line = layer.querySelector('.floor-ghost-line');
+    if (dot) dot.remove();
+    if (line) line.remove();
+  }
+  function drawGhost(x, y) {
+    const layer = guidesLayer();
+    if (!layer) return;
+    let dot = layer.querySelector('.floor-ghost-dot');
+    if (!dot) {
+      dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('class', 'floor-ghost-dot');
+      dot.setAttribute('r', '4');
+      layer.appendChild(dot);
+    }
+    dot.setAttribute('cx', x);
+    dot.setAttribute('cy', y);
+    if (drawPts && drawPts.length) {
+      const last = drawPts[drawPts.length - 1];
+      let line = layer.querySelector('.floor-ghost-line');
+      if (!line) {
+        line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('class', 'floor-ghost-line');
+        layer.appendChild(line);
+      }
+      line.setAttribute('x1', last[0]);
+      line.setAttribute('y1', last[1]);
+      line.setAttribute('x2', x);
+      line.setAttribute('y2', y);
+    } else {
+      const line = layer.querySelector('.floor-ghost-line');
+      if (line) line.remove();
+    }
+  }
+
   function onDown(e, pt) {
     if (hasFloor()) {
       const pts = app.doc.floor.points;
@@ -60,6 +104,11 @@ export function createFloorTool(app) {
       vertexDrag.lastPts = pts;
       const node = document.querySelector('[data-id="floor"]');
       if (node) node.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+      return;
+    }
+    if (!hasFloor()) {
+      const snapped = app.snap(pt, {});
+      drawGhost(snapped.x, snapped.y);
     }
   }
 
@@ -75,6 +124,7 @@ export function createFloorTool(app) {
     if (!drawPts || drawPts.length < 3) return;
     const doc = setFloor(app.doc, drawPts);
     drawPts = null;
+    clearGhost();
     app.commit(doc, 'Set floor');
   }
 
@@ -82,6 +132,7 @@ export function createFloorTool(app) {
     if (e.key === 'Escape') {
       drawPts = null;
       vertexDrag = null;
+      clearGhost();
       return true;
     }
     if (e.key === 'Enter' && drawPts) {
@@ -98,13 +149,14 @@ export function createFloorTool(app) {
   function cancel() {
     drawPts = null;
     vertexDrag = null;
+    clearGhost();
   }
 
   return {
     name: 'floor',
     hint: hasFloor()
       ? 'Drag a vertex to edit the outline; click an edge to add a point.'
-      : 'Click to place outline corners, Enter or double-click to close.',
+      : 'Click each corner of the building. Press Enter or click the first corner to finish.',
     onDown,
     onMove,
     onUp,

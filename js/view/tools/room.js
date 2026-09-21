@@ -36,11 +36,41 @@ export function createRoomTool(app, opts = {}) {
     rectDrag = { start: { x: snapped.x, y: snapped.y } };
   }
 
+  function guidesLayer() {
+    const svg = document.getElementById('canvas');
+    return svg && svg.querySelector('.layer-guides');
+  }
+  function clearRectGhost() {
+    const layer = guidesLayer();
+    const rect = layer && layer.querySelector('.room-ghost-rect');
+    if (rect) rect.remove();
+  }
+  function drawRectGhost(box) {
+    const layer = guidesLayer();
+    if (!layer) return;
+    let rect = layer.querySelector('.room-ghost-rect');
+    if (!rect) {
+      rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('class', 'room-ghost-rect');
+      layer.appendChild(rect);
+    }
+    rect.setAttribute('x', box.x);
+    rect.setAttribute('y', box.y);
+    rect.setAttribute('width', box.w);
+    rect.setAttribute('height', box.h);
+  }
+
   function onMove(e, pt) {
     if (isPoly) return; // preview drawn via guides only; no live shape node owned by tool
     if (!rectDrag) return;
     const snapped = app.snap(pt, { box: currentBox(pt) });
     rectDrag.current = { x: snapped.x, y: snapped.y };
+    drawRectGhost({
+      x: Math.min(rectDrag.start.x, rectDrag.current.x),
+      y: Math.min(rectDrag.start.y, rectDrag.current.y),
+      w: Math.abs(rectDrag.current.x - rectDrag.start.x),
+      h: Math.abs(rectDrag.current.y - rectDrag.start.y),
+    });
   }
 
   function currentBox(pt) {
@@ -61,6 +91,7 @@ export function createRoomTool(app, opts = {}) {
     const w = Math.abs(end.x - rectDrag.start.x);
     const h = Math.abs(end.y - rectDrag.start.y);
     rectDrag = null;
+    clearRectGhost();
     if (w < 10 || h < 10) return;
     promptAndCommit(() => makeRoom(cls, x, y, w, h));
   }
@@ -100,6 +131,7 @@ export function createRoomTool(app, opts = {}) {
     if (e.key === 'Escape') {
       rectDrag = null;
       polyPts = null;
+      clearRectGhost();
       return true;
     }
     if (e.key === 'Enter' && isPoly) {
@@ -116,13 +148,14 @@ export function createRoomTool(app, opts = {}) {
   function cancel() {
     rectDrag = null;
     polyPts = null;
+    clearRectGhost();
   }
 
   return {
     name: isPoly ? 'poly' : 'room',
     hint: isPoly
       ? 'Click to place corners, Enter or click the first corner to close.'
-      : 'Drag to draw a room. Keys 1-5 set class.',
+      : 'Drag a box over a room on the photo.',
     onDown,
     onMove,
     onUp,

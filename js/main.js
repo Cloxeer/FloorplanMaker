@@ -127,6 +127,13 @@ app.setSelection = function setSelection(ids) {
   if (app.canvas) app.canvas.setSelection([...app.selection]);
   emit({ type: 'selection' });
 };
+const HINT_OVERRIDES = {
+  floor: 'Click each corner of the building. Press Enter or click the first corner to finish.',
+  door: 'Click on the outside wall where a door is. Press Esc when done.',
+  room: 'Drag a box over a room on the photo.',
+  select: 'Click a room to select it. Drag to move. Delete removes it.',
+};
+const DRAW_TOOLS = new Set(['room', 'poly', 'floor', 'door', 'stair', 'compass']);
 app.setTool = function setTool(name) {
   if (app.tool) app.tool.cancel();
   const t = app._tools && app._tools[name];
@@ -134,7 +141,9 @@ app.setTool = function setTool(name) {
   app.toolName = name;
   app.tool = t;
   emit({ type: 'tool' });
-  app.setHint(t.hint);
+  app.setHint(HINT_OVERRIDES[name] || t.hint);
+  const svgEl = document.getElementById('canvas');
+  if (svgEl) svgEl.style.cursor = DRAW_TOOLS.has(name) ? 'crosshair' : 'default';
 };
 app.setHint = function setHint(text) {
   const el = document.getElementById('hint');

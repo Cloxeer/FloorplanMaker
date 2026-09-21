@@ -88,7 +88,41 @@ export function createStudio(app, deps) {
   }
   function updateSavedChip() {
     const chip = document.getElementById('saved-chip');
-    if (chip) chip.textContent = formatSavedAgo(lastSavedAt());
+    if (!chip) return;
+    chip.textContent = formatSavedAgo(lastSavedAt());
+    chip.classList.remove('flash');
+    // eslint-disable-next-line no-unused-expressions
+    chip.offsetWidth; // force reflow so the fade-in restarts
+    chip.classList.add('flash');
+  }
+  function updateOverlay() {
+    const overlay = document.getElementById('start-overlay');
+    if (!overlay) return;
+    const hasFloor = !!(app.doc && app.doc.floor && app.doc.floor.points && app.doc.floor.points.length >= 3);
+    overlay.hidden = hasFloor;
+  }
+  let toolBeforePan = 'select';
+  function toggleHandTool() {
+    const btn = document.getElementById('btn-hand-toggle');
+    if (app.toolName === 'pan') {
+      app.setTool(toolBeforePan || 'select');
+    } else {
+      toolBeforePan = app.toolName || 'select';
+      app.setTool('pan');
+    }
+    if (btn) btn.setAttribute('aria-pressed', String(app.toolName === 'pan'));
+  }
+  function wireViewPopover() {
+    const btn = document.getElementById('btn-view');
+    const pop = document.getElementById('view-popover');
+    if (!btn || !pop) return;
+    onStudio(btn, 'click', (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+    });
+    onStudio(document, 'click', (e) => {
+      if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) pop.hidden = true;
+    });
   }
   function setupCanvas() {
     const svgEl = document.getElementById('canvas');
@@ -132,7 +166,7 @@ export function createStudio(app, deps) {
       });
     }
     studioUnsub = app.subscribe((evt) => {
-      if (evt.type === 'doc') updateUndoRedoButtons();
+      if (evt.type === 'doc') { updateUndoRedoButtons(); updateOverlay(); }
       if (evt.type === 'saved' || evt.type === 'view') updateSavedChip();
     });
   }
@@ -158,6 +192,9 @@ export function createStudio(app, deps) {
     });
     onStudio(document.getElementById('btn-export'), 'click', () => app.exportAll());
     onStudio(document.getElementById('btn-close'), 'click', () => closeProject());
+    onStudio(document.getElementById('btn-hand-toggle'), 'click', toggleHandTool);
+    onStudio(document.getElementById('btn-overlay-draw'), 'click', () => app.setTool('floor'));
+    wireViewPopover();
   }
 
   async function onChangePhoto() {
@@ -237,6 +274,7 @@ export function createStudio(app, deps) {
     updateTopbar();
     updateUndoRedoButtons();
     updateSavedChip();
+    updateOverlay();
 
     if (opts.autoSuggest && suggestHandle) {
       suggestHandle.run();

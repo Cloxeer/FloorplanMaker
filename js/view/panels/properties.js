@@ -1,12 +1,18 @@
 // properties.js
-// Right-panel property editor for the current selection: fields for a single
-// room/door/stair/compass/floor, plus alignment tools for multi-selection.
-// Depends on: js/model/document.js (getItem, updateItem, roomPolygon, STD).
+// Right-panel property editor for the current selection: simple fields for a
+// single room/door/stair/compass/floor, plus alignment tools for multi-selection.
+// Depends on: js/model/document.js (getItem, updateItem, removeItems, STD, NUMBER_RE).
 
-import { getItem, updateItem, STD } from '../../model/document.js';
-import { rectToPoints, bbox, dist } from '../../model/geometry.js';
+import { getItem, updateItem, removeItems, NUMBER_RE } from '../../model/document.js';
+import { rectToPoints, dist } from '../../model/geometry.js';
 
-const CLASS_OPTIONS = ['room', 'big', 'ours', 'core', 'void'];
+const CLASS_OPTIONS = [
+  { cls: 'room', label: 'Room' },
+  { cls: 'big', label: 'Big' },
+  { cls: 'ours', label: 'Ours' },
+  { cls: 'core', label: 'Core' },
+  { cls: 'void', label: 'Void' },
+];
 
 function selectedItems(app) {
   const ids = [...app.selection];
@@ -27,7 +33,7 @@ export function mountProperties(el, app) {
   function render() {
     const items = selectedItems(app);
     if (items.length === 0) {
-      el.innerHTML = '<p class="section-title">Nothing selected</p><p style="color:var(--muted)">Pick a tool or click an item to edit its properties.</p>';
+      el.innerHTML = '<p class="section-title">Nothing selected</p><p style="color:var(--muted)">Pick a tool, or click an item on the plan to edit it.</p>';
       return;
     }
     if (items.length === 1) {
@@ -42,108 +48,122 @@ export function mountProperties(el, app) {
     if (item.type === 'door') return renderDoor(item);
     if (item.type === 'stair') return renderStair(item);
     if (item.type === 'compass') return renderCompass(item);
-    if (item.floor !== undefined || item.points) return renderFloorMaybe(item);
     el.innerHTML = '<p>Unsupported selection.</p>';
-  }
-
-  function renderFloorMaybe() {
-    // floor selection is represented specially by main.js via app.selection
-    // containing '__floor__'; handled below in renderFloor().
   }
 
   function commitField(id, patch, label) {
     app.commit(updateItem(app.doc, id, patch), label);
   }
 
-  function renderRoom(item) {
-    const b = bboxOf(item);
-    el.innerHTML = `
-      <div class="section-title">Room</div>
+  function deleteButtonHtml() {
+    return '<button type="button" id="p-delete" class="btn-delete">Delete</button>';
+  }
+
+  function wireDelete(item) {
+    const btn = el.querySelector('#p-delete');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      app.commit(removeItems(app.doc, [item.id]), 'Delete');
+      app.setSelection([]);
+    });
+  }
+
+  function classChipsHtml(item) {
+    return `
       <div class="form-row">
-        <label for="p-number">Number</label>
-        <input type="text" id="p-number" value="${escapeAttr(item.number || '')}">
+        <label>Type</label>
+        <div class="chip-row" id="p-class">
+          ${CLASS_OPTIONS.map((c) => `<button type="button" class="chip chip-${c.cls} ${item.cls === c.cls ? 'active' : ''}" data-cls="${c.cls}"><span class="chip-swatch"></span>${c.label}</button>`).join('')}
+        </div>
       </div>
+    `;
+  }
+
+  function wireClassChips(item) {
+    el.querySelectorAll('#p-class .chip').forEach((btn) => {
+      btn.addEventListener('click', () => commitField(item.id, { cls: btn.dataset.cls }, 'Change type'));
+    });
+  }
+
+  function renderRoom(item) {
+    const isVoid = item.cls === 'void';
+    const isCore = item.cls === 'core';
+    const numberOk = isVoid || isCore || NUMBER_RE.test(item.number || '');
+
+    let numberField = '';
+    if (!isVoid) {
+      numberField = `
+        <div class="form-row">
+          <label for="p-number">Number</label>
+          <input type="text" id="p-number" value="${escapeAttr(item.number || '')}">
+          ${!isCore ? `<div class="field-hint ${numberOk ? 'hidden' : ''}" id="p-number-hint">like 101, 128B or S117</div>` : ''}
+        </div>
+      `;
+    }
+    const nameField = !isVoid ? `
       <div class="form-row">
         <label for="p-name">Name</label>
         <input type="text" id="p-name" value="${escapeAttr(item.name || '')}">
       </div>
-      <div class="form-row">
-        <label>Class</label>
-        <div class="radio-row" id="p-class">
-          ${CLASS_OPTIONS.map((c, i) => `<label><input type="radio" name="p-class" value="${c}" ${item.cls === c ? 'checked' : ''}>${i + 1} ${c}</label>`).join('')}
-        </div>
-      </div>
+    ` : '';
+    const showNameField = !isVoid ? `
       <div class="form-row-inline">
-        <label><input type="checkbox" id="p-showname" ${item.showName ? 'checked' : ''}> Show name</label>
+        <label><input type="checkbox" id="p-showname" ${item.showName ? 'checked' : ''}> Show name inside</label>
       </div>
-      <div class="form-row">
-        <label for="p-fontsize">Font size</label>
-        <select id="p-fontsize">
-          <option value="" ${!item.label.fontSize ? 'selected' : ''}>Auto</option>
-          <option value="24" ${item.label.fontSize === 24 ? 'selected' : ''}>24</option>
-          <option value="19" ${item.label.fontSize === 19 ? 'selected' : ''}>19</option>
-          <option value="custom">Custom…</option>
-        </select>
-        <input type="number" id="p-fontsize-custom" style="margin-top:4px" placeholder="px" value="${item.label.fontSize && ![24, 19].includes(item.label.fontSize) ? item.label.fontSize : ''}">
-      </div>
-      <div class="pin-row">
-        ${item.label.pinned ? '<span class="pinned" title="Label pinned">&#128204;</span>' : ''}
-        <button type="button" id="p-recenter" ${item.label.pinned ? '' : 'disabled'}>Re-center label</button>
-      </div>
-      ${item.section !== undefined ? sectionSelect(item) : ''}
-      <div class="form-grid2">
-        <div class="form-row"><label>X</label><input type="number" id="p-x" value="${b.x}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
-        <div class="form-row"><label>Y</label><input type="number" id="p-y" value="${b.y}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
-        <div class="form-row"><label>W</label><input type="number" id="p-w" value="${b.w}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
-        <div class="form-row"><label>H</label><input type="number" id="p-h" value="${b.h}" ${item.shape === 'poly' ? 'disabled' : ''}></div>
-      </div>
+    ` : '';
+    const shapeButtons = !isVoid ? `
       <div class="form-row-inline">
         ${item.shape === 'poly'
           ? '<button type="button" id="p-add-corner">Add corner</button><button type="button" id="p-make-rect">Make rectangle</button>'
           : '<button type="button" id="p-edit-corners">Edit corners</button>'}
       </div>
-      <button type="button" id="p-route">Route preview</button>
+    ` : '';
+    const recenterRow = (!isVoid && item.label && item.label.pinned) ? `
+      <div class="pin-row">
+        <span class="pinned" title="Label pinned">&#128204;</span>
+        <button type="button" id="p-recenter">Re-center label</button>
+      </div>
+    ` : '';
+
+    el.innerHTML = `
+      <div class="section-title">${isVoid ? 'Void' : isCore ? 'Core' : 'Room'}</div>
+      ${numberField}
+      ${nameField}
+      ${classChipsHtml(item)}
+      ${showNameField}
+      ${recenterRow}
+      ${shapeButtons}
+      ${deleteButtonHtml()}
     `;
 
-    el.querySelector('#p-number').addEventListener('change', (e) => commitField(item.id, { number: e.target.value.trim() }, 'Edit number'));
-    el.querySelector('#p-name').addEventListener('change', (e) => commitField(item.id, { name: e.target.value }, 'Edit name'));
-    el.querySelectorAll('#p-class input').forEach((r) => {
-      r.addEventListener('change', (e) => commitField(item.id, { cls: e.target.value }, 'Change class'));
-    });
-    el.querySelector('#p-showname').addEventListener('change', (e) => commitField(item.id, { showName: e.target.checked }, 'Toggle name'));
-
-    const fsSelect = el.querySelector('#p-fontsize');
-    const fsCustom = el.querySelector('#p-fontsize-custom');
-    fsSelect.addEventListener('change', () => {
-      if (fsSelect.value === 'custom') { fsCustom.focus(); return; }
-      const val = fsSelect.value === '' ? null : parseInt(fsSelect.value, 10);
-      commitField(item.id, { label: { fontSize: val } }, 'Font size');
-    });
-    fsCustom.addEventListener('change', () => {
-      const val = fsCustom.value ? parseInt(fsCustom.value, 10) : null;
-      commitField(item.id, { label: { fontSize: val } }, 'Font size');
-    });
-
-    el.querySelector('#p-recenter').addEventListener('click', () => {
-      commitField(item.id, { label: { pinned: false, x: null, y: null } }, 'Re-center label');
-    });
-
-    const sectionEl = el.querySelector('#p-section');
-    if (sectionEl) {
-      sectionEl.addEventListener('change', (e) => commitField(item.id, { section: e.target.value || null }, 'Change section'));
-    }
-
-    if (item.shape !== 'poly') {
-      ['x', 'y', 'w', 'h'].forEach((k) => {
-        el.querySelector(`#p-${k}`).addEventListener('change', (e) => {
-          const val = parseInt(e.target.value, 10);
-          if (Number.isNaN(val)) return;
-          commitField(item.id, { [k]: val }, `Edit ${k}`);
-        });
+    const numberInput = el.querySelector('#p-number');
+    if (numberInput) {
+      numberInput.addEventListener('input', () => {
+        numberInput.value = numberInput.value.toUpperCase();
+        const hint = el.querySelector('#p-number-hint');
+        if (hint) hint.classList.toggle('hidden', isCore || NUMBER_RE.test(numberInput.value) || numberInput.value === '');
+      });
+      numberInput.addEventListener('change', () => {
+        const val = numberInput.value.trim().toUpperCase();
+        if (isCore || val === '' || NUMBER_RE.test(val)) {
+          commitField(item.id, { number: val }, 'Edit number');
+        } else {
+          numberInput.value = item.number || '';
+        }
       });
     }
+    const nameInput = el.querySelector('#p-name');
+    if (nameInput) nameInput.addEventListener('change', (e) => commitField(item.id, { name: e.target.value }, 'Edit name'));
+    wireClassChips(item);
+    const showNameInput = el.querySelector('#p-showname');
+    if (showNameInput) showNameInput.addEventListener('change', (e) => commitField(item.id, { showName: e.target.checked }, 'Toggle name'));
 
-    el.querySelector('#p-route').addEventListener('click', () => app.routeToRoom(item.id));
+    const recenterBtn = el.querySelector('#p-recenter');
+    if (recenterBtn) {
+      recenterBtn.addEventListener('click', () => {
+        commitField(item.id, { label: { pinned: false, x: null, y: null } }, 'Re-center label');
+      });
+    }
 
     const editCornersBtn = el.querySelector('#p-edit-corners');
     if (editCornersBtn) {
@@ -174,19 +194,8 @@ export function mountProperties(el, app) {
         commitField(item.id, { shape: 'rect', x: b.x, y: b.y, w: b.w, h: b.h }, 'Make rectangle');
       });
     }
-  }
 
-  function sectionSelect(item) {
-    const sections = app.doc.sections || [];
-    return `
-      <div class="form-row">
-        <label for="p-section">Section</label>
-        <select id="p-section">
-          <option value="">None</option>
-          ${sections.map((s) => `<option value="${escapeAttr(s.id)}" ${item.section === s.id ? 'selected' : ''}>${escapeAttr(s.title)}</option>`).join('')}
-        </select>
-      </div>
-    `;
+    wireDelete(item);
   }
 
   function renderDoor(item) {
@@ -199,60 +208,49 @@ export function mountProperties(el, app) {
           <label><input type="radio" name="p-kind" value="Door" ${item.kind === 'Door' ? 'checked' : ''}> Door</label>
         </div>
       </div>
+      ${deleteButtonHtml()}
     `;
     el.querySelectorAll('input[name="p-kind"]').forEach((r) => {
       r.addEventListener('change', (e) => commitField(item.id, { kind: e.target.value }, 'Door kind'));
     });
+    wireDelete(item);
   }
 
   function renderStair(item) {
     el.innerHTML = `
-      <div class="section-title">Stair</div>
-      <div class="form-row">
-        <label>Direction</label>
-        <div class="radio-row">
-          <label><input type="radio" name="p-dir" value="v" ${item.dir === 'v' ? 'checked' : ''}> Vertical treads</label>
-          <label><input type="radio" name="p-dir" value="h" ${item.dir === 'h' ? 'checked' : ''}> Horizontal treads</label>
-        </div>
-      </div>
-      <div class="form-grid2">
-        <div class="form-row"><label>X</label><input type="number" id="p-x" value="${item.x}"></div>
-        <div class="form-row"><label>Y</label><input type="number" id="p-y" value="${item.y}"></div>
-        <div class="form-row"><label>W</label><input type="number" id="p-w" value="${item.w}"></div>
-        <div class="form-row"><label>H</label><input type="number" id="p-h" value="${item.h}"></div>
-      </div>
+      <div class="section-title">Stairs</div>
+      <button type="button" id="p-rotate">Rotate</button>
+      ${deleteButtonHtml()}
     `;
-    el.querySelectorAll('input[name="p-dir"]').forEach((r) => {
-      r.addEventListener('change', (e) => commitField(item.id, { dir: e.target.value }, 'Stair direction'));
+    el.querySelector('#p-rotate').addEventListener('click', () => {
+      commitField(item.id, { dir: item.dir === 'v' ? 'h' : 'v' }, 'Rotate stairs');
     });
-    ['x', 'y', 'w', 'h'].forEach((k) => {
-      el.querySelector(`#p-${k}`).addEventListener('change', (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (Number.isNaN(val)) return;
-        commitField(item.id, { [k]: val }, `Edit ${k}`);
-      });
-    });
+    wireDelete(item);
   }
 
   function renderCompass(item) {
     el.innerHTML = `
       <div class="section-title">Compass</div>
-      <div class="form-row">
-        <label for="p-deg">Rotation (deg)</label>
-        <input type="number" id="p-deg" value="${item.deg}">
+      <div class="form-row-inline">
+        <button type="button" id="p-rotate-ccw">Rotate &minus;15&deg;</button>
+        <button type="button" id="p-rotate-cw">Rotate +15&deg;</button>
       </div>
+      ${deleteButtonHtml()}
     `;
-    el.querySelector('#p-deg').addEventListener('change', (e) => {
-      const val = parseInt(e.target.value, 10) || 0;
-      commitField(item.id, { deg: val }, 'Rotate compass');
+    el.querySelector('#p-rotate-ccw').addEventListener('click', () => {
+      commitField(item.id, { deg: (item.deg || 0) - 15 }, 'Rotate compass');
     });
+    el.querySelector('#p-rotate-cw').addEventListener('click', () => {
+      commitField(item.id, { deg: (item.deg || 0) + 15 }, 'Rotate compass');
+    });
+    wireDelete(item);
   }
 
   function renderFloor() {
     const floor = app.doc.floor;
     el.innerHTML = `
       <div class="section-title">Floor outline</div>
-      <p>${floor ? floor.points.length : 0} points</p>
+      <p>Corners: ${floor ? floor.points.length : 0}</p>
       <button type="button" id="p-remove-floor">Remove outline</button>
     `;
     el.querySelector('#p-remove-floor').addEventListener('click', async () => {
@@ -267,21 +265,25 @@ export function mountProperties(el, app) {
       <div class="section-title">${items.length} items selected</div>
       ${rooms.length >= 2 ? `
       <div class="align-grid">
-        <button type="button" data-align="left">Left</button>
-        <button type="button" data-align="right">Right</button>
-        <button type="button" data-align="top">Top</button>
-        <button type="button" data-align="bottom">Bottom</button>
-        <button type="button" data-align="center-h">Center H</button>
-        <button type="button" data-align="center-v">Center V</button>
-        <button type="button" data-align="distribute-h">Distribute H</button>
-        <button type="button" data-align="distribute-v">Distribute V</button>
-        <button type="button" data-align="match-w">Match width</button>
-        <button type="button" data-align="match-h">Match height</button>
-        <button type="button" data-align="square">Square up</button>
+        <button type="button" data-align="left" title="Align left">&#8676;</button>
+        <button type="button" data-align="center-h" title="Align center">&#8646;</button>
+        <button type="button" data-align="right" title="Align right">&#8677;</button>
+        <button type="button" data-align="top" title="Align top">&#8670;</button>
+        <button type="button" data-align="center-v" title="Align middle">&#8645;</button>
+        <button type="button" data-align="bottom" title="Align bottom">&#8671;</button>
+      </div>
+      <div class="form-row-inline">
+        <button type="button" data-align="same-size">Same size</button>
+        <button type="button" data-align="distribute">Space evenly</button>
       </div>` : '<p style="color:var(--muted)">Select 2+ rooms to align.</p>'}
+      ${deleteButtonHtml()}
     `;
     el.querySelectorAll('[data-align]').forEach((btn) => {
       btn.addEventListener('click', () => runAlign(btn.dataset.align, rooms));
+    });
+    el.querySelector('#p-delete').addEventListener('click', () => {
+      app.commit(removeItems(app.doc, items.map((it) => it.id)), 'Delete');
+      app.setSelection([]);
     });
   }
 
@@ -312,50 +314,35 @@ export function mountProperties(el, app) {
     } else if (kind === 'center-v') {
       const cy = boxes.reduce((s, b) => s + b.y + b.h / 2, 0) / boxes.length;
       boxes.forEach((b) => { doc = updateItem(doc, b.id, { y: Math.round(cy - b.h / 2) }); });
-    } else if (kind === 'match-w') {
-      const w = boxes[0].w;
-      boxes.slice(1).forEach((b) => { doc = updateItem(doc, b.id, { w }); });
-    } else if (kind === 'match-h') {
-      const h = boxes[0].h;
-      boxes.slice(1).forEach((b) => { doc = updateItem(doc, b.id, { h }); });
-    } else if (kind === 'distribute-h') {
-      const sorted = [...boxes].sort((a, b) => a.x - b.x);
-      const first = sorted[0], last = sorted[sorted.length - 1];
-      const totalSpan = (last.x + last.w) - first.x;
-      const totalW = sorted.reduce((s, b) => s + b.w, 0);
-      const gap = (totalSpan - totalW) / (sorted.length - 1);
-      let cursor = first.x;
-      sorted.forEach((b) => {
-        doc = updateItem(doc, b.id, { x: Math.round(cursor) });
-        cursor += b.w + gap;
-      });
-    } else if (kind === 'distribute-v') {
-      const sorted = [...boxes].sort((a, b) => a.y - b.y);
-      const first = sorted[0], last = sorted[sorted.length - 1];
-      const totalSpan = (last.y + last.h) - first.y;
-      const totalH = sorted.reduce((s, b) => s + b.h, 0);
-      const gap = (totalSpan - totalH) / (sorted.length - 1);
-      let cursor = first.y;
-      sorted.forEach((b) => {
-        doc = updateItem(doc, b.id, { y: Math.round(cursor) });
-        cursor += b.h + gap;
-      });
-    } else if (kind === 'square') {
-      const g = STD.grid;
-      const roundTo = (v) => Math.round(v / g) * g;
-      const squared = boxes.map((b) => ({
-        id: b.id,
-        x: roundTo(b.x), y: roundTo(b.y), w: roundTo(b.w), h: roundTo(b.h),
-      }));
-      // make near-equal widths/heights equal within 4 units
-      for (let i = 0; i < squared.length; i++) {
-        for (let j = 0; j < squared.length; j++) {
-          if (i === j) continue;
-          if (Math.abs(squared[i].w - squared[j].w) <= 4) squared[j].w = squared[i].w;
-          if (Math.abs(squared[i].h - squared[j].h) <= 4) squared[j].h = squared[i].h;
-        }
+    } else if (kind === 'same-size') {
+      const w = boxes[0].w, h = boxes[0].h;
+      boxes.slice(1).forEach((b) => { doc = updateItem(doc, b.id, { w, h }); });
+    } else if (kind === 'distribute') {
+      const spanX = Math.max(...boxes.map((b) => b.x + b.w)) - Math.min(...boxes.map((b) => b.x));
+      const spanY = Math.max(...boxes.map((b) => b.y + b.h)) - Math.min(...boxes.map((b) => b.y));
+      if (spanX >= spanY) {
+        const sorted = [...boxes].sort((a, b) => a.x - b.x);
+        const first = sorted[0], last = sorted[sorted.length - 1];
+        const totalSpan = (last.x + last.w) - first.x;
+        const totalW = sorted.reduce((s, b) => s + b.w, 0);
+        const gap = (totalSpan - totalW) / (sorted.length - 1);
+        let cursor = first.x;
+        sorted.forEach((b) => {
+          doc = updateItem(doc, b.id, { x: Math.round(cursor) });
+          cursor += b.w + gap;
+        });
+      } else {
+        const sorted = [...boxes].sort((a, b) => a.y - b.y);
+        const first = sorted[0], last = sorted[sorted.length - 1];
+        const totalSpan = (last.y + last.h) - first.y;
+        const totalH = sorted.reduce((s, b) => s + b.h, 0);
+        const gap = (totalSpan - totalH) / (sorted.length - 1);
+        let cursor = first.y;
+        sorted.forEach((b) => {
+          doc = updateItem(doc, b.id, { y: Math.round(cursor) });
+          cursor += b.h + gap;
+        });
       }
-      squared.forEach((b) => { doc = updateItem(doc, b.id, { x: b.x, y: b.y, w: b.w, h: b.h }); });
     }
 
     app.commit(doc, `Align ${kind}`);

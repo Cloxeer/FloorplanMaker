@@ -90,6 +90,7 @@ export function createCanvas(svgEl, app) {
     const n = nodes.get(id);
     if (!n) return;
     if (n.root && n.root.parentNode) n.root.parentNode.removeChild(n.root);
+    if (n.hit && n.hit.parentNode) n.hit.parentNode.removeChild(n.hit);
     if (n.label && n.label.parentNode) n.label.parentNode.removeChild(n.label);
     if (n.name && n.name.parentNode) n.name.parentNode.removeChild(n.name);
     nodes.delete(id);
@@ -167,6 +168,20 @@ export function createCanvas(svgEl, app) {
     }
   }
 
+  // Re-render a single item's shape (+ its label, recomputed from the
+  // patched geometry, for rooms) using its normal render path, without
+  // touching app.doc. Used for live drag feedback so shape/label/name move
+  // as one piece with no extra frame of lag.
+  function patchItem(item) {
+    const rec = nodes.get(item.id);
+    if (!rec) return;
+    const kind = itemKind(item);
+    if (kind === 'room') renderRoom(item, layers.rooms, layers.labels, el, rec);
+    else if (kind === 'door') renderDoor(item, layers.doors, el, rec);
+    else if (kind === 'stair') renderStair(item, layers.stairs, el, rec);
+    else if (kind === 'compass') renderCompass(item, layers.floor, el, rec);
+  }
+
   function patchLabel(id, { x, y, text, cls } = {}) {
     const rec = nodes.get(id);
     if (!rec || !rec.label) return;
@@ -177,10 +192,27 @@ export function createCanvas(svgEl, app) {
   }
 
   // ---- selection / overlays ----
-  function setSelection(ids) {
+  function computeScale() {
+    return view && view.w ? (svgEl.clientWidth || 1) / view.w : 1;
+  }
+  // Scale (px per plan unit) for sizing handles. Read once at gesture start
+  // and reused for the whole drag so pointermove never touches layout.
+  function getHandleScale() {
+    return computeScale();
+  }
+  // opts.scale: precomputed scale (avoids a layout read during drags).
+  // opts.overrides: Map id->item with live/patched geometry to draw instead
+  // of the committed doc's copy (drag feedback). opts.floor: same, for the
+  // floor outline/vertex handles.
+  function setSelection(ids, opts) {
     clearGroup(layers.selection);
     if (!doc || !ids || ids.length === 0) return;
-    updateSelectionHandles(doc, ids, layers.selection, el, view, svgEl);
+    const scale = (opts && opts.scale) || computeScale();
+    const overrides = opts && opts.overrides;
+    const itemMap = new Map(doc.items.map((it) => [it.id, it]));
+    if (overrides) for (const [id, item] of overrides) itemMap.set(id, item);
+    const floor = (opts && opts.floor) || doc.floor;
+    updateSelectionHandles(itemMap, floor, ids, layers.selection, el, scale);
   }
 
   function setGuides(guides) {
@@ -272,14 +304,30 @@ export function createCanvas(svgEl, app) {
       target.removeEventListener(type, fn, opts);
     }
     listeners.length = 0;
+    if (unsubscribeTool) unsubscribeTool();
   }
 
   applyViewBox();
 
+  // Cursor feedback: crosshair for drawing tools, default otherwise (CSS
+  // keyed off data-tool handles hover-over-selected/handles via classes).
+  function applyToolCursor() {
+    const drawingTools = new Set(['room', 'poly', 'floor', 'door', 'stair', 'compass']);
+    svgEl.dataset.tool = app.toolName || '';
+    svgEl.style.cursor = drawingTools.has(app.toolName) ? 'crosshair'
+      : app.toolName === 'pan' ? 'grab' : '';
+  }
+  const unsubscribeTool = app.subscribe ? app.subscribe((evt) => {
+    if (evt.type === 'tool') applyToolCursor();
+  }) : null;
+  applyToolCursor();
+
   return {
     setDoc,
     patchNode,
+    patchItem,
     patchLabel,
+    getHandleScale,
     setSelection,
     setGuides,
     setGhosts,
