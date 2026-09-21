@@ -26,10 +26,6 @@ export { createActions } from './docActions.js';
 // ---- studio screen controller ----
 const TOOL_KEYS = { v: 'select', r: 'room', f: 'floor', o: 'door', a: 'hall', s: 'stair', c: 'compass' };
 
-function hasFloor(doc) {
-  return !!(doc && doc.floor && doc.floor.points && doc.floor.points.length >= 3);
-}
-
 export function createStudio(app, deps) {
   const { screens, showScreen, scheduleValidate, updateUndoRedoButtons } = deps;
   let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null;
@@ -232,11 +228,6 @@ export function createStudio(app, deps) {
   function wireTopbar() {
     onStudio(document.getElementById('btn-undo'), 'click', () => app.undo());
     onStudio(document.getElementById('btn-redo'), 'click', () => app.redo());
-    onStudio(document.getElementById('btn-suggest'), 'click', () => suggestHandle && suggestHandle.run());
-    onStudio(document.getElementById('btn-suggest-halls'), 'click', () => {
-      if (app.suggest && typeof app.suggest.runHalls === 'function') app.suggest.runHalls();
-      else app.toast('coming soon');
-    });
     onStudio(document.getElementById('btn-photo'), 'click', onChangePhoto);
     onStudio(document.getElementById('onion'), 'input', (e) => {
       app.onion = parseFloat(e.target.value);
@@ -366,17 +357,6 @@ export function createStudio(app, deps) {
 
     updateSuggestButton();
     updateExportButton();
-    if (opts.autoSuggest && suggestHandle) {
-      // Room detection only makes sense once the building outline exists, so
-      // wait for the first floor commit instead of running straight away.
-      if (hasFloor(app.doc)) suggestHandle.run();
-      else {
-        const stop = app.subscribe((evt) => {
-          if (evt.type === 'doc' && hasFloor(app.doc)) { stop(); if (suggestHandle) suggestHandle.run(); }
-        });
-        extraUnsubs.push(stop);
-      }
-    }
   }
 
   async function closeProject() {
@@ -397,8 +377,7 @@ export function createStudio(app, deps) {
         project.photo = photo;
         if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
-        const hasRooms = project.doc.items.some((it) => it.type === 'room');
-        enterStudio(project, { freshView: true, autoSuggest: !hasRooms });
+        enterStudio(project, { freshView: true });
       },
       onSkip: () => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }

@@ -44,12 +44,14 @@ export function mountPalette(el, app) {
       <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
       <div id="hall-chip-row"></div>
+      <button type="button" class="btn-secondary" id="btn-detect-halls">Detect hallways and stairs</button>
     </div>
     <div class="palette-step" data-step="room">
       <h4>4. Add rooms</h4>
       <p class="step-desc">Draw a room, or drag a piece onto the plan.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
+      <button type="button" class="btn-secondary" id="btn-detect-rooms">Detect rooms</button>
     </div>
   `;
 
@@ -81,6 +83,19 @@ export function mountPalette(el, app) {
   Object.entries(toolButtons).forEach(([name, btn]) => {
     if (btn) btn.addEventListener('click', () => toggleTool(name));
   });
+
+  const detectHallsBtn = el.querySelector('#btn-detect-halls');
+  const detectRoomsBtn = el.querySelector('#btn-detect-rooms');
+  if (detectHallsBtn) {
+    detectHallsBtn.addEventListener('click', () => {
+      if (app.suggest && typeof app.suggest.runHalls === 'function') app.suggest.runHalls();
+    });
+  }
+  if (detectRoomsBtn) {
+    detectRoomsBtn.addEventListener('click', () => {
+      if (app.suggest && typeof app.suggest.run === 'function') app.suggest.run();
+    });
+  }
 
   const straightenBtn = el.querySelector('#btn-straighten');
   if (straightenBtn) {
@@ -141,6 +156,8 @@ export function mountPalette(el, app) {
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
+    if (detectHallsBtn) detectHallsBtn.disabled = !STEP_UNLOCKED.hall();
+    if (detectRoomsBtn) detectRoomsBtn.disabled = !STEP_UNLOCKED.room();
     el.querySelectorAll('.palette-step').forEach((step) => {
       const name = step.dataset.step;
       const locked = !STEP_UNLOCKED[name]();
