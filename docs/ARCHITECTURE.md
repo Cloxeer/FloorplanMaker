@@ -1,7 +1,8 @@
 # Architecture and module contracts
 
 Plain HTML + CSS + ES modules. No build step. No server. Libraries only from
-cdnjs / jsDelivr, version-pinned, and only Tesseract.js (lazy, in a Worker).
+cdnjs / jsDelivr, version-pinned: Fabric.js 6.7.1 (the drawing stage, imported
+directly by js/view/stage*.js) and Tesseract.js (lazy, in a Worker).
 Every file starts with a comment: what it does, what it depends on.
 No file over 400 lines. `js/model/*` is pure (no DOM, no window).
 
@@ -10,7 +11,8 @@ index.html   README.md   LICENSE   docs/DIALECT.md   docs/ARCHITECTURE.md
 css/studio.css
 js/main.js
 js/model/{document,validate,svgExport,svgImport,geometry,route}.js
-js/view/{canvas.js, tools/*.js, panels/*.js}
+js/view/{stage.js, stageView.js, stageObjects.js, stageEdit.js, stageTools.js,
+         stageSnap.js, stagePoly.js, panels/*.js}
 js/store/autosave.js
 js/workers/{trace,route}.worker.js
 tests/
@@ -170,34 +172,59 @@ two-tab races). `lastSaved()` -> Date for the "Saved · just now" chip.
 
 ## View
 
-`canvas.js`: one `<svg>` element. Renders doc items to SVG nodes keyed by item
-id (`data-id`), diff-updates attributes on change; drag updates attributes
-directly on existing nodes; full rebuild only when items are added/removed.
-Layers (groups): photo (`<image>` onion skin with opacity), grid, floor, rooms,
-labels, stairs, doors, guides, selection handles, ghosts. Zoom/pan with wheel,
-space+drag, two-finger pinch (touch). Pointer Events only (works on iPad,
-`touch-action: none`). Exposes `toPlan(clientX, clientY)`, `setDoc(doc)`,
-`patchNode(id, attrs)`, `setSelection(ids)`, `setGuides([])`, `setGhosts([])`,
-`setOnion(opacity)`, `flashPhoto(on)`, `setGrid(on)`, `setRoutePath(pts)`.
+The drawing surface is **Fabric.js 6.7.1** (`import * as fabric from
+'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs'`), on a single
+`<canvas id="canvas">` inside `#stage`. Fabric owns selection, move/scale/
+rotate controls, groups, polygon vertex controls, zoom and panning; nothing in
+this repo implements drag, resize, rotation or hit-testing by hand.
 
-`tools/*.js`: `select.js` (move, resize handles, repeat handle, marquee, label
-nudge), `room.js` (drag rect / click polygon; prompts for number), `door.js`
-(click on outline only), `floor.js` (click outline corners, Enter/double-click
-closes), `stair.js`, `compass.js`, `pan.js`. Each tool:
-`{ name, hint, onDown(e,pt), onMove(e,pt), onUp(e,pt), onKey(e), cancel() }`.
+`stage.js`: `createStage(containerEl, app)`. Fabric canvas (`preserveObject-
+Stacking`, `renderOnAddRemove:false` + `requestRenderAll()` batching, object
+caching, `enablePointerEvents`), sized to `#stage` with a ResizeObserver. Keeps
+`itemId -> fabric object` and diffs it against the immutable doc (add/remove/
+rebuild only what changed; full rebuild only when the item count moves by more
+than 50). Owns the grid pattern, the onion-skin `backgroundImage`, plan
+opacity, guides, ghosts and the route overlay, and restacks objects by their
+`zLayer` (grid, floor, hall, route, rooms/stairs, doors, compass, ghosts,
+guides).
+
+`stageView.js`: viewport - `toPlan`, fit-to-document zoom, `zoomToPoint` wheel
+zoom (0.1..8), space / middle-button / pan-tool dragging via `viewportTransform`,
+two-finger touch pan+pinch, tool cursor.
+
+`stageObjects.js`: one Fabric object per item. Rect room = `Group([Rect, Text])`
+(box and number are one object, rotation locked); poly room = `Polygon` with
+per-vertex controls plus a companion label Text; hall = dashed blue group;
+stair = group of core rect + tread lines; door = locked group of a white line
+and the EXIT text; compass = group drawn like the export, rotatable; floor =
+`Polygon`, always at the back, movement locked, vertex controls.
+
+`stageEdit.js`: selection round-trip with `app.setSelection`, snapped
+`object:moving` / `object:scaling`, `object:modified` -> integer geometry ->
+one `app.commit`, double-click an edge to insert a vertex, the edge hover dot,
+Delete and arrow-key nudging, ghost clicks.
+
+`stageTools.js`: 'select' (plain Fabric behaviour incl. marquee), 'floor',
+'door', 'hall', 'room'/'stair' (drag a box), 'compass' (click), palette drops
+(`stage.dropPiece(key, clientX, clientY)`), Esc/Enter.
+
+`stageSnap.js` / `stagePoly.js`: magnet targets cached per drag (grid 5, other
+items' edges/centres, outline vertices, Alt disables) and the Fabric polygon
+point-editing recipe (`polygonPositionHandler`, `anchorWrapper`,
+`actionHandler`).
 
 `panels/*.js`: `properties.js`, `palette.js`, `validation.js`, `projects.js`,
 `exportDialog.js`, `photoStep.js` (four-corner straighten via canvas
 homography warp), `suggest.js` (Tesseract + trace worker ghosts), `blueprint.js`.
 
-Hotkeys: V select, R room, P polygon room, F floor, D duplicate-in-row (room
-selected), O door, S stair, G grid, H flash photo (hold), 1-5 class, Delete,
-Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, Ctrl+C / Ctrl+V, Alt = disable magnet, Esc
-cancel, Enter confirm. Space = pan while held.
+Hotkeys: V select, R room, F floor, O door, A hallway, S stair, C compass,
+G grid, H flash photo (hold), Delete, arrows nudge, Ctrl+Z / Ctrl+Shift+Z /
+Ctrl+Y, Ctrl+C / Ctrl+V, Alt = disable magnet, Esc cancel, Enter confirm.
+Space = pan while held.
 
 ## Events / app state (`js/main.js`)
 
 `app = { project, doc, selection:Set, tool, magnet:true, grid:true, onion, subscribe(fn), commit(newDoc, label) }`.
-`commit()` pushes the previous doc to history, sets doc, re-renders diff,
-revalidates, autosaves. Tools call `app.commit`. Drag previews use `canvas.patchNode`
-and commit once on pointer-up.
+`commit()` pushes the previous doc to history, sets doc, diffs the stage,
+revalidates, autosaves. Tools and the stage call `app.commit`; a Fabric drag or
+resize is live on the canvas and commits once, on `object:modified`.

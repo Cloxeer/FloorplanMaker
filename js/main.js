@@ -4,14 +4,13 @@
 // heavier studio screen controller and document-editing actions live in
 // js/mainActions.js so this file stays under the 400-line budget.
 // Depends on: js/model/document.js, js/model/geometry.js, js/model/validate.js,
-// js/store/autosave.js, js/view/tools/common.js, js/view/panels/blueprint.js,
+// js/store/autosave.js, js/view/panels/blueprint.js,
 // js/view/panels/projects.js, js/mainActions.js.
 
 import { STD } from './model/document.js';
 import { magnetSnap } from './model/geometry.js';
 import { validate } from './model/validate.js';
 import { installAutosaveHooks, onExternalChange } from './store/autosave.js';
-import { collectSnapTargets } from './view/tools/common.js';
 import { mountProjects } from './view/panels/projects.js';
 import { showPrompt, showConfirm, showToast } from './view/panels/blueprint.js';
 import { createActions, createStudio } from './mainActions.js';
@@ -133,7 +132,6 @@ const HINT_OVERRIDES = {
   room: 'Drag a box over a room on the photo.',
   select: 'Click a room to select it. Drag to move. Delete removes it.',
 };
-const DRAW_TOOLS = new Set(['room', 'poly', 'floor', 'door', 'stair', 'compass']);
 app.setTool = function setTool(name) {
   if (app.tool) app.tool.cancel();
   const t = app._tools && app._tools[name];
@@ -142,8 +140,6 @@ app.setTool = function setTool(name) {
   app.tool = t;
   emit({ type: 'tool' });
   app.setHint(HINT_OVERRIDES[name] || t.hint);
-  const svgEl = document.getElementById('canvas');
-  if (svgEl) svgEl.style.cursor = DRAW_TOOLS.has(name) ? 'crosshair' : 'default';
 };
 app.setHint = function setHint(text) {
   const el = document.getElementById('hint');
@@ -152,14 +148,10 @@ app.setHint = function setHint(text) {
 app.snap = function snap(pt, opts = {}) {
   if (!app.doc) return { x: pt.x, y: pt.y, guides: [] };
   const grid = app.gridOn ? STD.grid : null;
-  if (!app.magnet && !grid) {
-    if (app.canvas) app.canvas.setGuides([]);
-    return { x: pt.x, y: pt.y, guides: [] };
-  }
-  let targets = opts.targets || collectSnapTargets(app.doc, opts.ignoreIds, opts.box);
-  if (!app.magnet) targets = { xs: [], ys: [], vertices: [] };
-  targets = { ...targets, grid };
-  const result = magnetSnap(pt, targets);
+  const vertices = [];
+  if (app.magnet && app.doc.floor && app.doc.floor.points) vertices.push(...app.doc.floor.points);
+  const targets = { xs: [], ys: [], vertices, grid };
+  const result = magnetSnap(pt, opts.targets ? { ...opts.targets, grid } : targets);
   if (app.canvas) app.canvas.setGuides(result.guides);
   return result;
 };
@@ -208,5 +200,8 @@ function init() {
 
   showScreen('start');
 }
+
+// Exposed for the browser test suite (tests/browser/perf.spec.js).
+window.__app = app;
 
 init();

@@ -1,61 +1,59 @@
 // palette.js
-// Left palette: tool buttons + draggable piece chips. Drag with Pointer
-// Events (ghost div follows pointer); drop on #stage places the item.
-// A plain click on a chip places it at the center of the current view.
-// Depends on: js/model/document.js (STD, makeRoom, newId).
+// Left palette: the four guided steps (outline, doors, hallways, rooms) plus
+// draggable piece chips. Steps 2-4 stay disabled until a building outline
+// exists. Drops are handed to the Fabric stage via app.canvas.dropPiece().
+// Depends on: js/view/panels/paletteIcons.js, app.canvas (js/view/stage.js).
 
-import { STD, makeRoom, newId, NUMBERED_CLASSES } from '../../model/document.js';
 import { chipSvg, ghostSvg } from './paletteIcons.js';
 
-// Pieces shown as draggable chips in section 2 ("Add rooms"). Stairs and
-// compass are covered here rather than via dedicated tool buttons.
 const PIECES = [
-  { key: 'room', label: 'Room', cls: 'room' },
-  { key: 'big', label: 'Big room', cls: 'big' },
-  { key: 'ours', label: 'Our room', cls: 'ours' },
-  { key: 'restroom', label: 'Restroom', cls: 'core' },
-  { key: 'elevator', label: 'Elevator', cls: 'core' },
-  { key: 'stair', label: 'Stairs', cls: null },
-  { key: 'void', label: 'Void', cls: 'void' },
-  { key: 'compass', label: 'Compass', cls: null },
+  { key: 'room', label: 'Room' },
+  { key: 'big', label: 'Big room' },
+  { key: 'ours', label: 'Our room' },
+  { key: 'restroom', label: 'Restroom' },
+  { key: 'elevator', label: 'Elevator' },
+  { key: 'stair', label: 'Stairs' },
+  { key: 'void', label: 'Void' },
+  { key: 'compass', label: 'Compass' },
 ];
+
+const LOCKED_TITLE = 'Draw the outline first';
 
 export function mountPalette(el, app) {
   el.innerHTML = `
-    <div class="palette-step">
+    <div class="palette-step" data-step="floor">
       <h4>1. Outline the building</h4>
       <p class="step-desc">Trace the outer walls once, from the photo.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
     </div>
-    <div class="palette-step">
-      <h4>2. Add rooms</h4>
+    <div class="palette-step" data-step="door">
+      <h4>2. Add doors</h4>
+      <p class="step-desc">Click a spot along the outline for each door.</p>
+      <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
+    </div>
+    <div class="palette-step" data-step="hall">
+      <h4>3. Add hallways</h4>
+      <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
+      <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
+    </div>
+    <div class="palette-step" data-step="room">
+      <h4>4. Add rooms</h4>
       <p class="step-desc">Draw a room, or drag a piece onto the plan.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
-    </div>
-    <div class="palette-step">
-      <h4>3. Add doors</h4>
-      <p class="step-desc">Click a spot along the outline for each door.</p>
-      <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
     </div>
   `;
 
   const chipRow = el.querySelector('#chip-row');
   const toolButtons = {
     floor: el.querySelector('#btn-tool-floor'),
-    room: el.querySelector('#btn-tool-room'),
     door: el.querySelector('#btn-tool-door'),
+    hall: el.querySelector('#btn-tool-hall'),
+    room: el.querySelector('#btn-tool-room'),
   };
   Object.entries(toolButtons).forEach(([name, btn]) => {
     if (btn) btn.addEventListener('click', () => app.setTool(name));
   });
-
-  function refreshToolButtons() {
-    Object.entries(toolButtons).forEach(([name, btn]) => {
-      if (btn) btn.setAttribute('aria-pressed', String(name === app.toolName));
-    });
-  }
-  refreshToolButtons();
 
   PIECES.forEach((piece) => {
     const chip = document.createElement('div');
@@ -65,30 +63,42 @@ export function mountPalette(el, app) {
     chipRow.appendChild(chip);
   });
 
+  function hasFloor() {
+    const doc = app.doc;
+    return !!(doc && doc.floor && doc.floor.points && doc.floor.points.length >= 3);
+  }
+
+  function refresh() {
+    const unlocked = hasFloor();
+    Object.entries(toolButtons).forEach(([name, btn]) => {
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', String(name === app.toolName));
+      const locked = name !== 'floor' && !unlocked;
+      btn.disabled = locked;
+      btn.title = locked ? LOCKED_TITLE : '';
+    });
+    el.querySelectorAll('.palette-step').forEach((step) => {
+      const locked = step.dataset.step !== 'floor' && !unlocked;
+      step.classList.toggle('locked', locked);
+      step.title = locked ? LOCKED_TITLE : '';
+    });
+    chipRow.querySelectorAll('.chip').forEach((chip) => {
+      chip.classList.toggle('disabled', !unlocked);
+    });
+  }
+  refresh();
+
   // --- drag handling ---
   let dragGhost = null;
-  let dragPiece = null;
-  let dragStart = null;
   let dragging = false;
-
-  function startDrag(piece, e) {
-    dragPiece = piece;
-    dragStart = { x: e.clientX, y: e.clientY };
-    dragging = false;
-  }
+  let dragStart = null;
 
   function getZoom() {
-    const stage = document.getElementById('stage');
-    const canvas = app.canvas;
-    if (!stage || !canvas || typeof canvas.getView !== 'function') return 1;
-    const view = canvas.getView();
-    const rect = stage.getBoundingClientRect();
-    return view && view.w ? rect.width / view.w : 1;
+    const view = app.canvas && app.canvas.getView ? app.canvas.getView() : null;
+    return view && view.zoom ? view.zoom : 1;
   }
-
   function makeGhost(piece, x, y) {
-    const zoom = getZoom();
-    const { svg, w, h } = ghostSvg(piece.key, zoom);
+    const { svg, w, h } = ghostSvg(piece.key, getZoom());
     const g = document.createElement('div');
     g.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
       opacity:0.85; pointer-events:none; z-index:200; transform:translate(-50%,-50%);`;
@@ -98,87 +108,28 @@ export function mountPalette(el, app) {
     document.body.appendChild(g);
     return g;
   }
-
-  async function placePiece(piece, clientX, clientY) {
-    const canvas = app.canvas;
+  function centerOfStage() {
     const stage = document.getElementById('stage');
-    if (!stage) return;
-    const rect = stage.getBoundingClientRect();
-    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-      return; // dropped outside the stage
-    }
-    const pt = canvas.toPlan(clientX, clientY);
-    await dropPieceAt(piece, pt);
+    const rect = stage ? stage.getBoundingClientRect() : { left: 0, top: 0, width: 800, height: 600 };
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
-
-  async function dropPieceAt(piece, pt) {
-    const canvas = app.canvas;
-    if (piece.key === 'door') {
-      app.setTool('door');
-      app.toast('Now click on the outside wall');
-      return;
-    }
-    if (piece.key === 'compass') {
-      const snapped = app.snap(pt);
-      const compassItem = { id: newId(), type: 'compass', x: Math.round(snapped.x), y: Math.round(snapped.y), deg: 0 };
-      const withoutOldCompass = { ...app.doc, items: app.doc.items.filter((it) => it.type !== 'compass') };
-      app.commit({ ...withoutOldCompass, items: [...withoutOldCompass.items, compassItem] }, 'Place compass');
-      return;
-    }
-    if (piece.key === 'stair') {
-      const std = STD.palette.stair;
-      const snapped = app.snap({ x: pt.x - std.w / 2, y: pt.y - std.h / 2 });
-      const stairItem = { id: newId(), type: 'stair', x: Math.round(snapped.x), y: Math.round(snapped.y), w: std.w, h: std.h, dir: 'v' };
-      app.commit({ ...app.doc, items: [...app.doc.items, stairItem] }, 'Place stair');
-      return;
-    }
-    const std = STD.palette[piece.key];
-    if (!std) return;
-    const snapped = app.snap({ x: pt.x - std.w / 2, y: pt.y - std.h / 2 });
-
-    if (piece.key === 'void') {
-      const item = makeRoom('void', snapped.x, snapped.y, std.w, std.h, '');
-      app.commit({ ...app.doc, items: [...app.doc.items, item] }, 'Place void');
-      return;
-    }
-
-    let number = '';
-    if (NUMBERED_CLASSES.has(std.cls)) {
-      const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
-      if (value === null) return;
-      number = value;
-    }
-    const item = makeRoom(std.cls, snapped.x, snapped.y, std.w, std.h, number);
-    if (std.name) {
-      item.name = std.name;
-      item.showName = true;
-    }
-    app.commit({ ...app.doc, items: [...app.doc.items, item] }, 'Place room');
-  }
-
-  function centerOfView() {
-    const canvas = app.canvas;
-    if (canvas && typeof canvas.getView === 'function') {
-      const view = canvas.getView();
-      const stage = document.getElementById('stage');
-      const rect = stage ? stage.getBoundingClientRect() : { width: 800, height: 600 };
-      return canvas.toPlan(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    }
-    return { x: 0, y: 0 };
+  function drop(piece, clientX, clientY) {
+    if (!app.canvas || !app.canvas.dropPiece) return;
+    app.canvas.dropPiece(piece.key, clientX, clientY);
   }
 
   function onPointerDown(e) {
     const chip = e.target.closest('.chip');
-    if (!chip) return;
+    if (!chip || !hasFloor()) return;
     const piece = PIECES.find((p) => p.key === chip.dataset.piece);
     if (!piece) return;
-    startDrag(piece, e);
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragging = false;
     chip.setPointerCapture(e.pointerId);
 
     const onMove = (ev) => {
-      const dx = ev.clientX - dragStart.x;
-      const dy = ev.clientY - dragStart.y;
-      if (!dragging && Math.hypot(dx, dy) > 5) {
+      const d = Math.hypot(ev.clientX - dragStart.x, ev.clientY - dragStart.y);
+      if (!dragging && d > 5) {
         dragging = true;
         dragGhost = makeGhost(piece, ev.clientX, ev.clientY);
       }
@@ -192,14 +143,16 @@ export function mountPalette(el, app) {
       chip.removeEventListener('pointerup', onUp);
       chip.removeEventListener('pointercancel', onUp);
       if (dragGhost) { dragGhost.remove(); dragGhost = null; }
-      if (dragging) {
-        placePiece(piece, ev.clientX, ev.clientY);
-      } else {
-        // plain click: place at center of view
-        dropPieceAt(piece, centerOfView());
+      const stage = document.getElementById('stage');
+      const rect = stage ? stage.getBoundingClientRect() : null;
+      const inside = rect && ev.clientX >= rect.left && ev.clientX <= rect.right
+        && ev.clientY >= rect.top && ev.clientY <= rect.bottom;
+      if (dragging && inside) drop(piece, ev.clientX, ev.clientY);
+      else if (!dragging) {
+        const c = centerOfStage();
+        drop(piece, c.x, c.y);
       }
       dragging = false;
-      dragPiece = null;
     };
     chip.addEventListener('pointermove', onMove);
     chip.addEventListener('pointerup', onUp);
@@ -207,13 +160,12 @@ export function mountPalette(el, app) {
   }
 
   chipRow.addEventListener('pointerdown', onPointerDown);
-
   const unsub = app.subscribe((evt) => {
-    if (evt.type === 'tool') refreshToolButtons();
+    if (evt.type === 'tool' || evt.type === 'doc' || evt.type === 'project') refresh();
   });
 
   return {
-    update() { refreshToolButtons(); },
+    update: refresh,
     destroy() {
       chipRow.removeEventListener('pointerdown', onPointerDown);
       unsub();

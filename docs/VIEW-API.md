@@ -39,71 +39,79 @@ app = {
 }
 ```
 
-## `canvas.js`
+## `stage.js` (the Fabric.js drawing surface)
+
+`app.canvas` is the stage object returned by
+`createStage(containerEl, app)` (`containerEl` is `#stage`, which holds
+`<canvas id="canvas">`). It is built on Fabric.js 6.7.1, pinned:
 
 ```js
-createCanvas(svgEl, app) -> canvas
-canvas.setDoc(doc)                 // diff render (add/remove/update nodes by data-id)
-canvas.patchNode(id, attrs)        // set attributes on an existing node (used during drags, no re-render)
-canvas.patchLabel(id, {x,y,text,cls})
-canvas.setSelection(ids)           // draw selection outline + 8 resize handles + repeat handle (small "+" at the right edge) for a single room
-canvas.setGuides([{axis,at}])      // magnet guide lines
-canvas.setGhosts([{x,y,w,h,number,index}])  // suggestion ghosts; clicking one dispatches app event 'ghost-accept' with the index
-canvas.setRoutePath([[x,y]...])    // arrow polyline
-canvas.setPhoto(photo|null)        // onion-skin <image>, sized to viewBox
-canvas.setOnion(opacity) / flashPhoto(on)
-canvas.setGrid(on)
-canvas.toPlan(clientX, clientY) -> {x,y}
-canvas.zoomTo(fit=true) / setView({zoom,panX,panY}) / getView()
-canvas.hitTest(clientX, clientY) -> { id, part } | null   // part: 'body' | 'label' | 'handle:nw'... | 'repeat' | 'floor-vertex:i' | 'floor-edge:i'
-canvas.onPointer(handler)          // handler(kind:'down'|'move'|'up'|'cancel', e, pt) after pan/zoom gestures are filtered out
-canvas.destroy()
+import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 ```
-
-Rendering conventions: rooms as `<rect>/<polygon class="room|big|ours|core|void">`
-(void drawn hatched grey via a CSS class `void`), labels as `<text class="lbl|lblS">`,
-name texts, stairs as `<g class="stair">` with lines, doors as `<line class="door">`
-over a dark floor stroke so the white gap reads as a door, plus EXIT text; the
-floor polygon with class `floor`; the compass group. Use the same class names as
-the export so the studio looks like the final file. Label text nodes carry
-`data-id` and `data-part="label"`. Grid is an `<pattern>`-filled rect (studio
-only; never exported).
-
-## Tools (`js/view/tools/*.js`)
 
 ```js
-createSelectTool(app) / createRoomTool(app, {poly:false}) / createFloorTool(app) /
-createDoorTool(app) / createStairTool(app) / createCompassTool(app) / createPanTool(app)
--> { name, hint, onDown(e, pt), onMove(e, pt), onUp(e, pt), onKey(e) -> handled:boolean, cancel(), onDoubleClick?(e, pt) }
+createStage(containerEl, app) -> stage
+stage.setDoc(doc)                  // diff by item id + identity; rebuild only what changed
+stage.setSelection(ids)            // ids are item ids, or 'floor'; round-trips with app.setSelection
+stage.setPhoto(photo|null)         // onion skin as canvas.backgroundImage (async)
+stage.setOnion(op) / flashPhoto(on)
+stage.setPlanOpacity(op)           // opacity on every item object
+stage.setGrid(on)                  // cached 20-unit pattern rect behind everything
+stage.setGuides([{axis,at}])       // magnet guide lines drawn during a drag
+stage.setGhosts([{x,y,w,h,number,index}])  // clicking one fires window 'ghost-accept' {index}
+stage.setRoutePath([[x,y]...])     // orange polyline + arrowhead
+stage.dropPiece(key, clientX, clientY)     // palette chip drop
+stage.toPlan(clientX, clientY) -> {x,y}
+stage.zoomTo(fit=true) / getView() -> {x,y,w,h,zoom} / setView({x,y,zoom})
+stage.destroy()
+stage.fabricCanvas                 // escape hatch, used only by tests/browser/perf.spec.js
 ```
 
-`pt` is the raw plan-space point. Tools call `app.snap` themselves. During a
-drag the tool calls `canvas.patchNode` for live feedback and commits once on
-pointer-up. Select tool handles: click/shift-click select, marquee, move
-(magnet: vertices, extended edges, floor outline, grid, equal spacing), resize via
-handles, label nudge (drag a label -> pins it), repeat handle drag ->
-`app.duplicateInRow`, Delete key, arrow keys nudge by 1 (Shift 10), 1..5 change
-class of selected rooms, D duplicate in row, floor vertex drag when the floor is
-selected, double-click a room -> rename number prompt.
+There is no `patchNode` / `patchLabel` / `patchItem` / `hitTest` / `onPointer`
+and there are no tool modules: Fabric does selection, dragging, scaling,
+rotation, marquee selection and hit-testing, and the stage turns the finished
+transform into a single `app.commit`.
 
-Room tool: drag a rectangle (min 10x10), snap, on pointer-up prompt for the
-number then commit (Esc cancels). Poly variant: click corners, Enter or click
-the first corner closes, then prompt. Number keys 1-5 before drawing set the class.
-Floor tool: click outline corners, Enter/double-click closes; if a floor exists,
-the tool edits its vertices (drag) and adds a vertex on edge click.
-Door tool: only accepts clicks within 12 units of the floor outline; uses
-`doorFor`; commits a door with kind EXIT; hint says "Click on the outside wall to place a door".
-Stair tool: drag a rect (default palette size on click). Compass tool: click to place.
+### Object mapping
+
+| item | Fabric object |
+|---|---|
+| room, `shape:'rect'` | `Group([Rect, FabricText])` — box and number are one object, rotation locked, `mtr` control hidden; `object:modified` converts scale into integer `w`/`h` snapped to the 5-unit grid |
+| room, `shape:'poly'` | `Polygon` with one round control per vertex (`polygonPositionHandler` / `anchorWrapper` / `actionHandler`), scaling and rotation locked, plus a companion label `FabricText` |
+| floor | `Polygon`, class `floor` look, always at the back, movement locked, vertex controls, edge hover dot, double-click an edge inserts a vertex |
+| hall | dashed light-blue `Group([Rect, "Hallway"])`, below rooms, never exported |
+| stair | `Group([core Rect, tread Lines, label?])`, rotation locked ("Rotate" in properties flips `dir`) |
+| door | `Group([white Line, "EXIT" text])`, fully locked but selectable and deletable |
+| compass | `Group` drawn like the export, movable and rotatable with Fabric's rotate control (`snapAngle: 1`; `object:modified` writes `deg`) |
+| ghosts / guides / route | overlay objects, `selectable:false` (ghosts stay `evented`) |
+
+### Tools (`stageTools.js`)
+
+`app._tools` holds `{ name, hint, onKey(e), cancel() }` stubs for
+`select | floor | door | hall | room | poly | stair | compass | pan`;
+`app.setTool(name)` still drives them. 'select' is plain Fabric behaviour
+(including marquee selection); the drawing tools set `skipTargetFind` and a
+crosshair cursor, Esc returns to select, Enter closes the outline.
+
+### Snapping (`stageSnap.js`)
+
+`object:moving` / `object:scaling` snap the moving box's edges and centre to
+the 5-unit grid and, within 6 plan units, to other items' edges/centres and the
+outline's vertices; guides are drawn during the drag and Alt disables magnets.
+Targets are collected once per drag and cached, so a move stays cheap on a
+2,000-room plan (see `tests/browser/perf.spec.js`).
 
 ## Panels (`js/view/panels/*.js`)
 
 Each: `mountXxx(containerEl, app) -> { update(evt), destroy() }` and subscribes via `app.subscribe`.
 
-* `palette.js`: drag-and-drop pieces (room, small room, big room, our room,
-  restroom core, elevator core, stair block, door, void, compass). Dragging a
-  piece onto the canvas (Pointer Events, works on touch) drops it at the pointer
-  with the standard size from `STD.palette`, snapped; rooms prompt for the
-  number; door piece switches to the door tool. Also tool buttons with hotkeys.
+* `palette.js`: four guided steps in order - "1. Outline the building",
+  "2. Add doors", "3. Add hallways", "4. Add rooms". Steps 2-4 (and the chips)
+  are greyed out with the title "Draw the outline first" until a floor exists.
+  Dragging a chip onto the stage (Pointer Events, works on touch) calls
+  `app.canvas.dropPiece(key, clientX, clientY)`, which places the piece at the
+  pointer with the standard size from `STD.palette`, snapped; rooms prompt for
+  the number.
 * `properties.js`: for the selection: number, name, class (radio 1-5), show name
   toggle, font-size override (auto / 24 / 19 / custom), label "Re-center" (un-pin,
   shows a pin icon when pinned), section dropdown, door kind toggle EXIT/Door,
@@ -123,7 +131,8 @@ Each: `mountXxx(containerEl, app) -> { update(evt), destroy() }` and subscribes 
 ## index.html ids
 
 `#start` (projects screen), `#photo-step`, `#studio` (the build screen),
-`#topbar` (project name, undo/redo, Suggest rooms, Save .json, Export, saved chip
-`#saved-chip`, onion slider `#onion`), `#palette`, `#stage` containing
-`<svg id="canvas">`, `#props`, `#validation`, `#hint`, `#dialogs`.
+`#topbar` (project name, undo/redo, View popover with the onion slider `#onion`,
+plan opacity `#plan-opacity`, grid and "Find rooms on the photo" `#btn-suggest`,
+Save .json, Export, saved chip `#saved-chip`), `#palette`, `#stage` containing
+`<canvas id="canvas">`, `#props`, `#validation`, `#hint`, `#dialogs`.
 Screens toggled with the `hidden` attribute.
