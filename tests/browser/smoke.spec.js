@@ -17,7 +17,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SAMPLE_PHOTO = path.join(__dirname, '..', '..', 'samples', 'hjlc-1-straight.jpg');
+const SAMPLE_PHOTO = path.join(__dirname, '..', '..', 'samples', 'hjlc-1-posted.jpg');
 
 // Mirrors photoStep.js's default-corners + straighten math (5% inset quad,
 // output size = average of the quad's side lengths) so we can predict the

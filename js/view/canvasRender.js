@@ -225,6 +225,15 @@ export function updateSelectionHandles(doc, ids, selectionLayer, el, view, svgEl
     }
     selectionLayer.appendChild(outline);
 
+    if (ids.length === 1 && item.shape === 'poly') {
+      item.points.forEach((p, i) => {
+        selectionLayer.appendChild(el('circle', {
+          cx: p[0], cy: p[1], r: Math.max(3, handleSize / 2.5),
+          class: 'resize-handle', 'data-id': id, 'data-part': `vertex:${i}`,
+        }));
+      });
+    }
+
     if (ids.length === 1 && item.shape === 'rect') {
       const hp = handlePoints(item.x, item.y, item.w, item.h);
       for (const key of HANDLE_ORDER) {

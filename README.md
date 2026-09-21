@@ -62,6 +62,16 @@ a JS and a Python port of the BetterNMSUMaps parser rules and diffs the result.
 Browser steps are in `tests/MANUAL.md`; a Playwright smoke test lives in
 `tests/browser/` if Playwright is installed.
 
+## Pieces
+
+Palette chips render as small live previews using the same look as the exported
+plan: Room (grey box, number), Small room (smaller grey box), Big room (larger
+bluish box, "Classroom"), Our room (pink box), Restroom core (grey box, "WC"),
+Elevator core (grey box, up/down arrow), Stair block (grey box with 4 tread
+lines), Door (wall line with a white gap and green "EXIT"), Void (hatched/
+dashed grey box), Compass (the compass rose). Dragging a chip shows the same
+SVG as the floating ghost, scaled to the current plan zoom.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

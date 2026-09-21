@@ -5,6 +5,7 @@
 // Depends on: js/model/document.js (STD, makeRoom, newId).
 
 import { STD, makeRoom, newId } from '../../model/document.js';
+import { chipSvg, ghostSvg } from './paletteIcons.js';
 
 const TOOLS = [
   { name: 'select', label: 'Select', key: 'V' },
@@ -29,13 +30,6 @@ const PIECES = [
   { key: 'void', label: 'Void', cls: 'void' },
   { key: 'compass', label: 'Compass', cls: null },
 ];
-
-function swatchStyle(cls) {
-  const fills = {
-    room: '#eef1f4', big: '#e6ecf5', ours: '#f5e3ea', core: '#dfe3e8', void: '#d9dce1',
-  };
-  return cls ? `background:${fills[cls] || '#eef1f4'};` : 'background:#fff;border-style:dashed;';
-}
 
 export function mountPalette(el, app) {
   el.innerHTML = `
@@ -73,7 +67,7 @@ export function mountPalette(el, app) {
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.dataset.piece = piece.key;
-    chip.innerHTML = `<span class="chip-preview" style="${swatchStyle(piece.cls)}"></span><span class="chip-label">${piece.label}</span>`;
+    chip.innerHTML = `<span class="chip-preview">${chipSvg(piece.key)}</span><span class="chip-label">${piece.label}</span>`;
     chipRow.appendChild(chip);
   });
 
@@ -89,11 +83,24 @@ export function mountPalette(el, app) {
     dragging = false;
   }
 
+  function getZoom() {
+    const stage = document.getElementById('stage');
+    const canvas = app.canvas;
+    if (!stage || !canvas || typeof canvas.getView !== 'function') return 1;
+    const view = canvas.getView();
+    const rect = stage.getBoundingClientRect();
+    return view && view.w ? rect.width / view.w : 1;
+  }
+
   function makeGhost(piece, x, y) {
+    const zoom = getZoom();
+    const { svg, w, h } = ghostSvg(piece.key, zoom);
     const g = document.createElement('div');
-    g.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:40px; height:30px;
-      background:rgba(47,111,235,0.25); border:2px solid #2f6feb; border-radius:4px;
-      pointer-events:none; z-index:200; transform:translate(-50%,-50%);`;
+    g.style.cssText = `position:fixed; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
+      opacity:0.85; pointer-events:none; z-index:200; transform:translate(-50%,-50%);`;
+    g.innerHTML = svg;
+    const svgEl = g.querySelector('svg');
+    if (svgEl) { svgEl.style.width = '100%'; svgEl.style.height = '100%'; }
     document.body.appendChild(g);
     return g;
   }

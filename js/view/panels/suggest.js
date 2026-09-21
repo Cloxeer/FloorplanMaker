@@ -5,8 +5,22 @@
 // Depends on: js/model/document.js (addItem, makeRoom), js/model/geometry.js
 // (polygonsOverlap, rectToPoints, polygonArea), app.canvas, app.doc.
 
-import { addItem, makeRoom, roomPolygon } from '../../model/document.js';
+import { addItem, makeRoom, roomPolygon, setFloor } from '../../model/document.js';
 import { rectToPoints, polygonsOverlap, polygonArea } from '../../model/geometry.js';
+
+const FLOOR_PAD = 12;
+
+function proposeFloorOutline(app, regions) {
+  if (!regions.length || app.doc.floor) return;
+  const xs = [], ys = [];
+  regions.forEach((r) => { xs.push(r.x, r.x + r.w); ys.push(r.y, r.y + r.h); });
+  const minX = Math.min(...xs) - FLOOR_PAD;
+  const minY = Math.min(...ys) - FLOOR_PAD;
+  const maxX = Math.max(...xs) + FLOOR_PAD;
+  const maxY = Math.max(...ys) + FLOOR_PAD;
+  const points = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]];
+  app.commit(setFloor(app.doc, points), 'Propose floor outline');
+}
 
 function overlapsExisting(region, doc) {
   const regionPts = rectToPoints(region);
@@ -55,8 +69,8 @@ export function mountSuggest(app) {
   function renderBar() {
     if (!bar) return;
     bar.innerHTML = `
-      <span>${ghosts.length} suggested room${ghosts.length === 1 ? '' : 's'}</span>
-      <button type="button" id="sg-accept-all">Accept all</button>
+      <span>We found ${ghosts.length} room${ghosts.length === 1 ? '' : 's'}. Tap a room to keep it, or Keep all.</span>
+      <button type="button" id="sg-accept-all">Keep all</button>
       <button type="button" id="sg-dismiss">Dismiss</button>
     `;
     bar.querySelector('#sg-accept-all').addEventListener('click', acceptAll);
@@ -153,9 +167,10 @@ export function mountSuggest(app) {
       } else if (msg.kind === 'trace-result') {
         const regions = (msg.regions || []).filter((r) => !overlapsExisting(r, app.doc));
         ghosts = regions.map((r, i) => ({ x: r.x, y: r.y, w: r.w, h: r.h, number: '', index: i }));
+        proposeFloorOutline(app, regions);
         pushGhostsToCanvas();
         renderBar();
-        app.setHint(`${ghosts.length} suggested rooms. Running text recognition…`);
+        app.setHint(`We found ${ghosts.length} rooms. Running text recognition…`);
         worker.postMessage({ id: 'ocr', kind: 'ocr', width: pixelData.width, height: pixelData.height, data: pixelData.data, regions: ghosts });
       } else if (msg.kind === 'ocr-progress') {
         app.setHint(`Reading room numbers… ${msg.progress != null ? Math.round(msg.progress * 100) + '%' : ''}`);

@@ -7,7 +7,7 @@
 // collectSnapTargets).
 
 import { updateItem, setFloor, getItem, removeItems } from '../../model/document.js';
-import { bbox } from '../../model/geometry.js';
+import { bbox, dist } from '../../model/geometry.js';
 import { boxOf, moveItem, resizeRect, collectSnapTargets } from './common.js';
 
 export function createSelectTool(app) {
@@ -47,6 +47,15 @@ export function createSelectTool(app) {
 
     if (hit && hit.part === 'repeat') {
       app.duplicateInRow(hit.id);
+      return;
+    }
+
+    if (hit && hit.part && hit.part.startsWith('vertex:') && app.selection.has(hit.id)) {
+      const i = parseInt(hit.part.split(':')[1], 10);
+      const item = getItem(app.doc, hit.id);
+      if (item && item.shape === 'poly') {
+        drag = { kind: 'vertex', id: hit.id, index: i, startPts: item.points.map((p) => [...p]) };
+      }
       return;
     }
 
@@ -142,6 +151,16 @@ export function createSelectTool(app) {
       return;
     }
 
+    if (drag.kind === 'vertex') {
+      const snapped = app.snap(pt, { ignoreIds: new Set([drag.id]) });
+      const pts = drag.startPts.map((p) => [...p]);
+      pts[drag.index] = [Math.round(snapped.x), Math.round(snapped.y)];
+      drag.lastPts = pts;
+      const node = document.querySelector(`[data-id="${drag.id}"][data-part="body"]`);
+      if (node) node.setAttribute('points', pts.map((p) => p.join(',')).join(' '));
+      return;
+    }
+
     if (drag.kind === 'floor-vertex') {
       const pts = drag.startPts.map((p) => [...p]);
       pts[drag.index] = [Math.round(pt.x), Math.round(pt.y)];
@@ -182,6 +201,9 @@ export function createSelectTool(app) {
     } else if (drag.kind === 'label' && drag.lastLabel) {
       const doc = updateItem(app.doc, drag.id, { label: { pinned: true, x: drag.lastLabel.x, y: drag.lastLabel.y } });
       app.commit(doc, 'Move label');
+    } else if (drag.kind === 'vertex' && drag.lastPts) {
+      const doc = updateItem(app.doc, drag.id, { points: drag.lastPts });
+      app.commit(doc, 'Edit corner');
     } else if (drag.kind === 'floor-vertex' && drag.lastPts) {
       const doc = setFloor(app.doc, drag.lastPts);
       app.commit(doc, 'Edit floor');
@@ -255,12 +277,38 @@ export function createSelectTool(app) {
     if (!hit) return;
     const item = getItem(app.doc, hit.id);
     if (!item || item.type !== 'room') return;
+    if (item.shape === 'poly' && hit.part === 'body') {
+      // Insert a vertex at the nearest point on the closest edge to the click.
+      const pts = item.points;
+      let best = null;
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        const t = clamp01(projectT(pt, a, b));
+        const px = a[0] + (b[0] - a[0]) * t;
+        const py = a[1] + (b[1] - a[1]) * t;
+        const d = dist([pt.x, pt.y], [px, py]);
+        if (!best || d < best.d) best = { d, i, point: [Math.round(px), Math.round(py)] };
+      }
+      if (best && best.d < 20) {
+        const newPts = pts.slice(0, best.i + 1).concat([best.point], pts.slice(best.i + 1));
+        app.commit(updateItem(app.doc, item.id, { points: newPts }), 'Add corner');
+        return;
+      }
+    }
     app.prompt('Room number', item.number).then((value) => {
       if (value == null) return;
       const doc = updateItem(app.doc, item.id, { number: value });
       app.commit(doc, 'Rename');
     });
   }
+
+  function projectT(p, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return 0;
+    return ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / len2;
+  }
+  function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
   function cancel() {
     drag = null;
