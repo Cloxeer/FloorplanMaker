@@ -252,15 +252,26 @@ export function buildItem(item, grid) {
 }
 
 // ------------------------------------------------- overlays (no item id) ---
+// Ghost color/label by kind: plain room suggestions are blue with the read
+// (or "?") room number; 'hall'/'stair' ghosts (from the "Find hallways and
+// stairs" trace) are blue/grey respectively, labelled by kind.
+const GHOST_STYLE = {
+  hall: { color: '#2f6feb', label: 'Hall' },
+  stair: { color: '#7f8c8d', label: 'Stairs' },
+};
+
 export function buildGhost(g, index) {
+  const style = GHOST_STYLE[g.kind];
+  const color = style ? style.color : '#2f6feb';
+  const label = style ? style.label : (g.number ? String(g.number) : '?');
   const rect = new fabric.Rect({
     left: g.x, top: g.y, width: g.w, height: g.h,
-    fill: 'rgba(47,111,235,0.12)', stroke: '#2f6feb', strokeWidth: 2,
-    strokeDashArray: [7, 5], strokeUniform: true, objectCaching: false,
+    fill: `${color}1f`, stroke: color,
+    strokeWidth: 2, strokeDashArray: [7, 5], strokeUniform: true, objectCaching: false,
   });
-  const t = new fabric.FabricText(g.number ? String(g.number) : '?', {
+  const t = new fabric.FabricText(label, {
     left: g.x + g.w / 2, top: g.y + g.h / 2, originX: 'center', originY: 'center',
-    fontSize: 22, fill: '#2f6feb', fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
+    fontSize: 22, fill: color, fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
   });
   const grp = new fabric.Group([rect, t], {
     selectable: false, evented: true, hoverCursor: 'pointer', objectCaching: false,

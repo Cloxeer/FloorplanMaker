@@ -13,6 +13,8 @@ import { snapToGrid, dist } from '../model/geometry.js';
 
 const DOOR_REACH = 12;
 const MIN_BOX = 10;
+const CORNER_RADIUS = 8; // screen px, scaled by 1/zoom
+const CLOSE_REACH = 12; // screen px
 
 const HINTS = {
   select: 'Click a room to select it. Drag to move. Delete removes it.',
@@ -61,6 +63,24 @@ export function attachTools(ctx, editing) {
       draft.line.points = pts.map(([x, y]) => new fabric.Point(x, y));
       draft.line.setBoundingBox(true);
       draft.line.setCoords();
+    }
+    if (draft.points.length >= 1) {
+      const zoom = canvas.getZoom() || 1;
+      const r = CORNER_RADIUS / zoom;
+      const [fx, fy] = draft.points[0];
+      const near = draft.points.length >= 3 && draft.hover
+        && dist(draft.hover, draft.points[0]) * zoom <= CLOSE_REACH;
+      draft.canClose = !!near;
+      const color = near ? '#2ecc71' : '#2f6feb';
+      if (!draft.ring) {
+        draft.ring = addPreview(new fabric.Circle({
+          left: fx, top: fy, originX: 'center', originY: 'center', radius: r,
+          fill: 'transparent', stroke: color, strokeWidth: 2 / zoom,
+        }));
+      } else {
+        draft.ring.set({ left: fx, top: fy, radius: r, stroke: color, strokeWidth: 2 / zoom });
+        draft.ring.setCoords();
+      }
     }
     render();
   }
@@ -136,7 +156,11 @@ export function attachTools(ctx, editing) {
     const pt = snapPt(toPlan(opt.e.clientX, opt.e.clientY), opt.e);
     if (tool === 'floor') {
       if (!draft || draft.kind !== 'floor') draft = { kind: 'floor', points: [], objs: [] };
-      if (draft.points.length >= 3 && dist([pt.x, pt.y], draft.points[0]) < 14) { closeFloor(); return; }
+      const zoom = canvas.getZoom() || 1;
+      if (draft.points.length >= 3 && dist([pt.x, pt.y], draft.points[0]) * zoom <= CLOSE_REACH) {
+        closeFloor();
+        return;
+      }
       draft.points.push([pt.x, pt.y]);
       floorPreview();
       return;
@@ -163,6 +187,10 @@ export function attachTools(ctx, editing) {
     draft.box = boxOf(draft.start, pt);
     if (draft.kind === 'hall') boxPreview('rgba(120,176,224,0.22)', '#5b9bd5');
     else boxPreview('rgba(47,111,235,0.10)', '#2f6feb');
+  });
+
+  canvas.on('mouse:dblclick', () => {
+    if (draft && draft.kind === 'floor' && draft.points.length >= 3) closeFloor();
   });
 
   canvas.on('mouse:up', () => {

@@ -55,9 +55,15 @@ export function attachView(canvas, app, containerEl, render) {
     return fabric.util.transformPoint(p, fabric.util.invertTransform(canvas.viewportTransform));
   }
 
+  // deltaMode: 0=pixel (~100px/notch), 1=line (~3 lines/notch), 2=page (1/notch).
+  // Ctrl+wheel (browsers report trackpad pinch as a ctrlKey wheel event) also
+  // zooms since it goes through this same handler regardless of ctrlKey.
+  const WHEEL_UNIT = { 0: 100, 1: 3, 2: 1 };
   canvas.on('mouse:wheel', (opt) => {
     const e = opt.e;
-    let zoom = canvas.getZoom() * 0.999 ** (e.deltaY || 0);
+    const unit = WHEEL_UNIT[e.deltaMode] || 100;
+    const notches = (e.deltaY || 0) / unit;
+    let zoom = canvas.getZoom() * (1.1 ** -notches);
     zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
     const rect = canvas.upperCanvasEl.getBoundingClientRect();
     canvas.zoomToPoint(new fabric.Point(e.clientX - rect.left, e.clientY - rect.top), zoom);

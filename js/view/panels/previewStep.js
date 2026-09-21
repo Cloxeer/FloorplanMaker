@@ -10,13 +10,20 @@
 import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 
-export function showPreviewStep({ svgText, validation }, { onBack, onDownload }) {
+export function showPreviewStep({
+  svgText, validation, twoFiles, svgName, jpgName,
+}, { onBack, onDownload }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
   el.id = 'preview';
   el.className = 'preview-screen';
+  const downloadLabel = twoFiles ? 'Download files' : 'Download file';
+  const downloadNote = twoFiles
+    ? `You get two files: ${svgName} is the plan itself; ${jpgName} is the flattened photo, kept next to it for reference.`
+    : `You get one file: ${svgName} is the plan itself.`;
   el.innerHTML = `
     <header class="preview-header">
+      <button type="button" id="preview-back-top">&larr; Back to editing</button>
       <h2>Preview</h2>
       <p>This is exactly what will be exported. Hallway guides are left out.</p>
     </header>
@@ -32,7 +39,10 @@ export function showPreviewStep({ svgText, validation }, { onBack, onDownload })
     </div>
     <div class="preview-actions">
       <button type="button" id="preview-back">Back to editing</button>
-      <button type="button" id="preview-download" class="btn-primary">Download files</button>
+      <div class="preview-download-group">
+        <button type="button" id="preview-download" class="btn-primary">${downloadLabel}</button>
+        <p class="preview-download-note">${downloadNote}</p>
+      </div>
     </div>
   `;
   host.appendChild(el);
@@ -59,6 +69,7 @@ export function showPreviewStep({ svgText, validation }, { onBack, onDownload })
   document.addEventListener('keydown', onKeyDown);
 
   el.querySelector('#preview-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
+  el.querySelector('#preview-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#preview-download').addEventListener('click', () => { if (onDownload) onDownload(); });
 
   return { close };

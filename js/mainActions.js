@@ -92,12 +92,25 @@ export function createStudio(app, deps) {
     chip.offsetWidth; // force reflow so the fade-in restarts
     chip.classList.add('flash');
   }
+  function hasDoor(doc) {
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'door'));
+  }
+  function hasHallOrStair(doc) {
+    return !!(doc && doc.items && doc.items.some((it) => it.type === 'hall' || it.type === 'stair'));
+  }
   function updateSuggestButton() {
     const btn = document.getElementById('btn-suggest');
-    if (!btn) return;
-    const ok = hasFloor(app.doc);
-    btn.disabled = !ok;
-    btn.title = ok ? '' : 'Draw the outline first';
+    if (btn) {
+      const ok = hasHallOrStair(app.doc);
+      btn.disabled = !ok;
+      btn.title = ok ? '' : 'Finish the previous step first';
+    }
+    const hallsBtn = document.getElementById('btn-suggest-halls');
+    if (hallsBtn) {
+      const ok = hasDoor(app.doc);
+      hallsBtn.disabled = !ok;
+      hallsBtn.title = ok ? '' : 'Finish the previous step first';
+    }
   }
   function updateOverlay() {
     const overlay = document.getElementById('start-overlay');
@@ -140,6 +153,7 @@ export function createStudio(app, deps) {
     propertiesHandle = mountProperties(document.getElementById('properties'), app);
     validationHandle = mountValidation(document.getElementById('validation'), app);
     suggestHandle = mountSuggest(app);
+    app.suggest = suggestHandle;
     const stripEl = document.getElementById('step-strip');
     if (stripEl) {
       stepStripHandle = mountStepStrip(stripEl, app, {
@@ -156,6 +170,10 @@ export function createStudio(app, deps) {
     onStudio(document.getElementById('btn-undo'), 'click', () => app.undo());
     onStudio(document.getElementById('btn-redo'), 'click', () => app.redo());
     onStudio(document.getElementById('btn-suggest'), 'click', () => suggestHandle && suggestHandle.run());
+    onStudio(document.getElementById('btn-suggest-halls'), 'click', () => {
+      if (app.suggest && typeof app.suggest.runHalls === 'function') app.suggest.runHalls();
+      else app.toast('coming soon');
+    });
     onStudio(document.getElementById('btn-photo'), 'click', onChangePhoto);
     onStudio(document.getElementById('onion'), 'input', (e) => {
       app.onion = parseFloat(e.target.value);
@@ -232,6 +250,7 @@ export function createStudio(app, deps) {
     if (suggestHandle) suggestHandle.destroy();
     if (stepStripHandle) stepStripHandle.destroy();
     paletteHandle = propertiesHandle = validationHandle = suggestHandle = stepStripHandle = null;
+    app.suggest = null;
     if (studioUnsub) { studioUnsub(); studioUnsub = null; }
     if (app.canvas) app.canvas.destroy();
     app.canvas = null;
