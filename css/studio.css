@@ -447,3 +447,6 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 .folder-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 .folder-line .btn-link { padding: 2px 6px; }
 .folder-modal p { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+
+/* the View popover must not be clipped by the top bar */
+#topbar { overflow: visible; position: relative; z-index: 30; }
