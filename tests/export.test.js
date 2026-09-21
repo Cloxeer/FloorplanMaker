@@ -21,8 +21,8 @@ const STYLE_BLOCK = [
   '    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }',
   '    .name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
   '    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
-  '.compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }',
-  '.compass-north  { fill: #8C0B42; }',
+  '    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }',
+  '    .compass-north  { fill: #8C0B42; }',
   '  </style>',
 ].join('\n');
 
