@@ -5,6 +5,8 @@
 // Depends on: js/view/panels/paletteIcons.js, app.canvas (js/view/stage.js).
 
 import { chipSvg, ghostSvg } from './paletteIcons.js';
+import { setFloor, removeItems } from '../../model/document.js';
+import { rectifyOutline } from '../rectify.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -30,6 +32,7 @@ export function mountPalette(el, app) {
       <h4>1. Outline the building</h4>
       <p class="step-desc">Trace the outer walls once, from the photo.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
+      <button type="button" class="btn-secondary" id="btn-straighten" hidden>Straighten lines</button>
     </div>
     <div class="palette-step" data-step="door">
       <h4>2. Add doors</h4>
@@ -58,8 +61,16 @@ export function mountPalette(el, app) {
     hall: el.querySelector('#btn-tool-hall'),
     room: el.querySelector('#btn-tool-room'),
   };
-  function toggleTool(name, pieceKey) {
+  async function toggleTool(name, pieceKey) {
     if (name === 'room') app.pendingRoomPiece = pieceKey || 'room';
+    if (name === 'floor' && hasFloor()) {
+      const ok = await app.confirm('Redraw the outline? The current outline and its doors will be removed.');
+      if (!ok) return;
+      const doorIds = app.doc.items.filter((it) => it.type === 'door').map((it) => it.id);
+      app.commit(setFloor(removeItems(app.doc, doorIds), null), 'Redraw outline');
+      app.setTool('floor');
+      return;
+    }
     if (app.toolName === name && (name !== 'room' || app.pendingRoomPiece === (pieceKey || 'room'))) {
       app.setTool('select');
     } else {
@@ -70,6 +81,15 @@ export function mountPalette(el, app) {
   Object.entries(toolButtons).forEach(([name, btn]) => {
     if (btn) btn.addEventListener('click', () => toggleTool(name));
   });
+
+  const straightenBtn = el.querySelector('#btn-straighten');
+  if (straightenBtn) {
+    straightenBtn.addEventListener('click', () => {
+      if (!hasFloor()) return;
+      const pts = rectifyOutline(app.doc.floor.points);
+      app.commit(setFloor(app.doc, pts), 'Straighten lines');
+    });
+  }
 
   PIECES.forEach((piece) => {
     const chip = document.createElement('div');
@@ -115,6 +135,12 @@ export function mountPalette(el, app) {
       btn.disabled = locked;
       btn.title = locked ? LOCKED_TITLE : '';
     });
+    if (toolButtons.floor) {
+      toolButtons.floor.innerHTML = hasFloor()
+        ? 'Redraw the outline <span class="hotkey-hint">F</span>'
+        : 'Draw outline <span class="hotkey-hint">F</span>';
+    }
+    if (straightenBtn) straightenBtn.hidden = !hasFloor();
     el.querySelectorAll('.palette-step').forEach((step) => {
       const name = step.dataset.step;
       const locked = !STEP_UNLOCKED[name]();
