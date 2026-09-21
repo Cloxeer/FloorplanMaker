@@ -13,7 +13,7 @@ checklist walks all four in order, matching `walkthrough.spec.js`.
 ### Step 1 — Start blueprint
 
 1. On the start screen, click **Start blueprint**.
-2. Fill Building name (`HJLC`), NMSU property number (`323`), Floor number
+2. Fill Building name (`HJLC`), Property number (`323`), Floor number
    (`1`). File name auto-fills as you type (e.g. `hjlc-1`); edit it to
    `hjlc-1-walkthrough` if you want a throwaway project.
 3. Click **Start**.
@@ -130,7 +130,7 @@ checklist walks all four in order, matching `walkthrough.spec.js`.
 ## Two-tab autosave check
 
 `js/store/autosave.js` broadcasts every successful save over a
-`BroadcastChannel` named `nmsu-fps`, and `js/mainActions.js`
+`BroadcastChannel` named `fps-studio`, and `js/mainActions.js`
 (`onExternalChangeForProject`) listens for changes to the *currently open*
 project from another tab.
 

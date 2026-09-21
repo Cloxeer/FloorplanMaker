@@ -1,8 +1,7 @@
-# NMSU Floor Plan Studio
+# Floor Plan Studio
 
-A free, browser-only tool for tracing phone photos of the evacuation maps posted
-in NMSU buildings into floor-plan SVG files that drop straight into the
-BetterNMSUMaps repo. No sign-up, no server, no install, no build step.
+A free, browser-only tool for tracing phone photos of evacuation maps
+into floor-plan SVG files. No sign-up, no server, no install, no build step.
 
 ## Libraries
 
@@ -28,7 +27,7 @@ Then open <http://localhost:8080/>. On GitHub Pages just publish the repo root.
 
 The top bar's step strip tracks four steps: **1 Photo &middot; 2 Trace &middot; 3 Preview &middot; 4 Export**.
 
-1. **Start blueprint.** Building name, NMSU property number, floor number, file name (e.g. `hjlc-1`).
+1. **Start blueprint.** Building name, Property number, floor number, file name (e.g. `hjlc-1`).
 2. **Flatten the photo.** Drop the photo, drag the four corners onto the map's corners, press *Flatten*. The photo becomes the onion-skin background (opacity slider, hold **H** to flash it).
 3. **Build.** Palette on the left (four guided steps: outline, doors, hallways, rooms — steps 2-4 unlock once the outline exists, plus a collapsible *Legend* at the bottom), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are studio-only guides and are never exported.
 4. **Preview.** Clicking *Export* (top bar or step 4) opens a full-screen Preview first: the exact SVG that will be exported, rendered on white next to a legend and the checklist. *Back to editing* returns to the plan with no changes; *Download files* runs the download.
@@ -71,7 +70,7 @@ npm run test:compat
 `npm test` runs the Node unit tests (geometry, every validation rule,
 export/import round trips on synthetic docs and the traced HJLC fixtures, route
 finding, a 300-room stress test). `test:compat` reads the exported fixtures with
-a JS and a Python port of the BetterNMSUMaps parser rules and diffs the result.
+a JS and a Python port of the the map site's tools/build_rooms.py parser rules and diffs the result.
 Browser steps are in `tests/MANUAL.md`. `tests/browser/` holds a Playwright
 smoke test (the whole outline -> doors -> hallway -> room -> compass -> reload
 -> export flow) and a drag-performance test (2,000 rooms):

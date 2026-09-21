@@ -47,7 +47,7 @@ async function dragChip(page, pieceKey, x, y) {
   return target;
 }
 
-test.describe('NMSU Floor Plan Studio smoke test', () => {
+test.describe('Floor Plan Studio smoke test', () => {
   test('outline -> doors -> hallway -> room -> compass -> undo -> reload -> export', async ({ page }) => {
     const consoleErrors = [];
     const pageErrors = [];

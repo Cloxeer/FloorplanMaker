@@ -3,3 +3,4 @@ ocr-out/
 .playwright/
 test-results/
 samples/_*
+tests/compat/repo-path.txt

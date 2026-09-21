@@ -1,6 +1,6 @@
-# Floor-plan SVG dialect (BetterNMSUMaps)
+# Floor-plan SVG dialect
 
-This is the exact output contract. The parsers in BetterNMSUMaps
+This is the exact output contract. The map site's tools
 (`tools/build_rooms.py`, `tools/build_entrances.py`, `tools/indoor_routes.py`)
 read these files. Do not deviate.
 
@@ -77,7 +77,7 @@ label texts), then stairs, then doors + exit labels, then compass.
 ## Compass group (verbatim)
 
 ```
-<!-- Which way the building really faces. The angle comes from NMSU Space Planning's outline of the
+<!-- Which way the building really faces. The angle comes from the map site's outline of the
      building, and matches the compass on the posted evacuation map. -->
 <g class="compass" transform="translate(X,Y) rotate(DEG)">
   <circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>

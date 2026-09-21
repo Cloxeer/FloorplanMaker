@@ -1,4 +1,4 @@
-# NMSU Floor Plan Studio — Review
+# Floor Plan Studio — Review
 
 Reviewer pass over the full app (`docs/`, `index.html`, `css/studio.css`, `js/`,
 `tests/`) against the original requirements list. Each requirement line below

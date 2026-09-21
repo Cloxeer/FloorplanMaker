@@ -1,4 +1,4 @@
-// route.js — faithful port of BetterNMSUMaps tools/indoor_routes.py: a grid of
+// route.js — faithful port of tools/indoor_routes.py: a grid of
 // STEP-unit squares over the floor outline, Dijkstra from every entrance at
 // once (doors on floor 1, stairs above), a wall-clearance penalty so routes
 // keep to the middle of hallways, and "string pulling" to straighten paths.

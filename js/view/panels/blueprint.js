@@ -41,7 +41,7 @@ export function showBlueprint() {
         <input type="text" id="bp-building" autocomplete="off">
       </div>
       <div class="form-row">
-        <label for="bp-property">NMSU property number</label>
+        <label for="bp-property">Property number</label>
         <input type="text" id="bp-property" autocomplete="off">
       </div>
       <div class="form-row">
