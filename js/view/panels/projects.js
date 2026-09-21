@@ -4,6 +4,7 @@
 // Depends on: js/store/autosave.js (listProjects, deleteProject), showConfirm from blueprint.js.
 
 import { listProjects, deleteProject } from '../../store/autosave.js';
+import * as folderStore from '../../store/folderStore.js';
 import { showConfirm } from './blueprint.js';
 
 function formatSavedAgo(ts) {
@@ -49,13 +50,25 @@ export function mountProjects(el, app, { onStart, onOpen, onImport, onImportSvg 
 
   async function refresh() {
     el.innerHTML = '<p style="color:var(--muted)">Loading projects…</p>';
-    let list = [];
+    let idbList = [];
     try {
-      list = await listProjects();
+      idbList = await listProjects();
     } catch (e) {
       el.innerHTML = '<p style="color:var(--muted)">Could not load saved projects.</p>';
       return;
     }
+    const folderHandle = app.folder && app.folder.state === 'granted' ? app.folder.handle : null;
+    let folderList = [];
+    if (folderHandle) {
+      try { folderList = await folderStore.listProjects(folderHandle); } catch { /* ignore */ }
+    }
+    const bySlug = new Map();
+    for (const p of idbList) bySlug.set(p.slug, { ...p, onDisk: false, hasIdb: true });
+    for (const p of folderList) {
+      const existing = bySlug.get(p.slug);
+      bySlug.set(p.slug, { ...p, id: existing ? existing.id : null, onDisk: true, hasIdb: !!existing });
+    }
+    const list = [...bySlug.values()];
     if (!list.length) {
       el.innerHTML = '<p style="color:var(--muted)">No saved projects yet. Start a blueprint to begin.</p>';
       return;
@@ -68,7 +81,7 @@ export function mountProjects(el, app, { onStart, onOpen, onImport, onImportSvg 
         card.className = 'project-card';
         card.innerHTML = `
           <h3>${escapeHtml(p.building || p.name || 'Untitled')}</h3>
-          <div class="meta">Floor ${escapeHtml(String(p.floor))} &middot; ${escapeHtml(p.slug || '')}</div>
+          <div class="meta">Floor ${escapeHtml(String(p.floor))} &middot; ${escapeHtml(p.slug || '')} ${p.onDisk ? '<span class="chip">on disk</span>' : ''}</div>
           <div class="meta">Saved ${formatSavedAgo(p.savedAt)}</div>
           <div class="row">
             <button type="button" class="btn-open">Open</button>
@@ -76,13 +89,14 @@ export function mountProjects(el, app, { onStart, onOpen, onImport, onImportSvg 
           </div>
         `;
         card.querySelector('.btn-open').addEventListener('click', () => {
-          if (onOpen) onOpen(p.id);
+          if (onOpen) onOpen(p);
         });
         card.querySelector('.btn-delete').addEventListener('click', async () => {
           const ok = await showConfirm(`Delete "${p.building || p.name}"? This cannot be undone.`);
           if (!ok) return;
           try {
-            await deleteProject(p.id);
+            if (p.hasIdb && p.id) await deleteProject(p.id);
+            if (p.onDisk && folderHandle) await folderStore.deleteProject(folderHandle, p.slug);
           } catch (err) {
             el.insertAdjacentHTML('afterbegin', `<p style="color:#b3261e">${escapeHtml(err && err.message ? err.message : 'Could not delete that project.')}</p>`);
           }

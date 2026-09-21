@@ -17,6 +17,7 @@ test.describe('stage performance', () => {
 
     await page.goto('/');
     await page.click('#btn-start-blueprint');
+    await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
     await page.fill('#bp-building', 'Perf Building');
     await page.fill('#bp-property', '9999');
     await page.fill('#bp-floor', '1');

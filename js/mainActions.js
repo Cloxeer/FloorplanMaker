@@ -11,6 +11,7 @@ import { importSvg } from './model/svgImport.js';
 import {
   loadProject, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
 } from './store/autosave.js';
+import * as folderStore from './store/folderStore.js';
 import { createStage } from './view/stage.js';
 import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
@@ -37,6 +38,39 @@ export function createStudio(app, deps) {
   const extraUnsubs = [];
   function onStudio(target, type, fn, opts) { target.addEventListener(type, fn, opts); studioListeners.push([target, type, fn, opts]); }
 
+  let folderWriteFailedShown = false;
+  function persistToFolder(project) {
+    if (!project || !app.folder || app.folder.state !== 'granted' || !app.folder.handle) return;
+    folderStore.writeProject(app.folder.handle, project).catch(() => {
+      if (!folderWriteFailedShown) { folderWriteFailedShown = true; app.toast('Could not write to the folder'); }
+    });
+  }
+  function showChooseFolderModal() {
+    return new Promise((resolve) => {
+      const host = document.getElementById('dialogs');
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const modal = document.createElement('div');
+      modal.className = 'modal folder-modal';
+      modal.innerHTML = `
+        <h3>Choose a folder to keep your floor plans</h3>
+        <div class="modal-actions">
+          <button type="button" id="folder-modal-skip">Not now</button>
+          <button type="button" id="folder-modal-choose" class="btn-primary">Choose folder</button>
+        </div>
+      `;
+      backdrop.appendChild(modal);
+      host.appendChild(backdrop);
+      function cleanup() { backdrop.remove(); }
+      modal.querySelector('#folder-modal-skip').addEventListener('click', () => { cleanup(); resolve(); });
+      modal.querySelector('#folder-modal-choose').addEventListener('click', async () => {
+        cleanup();
+        if (app.pickFolderThenContinue) await app.pickFolderThenContinue();
+        resolve();
+      });
+    });
+  }
+
   function toggleGrid() {
     app.gridOn = !app.gridOn;
     app.canvas.setGrid(app.gridOn);
@@ -49,6 +83,7 @@ export function createStudio(app, deps) {
     const v = app.canvas.getView();
     app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity };
     saveProject(app.project);
+    persistToFolder(app.project);
     app.emit({ type: 'view' });
   }
   function isTypingTarget(e) {
@@ -86,7 +121,9 @@ export function createStudio(app, deps) {
   function updateSavedChip() {
     const chip = document.getElementById('saved-chip');
     if (!chip) return;
-    chip.textContent = formatSavedAgo(lastSavedAt());
+    let text = formatSavedAgo(lastSavedAt());
+    if (app.folder && app.folder.state === 'granted') text = text.replace('Saved', 'Saved to folder');
+    chip.textContent = text;
     chip.classList.remove('flash');
     // eslint-disable-next-line no-unused-expressions
     chip.offsetWidth; // force reflow so the fade-in restarts
@@ -316,7 +353,7 @@ export function createStudio(app, deps) {
 
   async function closeProject() {
     if (!app.project) { showScreen('start'); return; }
-    try { await saveNow(app.project); } catch { /* ignore */ }
+    try { await saveNow(app.project); persistToFolder(app.project); } catch { /* ignore */ }
     teardownStudio();
     app.project = null; app.doc = null; app.selection = new Set(); app.validation = [];
     showScreen('start');
@@ -343,6 +380,9 @@ export function createStudio(app, deps) {
   }
 
   async function onStartBlueprint() {
+    if (app.isFolderSupported && app.isFolderSupported() && !(app.folder && app.folder.handle)) {
+      await showChooseFolderModal();
+    }
     const result = await showBlueprint();
     if (!result) return;
     const meta = { building: result.building, property: result.property, floor: result.floor, slug: result.slug };
@@ -350,8 +390,16 @@ export function createStudio(app, deps) {
     showPhotoStepFor(project, null);
   }
 
-  async function onOpenProject(id) {
-    const project = await loadProject(id);
+  async function onOpenProject(entry) {
+    const isFolderEntry = entry && typeof entry === 'object' && entry.onDisk;
+    let project = null;
+    if (isFolderEntry && app.folder && app.folder.state === 'granted' && app.folder.handle) {
+      try { project = await folderStore.readProject(app.folder.handle, entry.slug); } catch { /* fall through */ }
+    }
+    if (!project) {
+      const id = entry && typeof entry === 'object' ? entry.id : entry;
+      if (id) project = await loadProject(id);
+    }
     if (!project) { app.toast('Could not open that project.'); return; }
     if (!project.history) project.history = { past: [], future: [] };
     enterStudio(project);
@@ -361,6 +409,7 @@ export function createStudio(app, deps) {
     try {
       const project = importProjectJson(text);
       await saveNow(project);
+      persistToFolder(project);
       enterStudio(project, { freshView: true });
     } catch (err) {
       app.toast(err && err.message ? err.message : 'Could not import that file.');
@@ -373,6 +422,7 @@ export function createStudio(app, deps) {
       doc.meta = { ...doc.meta, slug: doc.meta.slug || slugify(doc.meta.building, doc.meta.floor) };
       const project = { id: crypto.randomUUID(), slug: doc.meta.slug, name: doc.meta.building, createdAt: Date.now(), savedAt: 0, doc, photo: null, view: { zoom: 1, panX: 0, panY: 0, onion: 0.5 }, history: { past: [], future: [] } };
       await saveNow(project);
+      persistToFolder(project);
       enterStudio(project, { freshView: true });
     } catch (err) { app.toast(err && err.message ? err.message : 'Could not import that SVG file.'); }
   }

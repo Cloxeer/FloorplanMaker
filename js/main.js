@@ -11,6 +11,7 @@ import { STD } from './model/document.js';
 import { magnetSnap } from './model/geometry.js';
 import { validate } from './model/validate.js';
 import { installAutosaveHooks, onExternalChange } from './store/autosave.js';
+import { isSupported as folderIsSupported, getFolder, pickFolder as pickFolderHandle } from './store/folderStore.js';
 import { mountProjects } from './view/panels/projects.js';
 import { showPrompt, showConfirm, showToast } from './view/panels/blueprint.js';
 import { createActions, createStudio } from './mainActions.js';
@@ -69,6 +70,8 @@ const app = {
   validation: [],
   clipboard: null,
   lastNumber: '',
+  folder: { handle: null, state: 'none' },
+  isFolderSupported: folderIsSupported,
   subscribe,
   emit,
 };
@@ -166,10 +169,59 @@ app.paste = actions.paste;
 app.routeToRoom = actions.routeToRoom;
 app.exportAll = actions.exportAll;
 
+// ---------------------------------------------------------------- folder --
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+function renderFolderLine() {
+  const line = document.getElementById('folder-line');
+  if (!line) return;
+  if (!folderIsSupported()) {
+    line.textContent = 'Your browser keeps projects inside the browser; use Save to download a copy.';
+    return;
+  }
+  const { handle, state } = app.folder;
+  if (!handle) {
+    line.innerHTML = 'No folder yet &mdash; <button type="button" id="folder-choose-btn" class="btn-link">Choose folder</button>';
+    const btn = document.getElementById('folder-choose-btn');
+    if (btn) btn.addEventListener('click', onChooseFolder);
+    return;
+  }
+  if (state === 'granted') {
+    line.innerHTML = `Folder: ${escapeHtml(handle.name)} <button type="button" id="folder-change-btn" class="btn-link">Change</button>`;
+    const btn = document.getElementById('folder-change-btn');
+    if (btn) btn.addEventListener('click', onChooseFolder);
+  } else {
+    line.innerHTML = `Folder: ${escapeHtml(handle.name)} <button type="button" id="folder-reconnect-btn" class="btn-link">Reconnect folder</button>`;
+    const btn = document.getElementById('folder-reconnect-btn');
+    if (btn) btn.addEventListener('click', onReconnectFolder);
+  }
+}
+async function onChooseFolder() {
+  try {
+    const handle = await pickFolderHandle();
+    app.folder = { handle, state: 'granted' };
+  } catch { /* cancelled or unsupported */ }
+  renderFolderLine();
+  if (projectsHandle) projectsHandle.refresh();
+}
+async function onReconnectFolder() {
+  app.folder = await getFolder({ request: true });
+  renderFolderLine();
+  if (projectsHandle) projectsHandle.refresh();
+}
+async function refreshFolder() {
+  app.folder = await getFolder();
+  renderFolderLine();
+}
+app.pickFolderThenContinue = onChooseFolder;
+
 // ------------------------------------------------------------------- init --
 let projectsHandle = null;
 
-function init() {
+async function init() {
   const studio = createStudio(app, {
     screens,
     showScreen,
@@ -179,6 +231,8 @@ function init() {
   });
   app.openProject = studio.onOpenProject;
   app.closeProject = studio.closeProject;
+
+  await refreshFolder();
 
   projectsHandle = mountProjects(document.getElementById('projects'), app, {
     onStart: studio.onStartBlueprint,
