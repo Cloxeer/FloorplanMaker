@@ -2,7 +2,7 @@
 <!--
   index.html — app shell for NMSU Floor Plan Studio.
   Three screens toggled with the `hidden` attribute: #start (projects list),
-  #photo-step (straighten photo), #studio (the drawing workspace).
+  #photo-step (straighten photo), #studio (the drawing workspace; its #stage holds the Fabric.js <canvas>).
   Depends on: css/studio.css, js/main.js (module entry, wires everything else).
 -->
 <html lang="en">
@@ -80,7 +80,7 @@
     <div id="palette"></div>
 
     <div id="stage">
-      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <canvas id="canvas"></canvas>
       <div id="start-overlay" class="start-overlay" hidden>
         <div class="start-overlay-card">
           <h3>Start by outlining the building</h3>

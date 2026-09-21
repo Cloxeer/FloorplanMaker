@@ -4,6 +4,16 @@ A free, browser-only tool for tracing phone photos of the evacuation maps posted
 in NMSU buildings into floor-plan SVG files that drop straight into the
 BetterNMSUMaps repo. No sign-up, no server, no install, no build step.
 
+## Libraries
+
+Only two, both version-pinned from a CDN, both loaded straight by the browser:
+
+* **[Fabric.js](http://fabricjs.com/) 6.7.1** from jsDelivr
+  (`https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs`) — the canvas
+  interaction layer behind the drawing stage: selection, move/scale/rotate
+  controls, groups, per-vertex polygon controls, zoom and panning.
+* **Tesseract.js** (lazy, in a Worker) for reading room numbers off the photo.
+
 ## Open it
 
 Any static file server works (ES modules need `http://`, not `file://`):
@@ -18,7 +28,7 @@ Then open <http://localhost:8080/>. On GitHub Pages just publish the repo root.
 
 1. **Start blueprint.** Building name, NMSU property number, floor number, file name (e.g. `hjlc-1`).
 2. **Add the reference photo.** Drop the photo, drag the four corners onto the map's corners, press *Straighten*. The photo becomes the onion-skin background (opacity slider, hold **H** to flash it).
-3. **Build.** Palette on the left, drawing in the middle, properties on the right, a one-line hint at the bottom.
+3. **Build.** Palette on the left (four guided steps: outline, doors, hallways, rooms — steps 2-4 unlock once the outline exists), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are studio-only guides and are never exported.
 4. **Export.** Downloads `<slug>.svg` and `<slug>-posted.jpg` and shows the `building-extras.json` snippet plus the two commands to run.
 
 Everything autosaves to IndexedDB (and on pointer-up, tab hide and page close).
@@ -29,7 +39,7 @@ moved or committed.
 
 | Key | Action |
 |---|---|
-| V / R / P / F / O / S | Select / Room / Polygon room / Outline / Door / Stair |
+| V / R / F / O / A / S / C | Select / Room / Outline / Door / Hallway / Stair / Compass |
 | D | Duplicate selected room in a row (auto-increments the number) |
 | 1–5 | Room class: room, big, ours, core, void |
 | G | Toggle grid |
@@ -59,8 +69,13 @@ npm run test:compat
 export/import round trips on synthetic docs and the traced HJLC fixtures, route
 finding, a 300-room stress test). `test:compat` reads the exported fixtures with
 a JS and a Python port of the BetterNMSUMaps parser rules and diffs the result.
-Browser steps are in `tests/MANUAL.md`; a Playwright smoke test lives in
-`tests/browser/` if Playwright is installed.
+Browser steps are in `tests/MANUAL.md`. `tests/browser/` holds a Playwright
+smoke test (the whole outline -> doors -> hallway -> room -> compass -> reload
+-> export flow) and a drag-performance test (2,000 rooms):
+
+```bash
+node_modules/.bin/playwright test --config tests/browser/playwright.config.js
+```
 
 ## Pieces
 

@@ -95,16 +95,19 @@ export function createActions(app, deps) {
     }, 400);
   }
   function exportAll() {
-    const results = validate(app.doc);
+    // Hallways are studio-only guides: they are saved in the .json project but
+    // never reach the exported SVG.
+    const doc = { ...app.doc, items: app.doc.items.filter((it) => it.type !== 'hall') };
+    const results = validate(doc);
     app.validation = results;
     app.emit({ type: 'validation' });
     if (results.some((r) => r.level === 'error')) {
       app.toast('Fix the errors listed in Validation before exporting.');
       return;
     }
-    const svgText = exportSvg(app.doc);
+    const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    showExportDialog({ svgText, jpgDataUrl, meta: app.doc.meta });
+    showExportDialog({ svgText, jpgDataUrl, meta: doc.meta });
   }
 
   return { duplicateInRow, copy, paste, routeToRoom, exportAll, scheduleRouteValidation };

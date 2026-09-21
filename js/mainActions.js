@@ -4,21 +4,14 @@
 // (duplicateInRow, copy/paste, routeToRoom, exportAll) live in js/docActions.js
 // to keep this file under the line budget. main.js keeps only the `app` core
 // and startup, and re-exports createActions from js/docActions.js.
-// Depends on: js/model/*, js/store/autosave.js, js/view/canvas.js, js/view/tools/*.js, js/view/panels/*.js.
+// Depends on: js/model/*, js/store/autosave.js, js/view/stage.js, js/view/panels/*.js.
 
 import { createDoc } from './model/document.js';
 import { importSvg } from './model/svgImport.js';
 import {
   loadProject, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
 } from './store/autosave.js';
-import { createCanvas } from './view/canvas.js';
-import { createSelectTool } from './view/tools/select.js';
-import { createRoomTool } from './view/tools/room.js';
-import { createFloorTool } from './view/tools/floor.js';
-import { createDoorTool } from './view/tools/door.js';
-import { createStairTool } from './view/tools/stair.js';
-import { createCompassTool } from './view/tools/compass.js';
-import { createPanTool } from './view/tools/pan.js';
+import { createStage } from './view/stage.js';
 import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
@@ -30,11 +23,14 @@ import { mountSuggest } from './view/panels/suggest.js';
 export { createActions } from './docActions.js';
 
 // ---- studio screen controller ----
-const TOOL_KEYS = { v: 'select', r: 'room', p: 'poly', f: 'floor', o: 'door', s: 'stair', c: 'compass' };
+const TOOL_KEYS = { v: 'select', r: 'room', f: 'floor', o: 'door', a: 'hall', s: 'stair', c: 'compass' };
+
+function hasFloor(doc) {
+  return !!(doc && doc.floor && doc.floor.points && doc.floor.points.length >= 3);
+}
 
 export function createStudio(app, deps) {
   const { screens, showScreen, scheduleValidate, updateUndoRedoButtons } = deps;
-  let tools = null;
   let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null;
   let photoStepHandle = null, studioUnsub = null, reloadBarShown = false;
   const studioListeners = [];
@@ -96,6 +92,13 @@ export function createStudio(app, deps) {
     chip.offsetWidth; // force reflow so the fade-in restarts
     chip.classList.add('flash');
   }
+  function updateSuggestButton() {
+    const btn = document.getElementById('btn-suggest');
+    if (!btn) return;
+    const ok = hasFloor(app.doc);
+    btn.disabled = !ok;
+    btn.title = ok ? '' : 'Draw the outline first';
+  }
   function updateOverlay() {
     const overlay = document.getElementById('start-overlay');
     if (!overlay) return;
@@ -130,33 +133,7 @@ export function createStudio(app, deps) {
     extraUnsubs.push(app.subscribe((evt) => { if (evt.type === 'tool') pop.hidden = true; }));
   }
   function setupCanvas() {
-    const svgEl = document.getElementById('canvas');
-    app.canvas = createCanvas(svgEl, app);
-    app.canvas.onPointer((kind, e, pt) => {
-      if (kind === 'down') {
-        const hit = app.canvas.hitTest(e.clientX, e.clientY);
-        if (hit && hit.part && hit.part.startsWith('ghost:')) {
-          const idx = parseInt(hit.part.split(':')[1], 10);
-          window.dispatchEvent(new CustomEvent('ghost-accept', { detail: { index: idx } }));
-          return;
-        }
-        if (app.tool) app.tool.onDown(e, pt);
-      } else if (kind === 'move') { if (app.tool) app.tool.onMove(e, pt); }
-      else if (kind === 'up') { if (app.tool) app.tool.onUp(e, pt); }
-      else if (kind === 'cancel') { if (app.tool) app.tool.cancel(); }
-    });
-    onStudio(svgEl, 'dblclick', (e) => {
-      const pt = app.canvas.toPlan(e.clientX, e.clientY);
-      if (app.tool && app.tool.onDoubleClick) app.tool.onDoubleClick(e, pt);
-    });
-  }
-  function setupTools() {
-    tools = {
-      select: createSelectTool(app), room: createRoomTool(app), poly: createRoomTool(app, { poly: true }),
-      floor: createFloorTool(app), door: createDoorTool(app), stair: createStairTool(app),
-      compass: createCompassTool(app), pan: createPanTool(app),
-    };
-    app._tools = tools;
+    app.canvas = createStage(document.getElementById('stage'), app);
   }
   function setupPanels() {
     paletteHandle = mountPalette(document.getElementById('palette'), app);
@@ -171,7 +148,7 @@ export function createStudio(app, deps) {
       });
     }
     studioUnsub = app.subscribe((evt) => {
-      if (evt.type === 'doc') { updateUndoRedoButtons(); updateOverlay(); }
+      if (evt.type === 'doc') { updateUndoRedoButtons(); updateOverlay(); updateSuggestButton(); }
       if (evt.type === 'saved' || evt.type === 'view') updateSavedChip();
     });
   }
@@ -237,9 +214,8 @@ export function createStudio(app, deps) {
     studioListeners.length = 0;
     for (const unsub of extraUnsubs) unsub();
     extraUnsubs.length = 0;
-    if (app.tool) app.tool.cancel();
-    if (tools) for (const t of Object.values(tools)) t.cancel && t.cancel();
-    tools = null; app.tool = null; app.toolName = null;
+    if (app.tool && app.tool.cancel) app.tool.cancel();
+    app.tool = null; app.toolName = null; app._tools = null;
     if (paletteHandle) paletteHandle.destroy();
     if (propertiesHandle) propertiesHandle.destroy();
     if (validationHandle) validationHandle.destroy();
@@ -264,7 +240,6 @@ export function createStudio(app, deps) {
 
     showScreen('studio');
     setupCanvas();
-    setupTools();
     setupPanels();
     wireTopbar();
     onStudio(window, 'keydown', onKeyDown);
@@ -296,8 +271,17 @@ export function createStudio(app, deps) {
     updateSavedChip();
     updateOverlay();
 
+    updateSuggestButton();
     if (opts.autoSuggest && suggestHandle) {
-      suggestHandle.run();
+      // Room detection only makes sense once the building outline exists, so
+      // wait for the first floor commit instead of running straight away.
+      if (hasFloor(app.doc)) suggestHandle.run();
+      else {
+        const stop = app.subscribe((evt) => {
+          if (evt.type === 'doc' && hasFloor(app.doc)) { stop(); if (suggestHandle) suggestHandle.run(); }
+        });
+        extraUnsubs.push(stop);
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 // paletteIcons.js
 // Builds small inline-SVG markup for palette chips/ghosts, reusing the same
 // dialect classes (room/big/ours/core/void/door/stair/compass) as the real
-// canvas rendering (see js/view/canvasRender.js) so chips look like the
+// canvas rendering (see js/view/stageObjects.js) so chips look like the
 // real thing. Pure string templates, no DOM dependency.
 
 // Each entry: { w, h } = plan-unit footprint used for the drag ghost's scale.
