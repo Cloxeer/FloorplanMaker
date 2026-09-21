@@ -32,7 +32,7 @@ export function mountPalette(el, app) {
       <h4>1. Outline the building</h4>
       <p class="step-desc">Trace the outer walls once, from the photo.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
-      <button type="button" class="btn-secondary" id="btn-straighten" hidden>Straighten lines</button>
+      <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
     </div>
     <div class="palette-step" data-step="door">
       <h4>2. Add doors</h4>
