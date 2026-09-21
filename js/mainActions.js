@@ -16,7 +16,7 @@ import { createStage } from './view/stage.js';
 import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
-import { mountValidation } from './view/panels/validation.js';
+import { mountValidation, checklistReady, docChecklistCodes } from './view/panels/validation.js';
 import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
@@ -149,6 +149,14 @@ export function createStudio(app, deps) {
       hallsBtn.title = ok ? '' : 'Finish the previous step first';
     }
   }
+  function updateExportButton() {
+    const btn = document.getElementById('btn-export');
+    if (!btn) return;
+    const results = (app.validation || []).concat(docChecklistCodes(app.doc));
+    const ready = checklistReady(results);
+    btn.disabled = !ready;
+    btn.title = ready ? '' : 'Finish the checklist first';
+  }
   function updateOverlay() {
     const overlay = document.getElementById('start-overlay');
     if (!overlay) return;
@@ -165,6 +173,23 @@ export function createStudio(app, deps) {
       app.setTool('pan');
     }
     if (btn) btn.setAttribute('aria-pressed', String(app.toolName === 'pan'));
+  }
+  function zoomBy(factor) {
+    if (!app.canvas) return;
+    const v = app.canvas.getView();
+    const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
+    const zoom = Math.max(0.1, Math.min(8, v.zoom * factor));
+    const w = (v.w * v.zoom) / zoom;
+    const h = (v.h * v.zoom) / zoom;
+    app.canvas.setView({ zoom, x: cx - w / 2, y: cy - h / 2 });
+    scheduleSaveView();
+  }
+  function wireZoomControls() {
+    onStudio(document.getElementById('btn-zoom-in'), 'click', () => zoomBy(1.25));
+    onStudio(document.getElementById('btn-zoom-out'), 'click', () => zoomBy(0.8));
+    onStudio(document.getElementById('btn-zoom-fit'), 'click', () => {
+      if (app.canvas) { app.canvas.zoomTo(true); scheduleSaveView(); }
+    });
   }
   function wireViewPopover() {
     const btn = document.getElementById('btn-view');
@@ -200,6 +225,7 @@ export function createStudio(app, deps) {
     }
     studioUnsub = app.subscribe((evt) => {
       if (evt.type === 'doc') { updateUndoRedoButtons(); updateOverlay(); updateSuggestButton(); }
+      if (evt.type === 'doc' || evt.type === 'validation') updateExportButton();
       if (evt.type === 'saved' || evt.type === 'view') updateSavedChip();
     });
   }
@@ -251,6 +277,7 @@ export function createStudio(app, deps) {
       app.setTool('floor');
     });
     wireViewPopover();
+    wireZoomControls();
   }
 
   async function onChangePhoto() {
@@ -338,6 +365,7 @@ export function createStudio(app, deps) {
     updateOverlay();
 
     updateSuggestButton();
+    updateExportButton();
     if (opts.autoSuggest && suggestHandle) {
       // Room detection only makes sense once the building outline exists, so
       // wait for the first floor commit instead of running straight away.

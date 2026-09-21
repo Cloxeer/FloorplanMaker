@@ -58,8 +58,17 @@ export function mountPalette(el, app) {
     hall: el.querySelector('#btn-tool-hall'),
     room: el.querySelector('#btn-tool-room'),
   };
+  function toggleTool(name, pieceKey) {
+    if (name === 'room') app.pendingRoomPiece = pieceKey || 'room';
+    if (app.toolName === name && (name !== 'room' || app.pendingRoomPiece === (pieceKey || 'room'))) {
+      app.setTool('select');
+    } else {
+      app.setTool(name);
+    }
+  }
+
   Object.entries(toolButtons).forEach(([name, btn]) => {
-    if (btn) btn.addEventListener('click', () => app.setTool(name));
+    if (btn) btn.addEventListener('click', () => toggleTool(name));
   });
 
   PIECES.forEach((piece) => {
@@ -115,10 +124,16 @@ export function mountPalette(el, app) {
     const roomsUnlocked = STEP_UNLOCKED.room();
     chipRow.querySelectorAll('.chip').forEach((chip) => {
       chip.classList.toggle('disabled', !roomsUnlocked);
+      const key = chip.dataset.piece;
+      const toolMatch = app.toolName === chipToolName(key);
+      const active = toolMatch && (chipToolName(key) !== 'room' || app.pendingRoomPiece === key);
+      chip.classList.toggle('active', active);
     });
     const hallUnlocked = STEP_UNLOCKED.hall();
     hallChipRow.querySelectorAll('.chip').forEach((chip) => {
       chip.classList.toggle('disabled', !hallUnlocked);
+      const key = chip.dataset.piece;
+      chip.classList.toggle('active', app.toolName === chipToolName(key));
     });
   }
   refresh();
@@ -143,14 +158,13 @@ export function mountPalette(el, app) {
     document.body.appendChild(g);
     return g;
   }
-  function centerOfStage() {
-    const stage = document.getElementById('stage');
-    const rect = stage ? stage.getBoundingClientRect() : { left: 0, top: 0, width: 800, height: 600 };
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  }
   function drop(piece, clientX, clientY) {
     if (!app.canvas || !app.canvas.dropPiece) return;
     app.canvas.dropPiece(piece.key, clientX, clientY);
+  }
+  function chipToolName(key) {
+    if (key === 'hall' || key === 'stair' || key === 'compass') return key;
+    return 'room';
   }
 
   function onPointerDown(e) {
@@ -186,8 +200,7 @@ export function mountPalette(el, app) {
         && ev.clientY >= rect.top && ev.clientY <= rect.bottom;
       if (dragging && inside) drop(piece, ev.clientX, ev.clientY);
       else if (!dragging) {
-        const c = centerOfStage();
-        drop(piece, c.x, c.y);
+        toggleTool(chipToolName(piece.key), piece.key);
       }
       dragging = false;
     };
