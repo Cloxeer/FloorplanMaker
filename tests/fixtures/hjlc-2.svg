@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="330 -140 980 1670" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif">
+  <!--
+    Hardman & Jacobs Undergraduate Learning Center (bldg 323) - FLOOR 2
+    Traced from the posted "Emergency Evacuation Plan" photo, using the photo's
+    own pixel positions so every shape can be checked against it.
+  -->
+  <style>
+    .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }
+    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }
+    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }
+    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
+    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
+    .void  { fill: #f7f7f8; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }
+    .stair { stroke: #8f959c; stroke-width: 2; }
+    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }
+    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }
+    .dim   { fill: #8a8f96; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }
+    .name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }
+    .compass-north  { fill: #8C0B42; }
+  </style>
+
+  <!-- OUTSIDE WALLS: the real footprint of floor 2 -->
+  <polygon class="floor" points="440,60 1115,60 1112,445 960,445 960,710 1230,710 1230,1225 1278,1225 1278,1505 555,1505 555,1140 605,1140 605,785 360,785 360,685 530,685 530,265 440,265"/>
+
+  <!-- NORTH ROW -->
+  <rect class="room" x="447" y="68" width="80" height="132"/><text class="lbl" x="487" y="134">R206</text>
+  <rect class="room" x="530" y="68" width="75" height="132"/><text class="lbl" x="567" y="134">R208</text>
+  <rect class="void" x="607" y="100" width="58" height="82"/><text class="dim" x="636" y="130" font-size="15">Open to</text><text class="dim" x="636" y="152" font-size="15">below</text>
+  <rect class="core" x="667" y="100" width="95" height="95"/>
+  <g class="stair"><line x1="677" y1="118" x2="752" y2="118"/><line x1="677" y1="138" x2="752" y2="138"/><line x1="677" y1="158" x2="752" y2="158"/><line x1="677" y1="178" x2="752" y2="178"/></g>
+  <rect class="room" x="765" y="68" width="47" height="127"/><text class="lblS" x="788" y="134">M214</text>
+  <rect class="room" x="812" y="68" width="66" height="127"/><text class="lbl" x="845" y="134">216</text>
+  <rect class="room" x="880" y="68" width="55" height="127"/><text class="lblS" x="907" y="134">S218</text>
+  <rect class="room" x="935" y="68" width="115" height="127"/><text class="lbl" x="992" y="134">220</text>
+  <rect class="room" x="1050" y="68" width="60" height="127"/><text class="lbl" x="1080" y="134">222</text>
+  <rect class="room" x="450" y="205" width="52" height="57"/><text class="lblS" x="476" y="234">R207</text>
+
+  <!-- ICT TRAINING LAB + 219 SUITE -->
+  <rect class="ours" x="670" y="255" width="192" height="180"/>
+  <text class="name" x="766" y="318">ICT Training</text><text class="name" x="766" y="352">Lab</text><text class="lbl" x="766" y="392">206</text>
+  <rect class="core" x="862" y="255" width="28" height="75"/>
+  <rect class="room" x="890" y="255" width="158" height="185"/><text class="lbl" x="969" y="347">219</text>
+  <rect class="room" x="1048" y="255" width="60" height="72"/><text class="lblS" x="1078" y="291">219A</text>
+  <rect class="room" x="1048" y="330" width="60" height="110"/><text class="lblS" x="1078" y="385">219B</text>
+
+  <!-- WEST HALL 200 + core -->
+  <text class="lbl" x="567" y="457">200</text>
+  <rect class="void" x="680" y="445" width="278" height="265"/><text class="dim" x="819" y="577">Open to below</text>
+  <rect class="core" x="540" y="655" width="60" height="60"/><text class="lblS" x="570" y="685">Elev</text>
+  <rect class="core" x="362" y="690" width="92" height="90"/>
+  <g class="stair"><line x1="380" y1="700" x2="380" y2="772"/><line x1="400" y1="700" x2="400" y2="772"/><line x1="420" y1="700" x2="420" y2="772"/><line x1="440" y1="700" x2="440" y2="772"/></g>
+
+  <!-- CLASSROOMS -->
+  <rect class="big" x="680" y="788" width="195" height="310"/>
+  <text class="name" x="777" y="930">Classroom</text><text class="lbl" x="777" y="966">210</text>
+  <rect class="room" x="680" y="1100" width="113" height="36"/>
+  <rect class="room" x="795" y="1100" width="80" height="36"/>
+  <rect class="big" x="885" y="788" width="260" height="347"/>
+  <text class="name" x="1015" y="945">Classroom</text><text class="lbl" x="1015" y="981">225</text>
+  <rect class="void" x="720" y="1148" width="405" height="38"/><text class="dim" x="922" y="1167">Open to below</text>
+
+  <rect class="void" x="557" y="1147" width="60" height="78"/><text class="dim" x="587" y="1176" font-size="15">Open to</text><text class="dim" x="587" y="1198" font-size="15">below</text>
+  <rect class="room" x="563" y="1265" width="57" height="95"/><text class="lblS" x="591" y="1312">J218</text>
+  <rect class="room" x="655" y="1230" width="53" height="62"/><text class="lblS" x="681" y="1261">T232</text>
+  <rect class="room" x="655" y="1295" width="53" height="65"/><text class="lblS" x="681" y="1327">M234</text>
+  <rect class="room" x="563" y="1390" width="67" height="110"/><text class="lblS" x="596" y="1445">R217</text>
+  <rect class="room" x="637" y="1390" width="71" height="110"/><text class="lblS" x="672" y="1445">R216</text>
+  <rect class="big" x="710" y="1230" width="240" height="270"/>
+  <text class="name" x="830" y="1350">Classroom</text><text class="lbl" x="830" y="1386">230</text>
+  <rect class="big" x="952" y="1230" width="323" height="270"/>
+  <text class="name" x="1113" y="1350">Classroom</text><text class="lbl" x="1113" y="1386">228</text>
+
+  <!-- SE stair -->
+  <rect class="core" x="1192" y="1190" width="36" height="35"/>
+
+  <!-- STAIR EXITS shown on the posted plan (floor 2 exits are via stairs) -->
+  <text class="exit" x="714" y="215">EXIT ↓</text>
+  <text class="exit" x="408" y="805">EXIT ↓</text>
+  <text class="exit" x="1160" y="1172">EXIT ↓</text>
+
+  <!-- Which way the building really faces. The angle comes from NMSU Space Planning's outline of the
+       building, and matches the compass on the posted evacuation map. -->
+  <g class="compass" transform="translate(1215,-45) rotate(198)">
+    <circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>
+    <circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>
+    <path d="M0,-38 L11,0 L-11,0 Z" fill="#8C0B42"/>
+    <path d="M0,38 L11,0 L-11,0 Z" fill="#c7c7cc"/>
+    <circle r="4.5" fill="#ffffff" stroke="#8a8690" stroke-width="2"/>
+    <text class="compass-letter compass-north" x="0" y="-52">N</text>
+    <text class="compass-letter" x="0" y="62">S</text>
+    <text class="compass-letter" x="57" y="6">E</text>
+    <text class="compass-letter" x="-57" y="6">W</text>
+  </g>
+</svg>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!--
+  index.html — app shell for NMSU Floor Plan Studio.
+  Three screens toggled with the `hidden` attribute: #start (projects list),
+  #photo-step (straighten photo), #studio (the drawing workspace).
+  Depends on: css/studio.css, js/main.js (module entry, wires everything else).
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>NMSU Floor Plan Studio</title>
+  <link rel="stylesheet" href="css/studio.css">
+</head>
+<body>
+
+  <!-- START SCREEN -->
+  <section id="start">
+    <header class="start-header">
+      <h1>NMSU Floor Plan Studio</h1>
+      <p class="intro">
+        Trace an Emergency Evacuation Plan photo into a clean, routable floor
+        plan. Straighten the photo, drop in rooms, doors and stairs, then
+        export SVG for BetterNMSUMaps.
+      </p>
+    </header>
+    <div class="start-actions">
+      <button id="btn-start-blueprint" class="btn btn-primary btn-big">Start blueprint</button>
+      <label class="btn btn-secondary" for="open-json-input">Open .json project</label>
+      <input type="file" id="open-json-input" accept="application/json,.json" hidden>
+      <label class="btn btn-secondary" for="import-svg-input">Import .svg</label>
+      <input type="file" id="import-svg-input" accept="image/svg+xml,.svg" hidden>
+    </div>
+    <div id="projects"></div>
+  </section>
+
+  <!-- PHOTO STEP -->
+  <section id="photo-step" hidden>
+    <header class="photo-step-header">
+      <h2>Straighten the evacuation plan photo</h2>
+      <p>Drag the four corners onto the outline of the floor plan, then press Straighten.</p>
+    </header>
+    <div id="photo-step-body"></div>
+  </section>
+
+  <!-- STUDIO -->
+  <section id="studio" hidden>
+    <header id="topbar">
+      <div class="topbar-title">
+        <strong id="project-name">Untitled</strong>
+        <span id="project-floor"></span>
+      </div>
+      <div class="topbar-group">
+        <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button id="btn-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+      </div>
+      <div class="topbar-group">
+        <button id="btn-suggest">Suggest rooms</button>
+        <button id="btn-photo">Change photo</button>
+      </div>
+      <div class="topbar-group">
+        <label class="onion-label">Photo
+          <input type="range" id="onion" min="0" max="1" step="0.05" value="0.5">
+        </label>
+        <button id="btn-grid" title="Toggle grid" aria-pressed="true">Grid</button>
+      </div>
+      <div class="topbar-group">
+        <span id="saved-chip" class="saved-chip">Saved</span>
+        <button id="btn-save-json">Save .json</button>
+        <button id="btn-export" class="btn-primary">Export</button>
+        <button id="btn-close">Projects</button>
+      </div>
+    </header>
+
+    <div id="palette"></div>
+
+    <div id="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <aside id="props">
+      <div id="properties"></div>
+      <div id="validation"></div>
+    </aside>
+
+    <footer id="hint">Pick a tool to get started.</footer>
+  </section>
+
+  <div id="dialogs"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
