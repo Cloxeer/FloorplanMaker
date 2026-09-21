@@ -86,6 +86,7 @@ export function mountSuggest(app) {
   }
 
   function onGhostAccept(e) {
+    if (hallMode) return;
     const idx = e.detail && e.detail.index;
     acceptOne(idx);
   }
@@ -130,6 +131,7 @@ export function mountSuggest(app) {
   function dismiss() {
     ghosts = [];
     ocrStatus = null;
+    hallMode = false;
     app.canvas.setGhosts([]);
     if (bar) { bar.remove(); bar = null; }
     app.setHint('');
@@ -217,11 +219,103 @@ export function mountSuggest(app) {
     });
   }
 
+  function keepHallGhost(index) {
+    const g = ghosts[index];
+    if (!g) return;
+    const item = g.kind === 'stair'
+      ? { type: 'stair', x: g.x, y: g.y, w: g.w, h: g.h, dir: 'v' }
+      : { type: 'hall', x: g.x, y: g.y, w: g.w, h: g.h };
+    app.commit(addItem(app.doc, item), g.kind === 'stair' ? 'Accept stair' : 'Accept hallway');
+    ghosts = ghosts.filter((_, i) => i !== index).map((gg, i) => ({ ...gg, index: i }));
+    pushGhostsToCanvas();
+    renderHallBar();
+    if (ghosts.length === 0) dismiss();
+  }
+
+  function acceptAllHalls() {
+    let doc = app.doc;
+    ghosts.forEach((g) => {
+      doc = addItem(doc, g.kind === 'stair'
+        ? { type: 'stair', x: g.x, y: g.y, w: g.w, h: g.h, dir: 'v' }
+        : { type: 'hall', x: g.x, y: g.y, w: g.w, h: g.h });
+    });
+    app.commit(doc, 'Accept all halls/stairs');
+    ghosts = [];
+    pushGhostsToCanvas();
+    dismiss();
+  }
+
+  function renderHallBar() {
+    if (!bar) return;
+    const nHalls = ghosts.filter((g) => g.kind === 'hall').length;
+    const nStairs = ghosts.filter((g) => g.kind === 'stair').length;
+    bar.innerHTML = `
+      <span>We found ${nHalls} hallway${nHalls === 1 ? '' : 's'} and ${nStairs} stair${nStairs === 1 ? '' : 's'}. Tap one to keep it, or Keep all.</span>
+      <button type="button" id="sg-accept-all">Keep all</button>
+      <button type="button" id="sg-dismiss">Dismiss</button>
+    `;
+    bar.querySelector('#sg-accept-all').addEventListener('click', acceptAllHalls);
+    bar.querySelector('#sg-dismiss').addEventListener('click', dismiss);
+  }
+
+  function onGhostAcceptHall(e) {
+    const idx = e.detail && e.detail.index;
+    keepHallGhost(idx);
+  }
+
+  let hallWorker = null;
+  let hallMode = false;
+
+  async function runHalls() {
+    let pixelData;
+    try {
+      pixelData = await getPhotoPixels();
+    } catch (err) {
+      app.toast(err && err.message ? err.message : 'Could not read the photo.');
+      return;
+    }
+    if (!pixelData) {
+      app.toast('No photo to trace yet.');
+      return;
+    }
+    if (hallWorker) { hallWorker.terminate(); hallWorker = null; }
+    hallWorker = new Worker(new URL('../../workers/trace.worker.js', import.meta.url), { type: 'module' });
+    hallMode = true;
+    bar = makeBar();
+    ghosts = [];
+    renderHallBar();
+    app.setHint('Finding hallways and stairs on the photo…');
+
+    hallWorker.addEventListener('message', (e) => {
+      const msg = e.data || {};
+      if (msg.kind === 'halls') {
+        const halls = (msg.halls || []).map((r) => ({ ...r, kind: 'hall' }));
+        const stairs = (msg.stairs || []).map((r) => ({ ...r, kind: 'stair' }));
+        ghosts = halls.concat(stairs).map((g, i) => ({ ...g, index: i }));
+        pushGhostsToCanvas();
+        renderHallBar();
+        app.setHint(ghosts.length ? 'Review the suggested hallways/stairs, then accept or dismiss.' : 'No hallways or stairs detected.');
+      } else if (msg.kind === 'error' || msg.error) {
+        app.toast(`Find hallways and stairs failed: ${msg.message || msg.error || 'unknown error'}`);
+      }
+    });
+
+    const outline = app.doc && app.doc.floor && app.doc.floor.points ? app.doc.floor.points : null;
+    hallWorker.postMessage({
+      id: 'halls', kind: 'halls', width: pixelData.width, height: pixelData.height, data: pixelData.data, outline,
+    });
+  }
+
+  window.addEventListener('ghost-accept', (e) => {
+    if (hallMode && ghosts.length && ghosts[0].kind) onGhostAcceptHall(e);
+  });
   window.addEventListener('ghost-accept', onGhostAccept);
 
   return {
     run,
+    runHalls,
     destroy() {
+      if (hallWorker) { hallWorker.terminate(); hallWorker = null; }
       window.removeEventListener('ghost-accept', onGhostAccept);
       terminateWorker();
       dismiss();
