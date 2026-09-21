@@ -70,6 +70,11 @@ test.describe('Floor Plan Studio smoke test', () => {
     await page.keyboard.press('Enter');
     await expect.poll(async () => (await doc(page)).floor?.points.length).toBe(6);
     const outline0 = (await doc(page)).floor.points;
+    const isAxisAligned = (pts) => pts.every((p, i) => {
+      const q = pts[(i + 1) % pts.length];
+      return p[0] === q[0] || p[1] === q[1];
+    });
+    expect(isAxisAligned(outline0)).toBe(true);
 
     // ---- 2. Select the outline and drag one vertex control ----
     await page.mouse.click(P(0.3, 0.6).x, P(0.3, 0.6).y);
