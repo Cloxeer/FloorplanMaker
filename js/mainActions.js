@@ -38,6 +38,7 @@ export function createStudio(app, deps) {
   let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null;
   let photoStepHandle = null, studioUnsub = null, reloadBarShown = false;
   const studioListeners = [];
+  const extraUnsubs = [];
   function onStudio(target, type, fn, opts) { target.addEventListener(type, fn, opts); studioListeners.push([target, type, fn, opts]); }
 
   function toggleGrid() {
@@ -50,7 +51,7 @@ export function createStudio(app, deps) {
   function scheduleSaveView() {
     if (!app.project) return;
     const v = app.canvas.getView();
-    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn };
+    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity };
     saveProject(app.project);
     app.emit({ type: 'view' });
   }
@@ -123,6 +124,10 @@ export function createStudio(app, deps) {
     onStudio(document, 'click', (e) => {
       if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) pop.hidden = true;
     });
+    onStudio(document, 'keydown', (e) => {
+      if (e.key === 'Escape' && !pop.hidden) pop.hidden = true;
+    });
+    extraUnsubs.push(app.subscribe((evt) => { if (evt.type === 'tool') pop.hidden = true; }));
   }
   function setupCanvas() {
     const svgEl = document.getElementById('canvas');
@@ -180,6 +185,11 @@ export function createStudio(app, deps) {
       app.canvas.setOnion(app.onion);
       scheduleSaveView();
     });
+    onStudio(document.getElementById('plan-opacity'), 'input', (e) => {
+      app.planOpacity = parseFloat(e.target.value);
+      app.canvas.setPlanOpacity(app.planOpacity);
+      scheduleSaveView();
+    });
     onStudio(document.getElementById('btn-grid'), 'click', toggleGrid);
     onStudio(document.getElementById('btn-save-json'), 'click', () => {
       const text = exportProjectJson(app.project);
@@ -193,7 +203,11 @@ export function createStudio(app, deps) {
     onStudio(document.getElementById('btn-export'), 'click', () => app.exportAll());
     onStudio(document.getElementById('btn-close'), 'click', () => closeProject());
     onStudio(document.getElementById('btn-hand-toggle'), 'click', toggleHandTool);
-    onStudio(document.getElementById('btn-overlay-draw'), 'click', () => app.setTool('floor'));
+    onStudio(document.getElementById('btn-overlay-draw'), 'click', () => {
+      const overlay = document.getElementById('start-overlay');
+      if (overlay) overlay.hidden = true;
+      app.setTool('floor');
+    });
     wireViewPopover();
   }
 
@@ -221,6 +235,8 @@ export function createStudio(app, deps) {
   function teardownStudio() {
     for (const [target, type, fn, opts] of studioListeners) target.removeEventListener(type, fn, opts);
     studioListeners.length = 0;
+    for (const unsub of extraUnsubs) unsub();
+    extraUnsubs.length = 0;
     if (app.tool) app.tool.cancel();
     if (tools) for (const t of Object.values(tools)) t.cancel && t.cancel();
     tools = null; app.tool = null; app.toolName = null;
@@ -241,6 +257,7 @@ export function createStudio(app, deps) {
     app.magnet = true;
     app.gridOn = project.view ? project.view.gridOn !== false : true;
     app.onion = (project.view && project.view.onion) || 0.5;
+    app.planOpacity = (project.view && project.view.planOpacity) || 1;
     app.validation = [];
     app.clipboard = null;
     app.lastNumber = '';
@@ -259,10 +276,13 @@ export function createStudio(app, deps) {
     app.canvas.setPhoto(project.photo);
     app.canvas.setOnion(app.onion);
     app.canvas.setGrid(app.gridOn);
+    app.canvas.setPlanOpacity(app.planOpacity);
     const gridBtn = document.getElementById('btn-grid');
     if (gridBtn) gridBtn.setAttribute('aria-pressed', String(app.gridOn));
     const onionEl = document.getElementById('onion');
     if (onionEl) onionEl.value = String(app.onion);
+    const opacityEl = document.getElementById('plan-opacity');
+    if (opacityEl) opacityEl.value = String(app.planOpacity);
 
     app.canvas.zoomTo(true);
     if (!opts.freshView && project.view && typeof project.view.panX === 'number') {

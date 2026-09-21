@@ -321,15 +321,20 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
   padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 200px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.12);
 }
+.popover[hidden] { display: none; }
 
 .start-overlay {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   background: rgba(20, 22, 26, 0.35); z-index: 40;
+  pointer-events: none;
 }
+.start-overlay[hidden] { display: none; }
 .start-overlay-card {
   background: var(--panel); border-radius: var(--radius); padding: 24px 28px; text-align: center;
   max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  pointer-events: none;
 }
+.start-overlay-card button { pointer-events: auto; }
 .start-overlay-card h3 { margin: 0 0 8px; font-size: 16px; }
 .start-overlay-card p { margin: 0 0 14px; color: var(--muted); font-size: 12px; }
 
