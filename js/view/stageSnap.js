@@ -10,6 +10,7 @@ import { STD } from '../model/document.js';
 import { bbox, snapToGrid } from '../model/geometry.js';
 
 const TOL = 6;
+const WALL_TOL = 8;
 
 function itemBox(item) {
   if (item.type === 'room' && item.shape === 'poly') return bbox(item.points);
@@ -30,6 +31,36 @@ export function createSnapper(app) {
   function invalidate() {
     cache = null;
     cacheDoc = null;
+    wallCache = null;
+    wallCacheDoc = null;
+  }
+
+  let wallCache = null;
+  let wallCacheDoc = null;
+
+  // Axis-aligned wall segments from the floor outline, for the "snap to the
+  // outline" magnet: each segment remembers its constant coordinate and the
+  // span along it, so a snapped edge can be flush to the wall and the guide
+  // overlay can be drawn as that exact segment.
+  function collectWalls() {
+    const doc = app.doc;
+    if (wallCache && wallCacheDoc === doc) return wallCache;
+    const walls = [];
+    const pts = doc && doc.floor && doc.floor.points;
+    if (pts && pts.length >= 2) {
+      for (let i = 0; i < pts.length; i += 1) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[(i + 1) % pts.length];
+        if (Math.abs(x1 - x2) < 0.01) {
+          walls.push({ orient: 'v', at: (x1 + x2) / 2, min: Math.min(y1, y2), max: Math.max(y1, y2) });
+        } else if (Math.abs(y1 - y2) < 0.01) {
+          walls.push({ orient: 'h', at: (y1 + y2) / 2, min: Math.min(x1, x2), max: Math.max(x1, x2) });
+        }
+      }
+    }
+    wallCache = walls;
+    wallCacheDoc = doc;
+    return walls;
   }
 
   function collect(ignoreIds) {
@@ -102,6 +133,42 @@ export function createSnapper(app) {
     if (grid) {
       if (dx === 0 && cx.length) dx = snapToGrid(cx[0], grid) - cx[0];
       if (dy === 0 && cy.length) dy = snapToGrid(cy[0], grid) - cy[0];
+    }
+    if (magnet) {
+      const walls = collectWalls();
+      const left = box.x + dx;
+      const right = box.x + box.w + dx;
+      const top = box.y + dy;
+      const bottom = box.y + box.h + dy;
+      let wallDx = null;
+      let wallDy = null;
+      for (const w of walls) {
+        if (w.orient === 'v') {
+          if (bottom < w.min - WALL_TOL || top > w.max + WALL_TOL) continue;
+          for (const edge of [left, right]) {
+            const d = w.at - edge;
+            if (Math.abs(d) <= WALL_TOL && (wallDx === null || Math.abs(d) < Math.abs(wallDx.delta))) {
+              wallDx = { delta: d, wall: w };
+            }
+          }
+        } else {
+          if (right < w.min - WALL_TOL || left > w.max + WALL_TOL) continue;
+          for (const edge of [top, bottom]) {
+            const d = w.at - edge;
+            if (Math.abs(d) <= WALL_TOL && (wallDy === null || Math.abs(d) < Math.abs(wallDy.delta))) {
+              wallDy = { delta: d, wall: w };
+            }
+          }
+        }
+      }
+      if (wallDx) {
+        dx += wallDx.delta;
+        guides.push({ axis: 'wall', x1: wallDx.wall.at, y1: wallDx.wall.min, x2: wallDx.wall.at, y2: wallDx.wall.max });
+      }
+      if (wallDy) {
+        dy += wallDy.delta;
+        guides.push({ axis: 'wall', x1: wallDy.wall.min, y1: wallDy.wall.at, x2: wallDy.wall.max, y2: wallDy.wall.at });
+      }
     }
     return { dx, dy, guides };
   }

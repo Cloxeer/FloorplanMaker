@@ -23,6 +23,26 @@ export function attachEditing(ctx) {
   let committing = false;
   let hoverDot = null;
   let textBases = null;
+  const dragColors = new Map(); // fabric object -> its original fill/stroke
+
+  // -------------------------------------------------------- drag highlight --
+  function paintYellow(obj) {
+    if (!obj || dragColors.has(obj)) return;
+    const kids = obj.getObjects ? obj.getObjects() : [obj];
+    const saved = kids.map((o) => ({ o, fill: o.fill, stroke: o.stroke }));
+    dragColors.set(obj, saved);
+    for (const { o } of saved) {
+      if (o.fill !== undefined && o.fill !== null) o.set({ fill: '#fff3b0' });
+      if (o.stroke !== undefined && o.stroke !== null) o.set({ stroke: '#e0a800' });
+    }
+  }
+  function clearDragColors() {
+    if (!dragColors.size) return;
+    for (const saved of dragColors.values()) {
+      for (const { o, fill, stroke } of saved) o.set({ fill, stroke });
+    }
+    dragColors.clear();
+  }
 
   function grid(v) {
     return app.gridOn ? snapToGrid(v, STD.grid) : Math.round(v);
@@ -87,6 +107,7 @@ export function attachEditing(ctx) {
   canvas.on('object:moving', (opt) => {
     const t = opt.target;
     if (!t) return;
+    paintYellow(t);
     const box = absBox(t);
     const { dx, dy, guides } = snapper.snapBox(box, {
       ignoreIds: ignoreSet(t), alt: !!(opt.e && opt.e.altKey),
@@ -126,6 +147,7 @@ export function attachEditing(ctx) {
   canvas.on('object:scaling', (opt) => {
     const t = opt.target;
     if (!t) return;
+    paintYellow(t);
     counterScaleText(t);
     const corner = (opt.transform && opt.transform.corner) || '';
     const box = absBox(t);
@@ -190,6 +212,7 @@ export function attachEditing(ctx) {
   function applyModified(t) {
     textBases = null;
     t.__lastPos = null;
+    clearDragColors();
     setGuides([]);
     snapper.invalidate();
     const doc = app.doc;
@@ -213,7 +236,7 @@ export function attachEditing(ctx) {
     else render();
   }
 
-  canvas.on('mouse:up', () => setGuides([]));
+  canvas.on('mouse:up', () => { clearDragColors(); setGuides([]); });
 
   // -------------------------------------------- vertex insert / hover dot --
   function activePoly() {

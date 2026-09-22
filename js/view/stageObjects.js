@@ -340,6 +340,15 @@ export function pulseGhost(obj, render) {
 }
 
 export function buildGuide(guide, view) {
+  if (guide.axis === 'wall') {
+    const line = new fabric.Line([guide.x1, guide.y1, guide.x2, guide.y2], {
+      stroke: '#e0a800', strokeWidth: 6, strokeUniform: true,
+      selectable: false, evented: false, objectCaching: false,
+    });
+    line.zLayer = LAYER.guide;
+    line.overlay = true;
+    return line;
+  }
   const pts = guide.axis === 'x'
     ? [guide.at, view.y - view.h, guide.at, view.y + view.h * 2]
     : [view.x - view.w, guide.at, view.x + view.w * 2, guide.at];
