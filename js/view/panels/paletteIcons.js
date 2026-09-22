@@ -30,24 +30,41 @@ function roomChip(cls, label, vb) {
   return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="${cls}"/>${text}`);
 }
 
+function hatchLinesSvg(w, h, spacing = 8) {
+  const lines = [];
+  const step = Math.max(4, spacing);
+  for (let d = -h; d < w; d += step) {
+    lines.push(`<line x1="${d}" y1="0" x2="${d + h}" y2="${h}" stroke="#b9bec6" stroke-width="1"/>`);
+    lines.push(`<line x1="${d + h}" y1="0" x2="${d}" y2="${h}" stroke="#b9bec6" stroke-width="1"/>`);
+  }
+  return lines.join('');
+}
+
 function voidChip(vb) {
   const [w, h] = vb;
-  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="void" stroke-dasharray="4 3"/>`);
+  return svgWrap(vb, `
+    <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="void"/>
+    <clipPath id="void-clip"><rect x="2" y="2" width="${w - 4}" height="${h - 4}"/></clipPath>
+    <g clip-path="url(#void-clip)">${hatchLinesSvg(w, h)}</g>
+  `);
 }
 
 function elevatorChip(vb) {
   const [w, h] = vb;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    <text x="${w / 2}" y="${h / 2 + 6}" text-anchor="middle" font-size="20" font-weight="700">&#8645;</text>
+    <text x="${w / 2}" y="${h / 2 + 6}" text-anchor="middle" font-size="20" font-weight="700" fill="#5f6368">&#8645;</text>
   `);
 }
 
 function restroomChip(vb) {
   const [w, h] = vb;
+  const cx = w / 2, cy = h / 2;
+  const bodyW = 16, bodyH = 12, tankH = 5;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    <text x="${w / 2}" y="${h / 2 + 5}" class="lbl" text-anchor="middle" font-size="16">WC</text>
+    <rect x="${cx - bodyW * 0.35}" y="${cy - bodyH / 2 - tankH}" width="${bodyW * 0.7}" height="${tankH}" rx="1.5" fill="none" stroke="#5f6368" stroke-width="1.5"/>
+    <rect x="${cx - bodyW / 2}" y="${cy - bodyH / 2}" width="${bodyW}" height="${bodyH}" rx="${bodyH / 2}" fill="none" stroke="#5f6368" stroke-width="1.5"/>
   `);
 }
 

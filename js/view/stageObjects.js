@@ -78,6 +78,22 @@ function tag(obj, item, type) {
 }
 
 // ---------------------------------------------------------------- rooms ----
+// Diagonal criss-cross hatch lines filling a w x h box (local coords, top-left
+// at 0,0), spaced ~18px apart, for the void fill and the void palette chip.
+export function hatchLines(w, h, spacing = 18, opts = {}) {
+  const lines = [];
+  const stroke = opts.stroke || '#b9bec6';
+  const strokeWidth = opts.strokeWidth || 1;
+  const step = Math.max(6, spacing);
+  for (let d = -h; d < w; d += step) {
+    lines.push([d, 0, d + h, h]);
+    lines.push([d + h, 0, d, h]);
+  }
+  return lines.map(([x1, y1, x2, y2]) => new fabric.Line([x1, y1, x2, y2], {
+    stroke, strokeWidth, selectable: false, evented: false, objectCaching: false,
+  }));
+}
+
 function buildRoomRect(item) {
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
@@ -85,20 +101,25 @@ function buildRoomRect(item) {
     strokeDashArray: item.cls === 'void' ? [6, 4] : null,
     strokeUniform: true, objectCaching: false,
   });
-  // A void has no label, so there is nothing to group the rect with. Fabric's
-  // single-child Group recomputes its own bounding box/layout on move in a
-  // way that corrupts width/height (absBox ends up reporting a wildly wrong
-  // box), so voids are dragged as a plain Rect instead, same as poly rooms
-  // are a plain Polygon.
   if (item.cls === 'void') {
-    rect.set({
-      ...BASE, perPixelTargetFind: false, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
+    // A void has no label, so a plain Rect used to be enough — but Fabric's
+    // single-child Group recomputes its own bounding box/layout on move in a
+    // way that corrupts width/height, so the hatch overlay is wrapped with
+    // the rect in a multi-child Group (safe) rather than a single-child one.
+    const hatch = hatchLines(item.w, item.h).map((ln) => {
+      ln.set({ left: item.x, top: item.y });
+      return ln;
     });
-    rect.setControlVisible('mtr', false);
-    rect.setCoords();
-    return tag(rect, item, 'room');
+    const g = new fabric.Group([rect, ...hatch], {
+      ...BASE, subTargetCheck: false, perPixelTargetFind: false,
+      lockRotation: true, lockSkewingX: true, lockSkewingY: true,
+    });
+    g.set({ left: item.x, top: item.y, width: item.w, height: item.h });
+    g.setControlVisible('mtr', false);
+    g.setCoords();
+    return tag(g, item, 'room');
   }
-  const kids = [rect, ...makeLabel(item, labelPos(item), item.w, item.h)];
+  const kids = [rect, ...glyphFor(item), ...makeLabel(item, labelPos(item), item.w, item.h)];
   const g = new fabric.Group(kids, {
     ...BASE, subTargetCheck: false, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
   });
@@ -106,6 +127,43 @@ function buildRoomRect(item) {
   g.setControlVisible('mtr', false);
   g.setCoords();
   return tag(g, item, 'room');
+}
+
+// Small non-interactive glyph centered in a core room, based on its name
+// (Elevator: up/down arrow; Restroom(s): a simple toilet icon).
+function glyphFor(item) {
+  if (item.cls !== 'core') return [];
+  const name = (item.name || '').trim().toLowerCase();
+  const cx = item.x + item.w / 2;
+  const cy = item.y + item.h / 2;
+  const size = Math.max(16, Math.min(item.w, item.h) * 0.35);
+  if (name.startsWith('elevator')) {
+    const t = new fabric.FabricText('↕', {
+      left: cx, top: cy - (item.showName && item.name ? 12 : 0), originX: 'center', originY: 'center',
+      fontSize: size, fontWeight: 700, fill: '#5f6368', fontFamily: FONT,
+      selectable: false, evented: false, objectCaching: false,
+    });
+    return [t];
+  }
+  if (name.startsWith('restroom')) {
+    const s = size;
+    const bodyW = s * 0.62, bodyH = s * 0.5, tankH = s * 0.18;
+    const top = cy - (item.showName && item.name ? 12 : 0);
+    const tank = new fabric.Rect({
+      left: cx, top: top - bodyH / 2 - tankH / 2, width: bodyW * 0.7, height: tankH,
+      originX: 'center', originY: 'center', rx: 2, ry: 2,
+      fill: 'rgba(0,0,0,0)', stroke: '#5f6368', strokeWidth: 2, objectCaching: false,
+      selectable: false, evented: false,
+    });
+    const bowl = new fabric.Rect({
+      left: cx, top: top + tankH * 0.1, width: bodyW, height: bodyH,
+      originX: 'center', originY: 'center', rx: bodyH / 2, ry: bodyH / 2,
+      fill: 'rgba(0,0,0,0)', stroke: '#5f6368', strokeWidth: 2, objectCaching: false,
+      selectable: false, evented: false,
+    });
+    return [tank, bowl];
+  }
+  return [];
 }
 
 function buildRoomPoly(item, grid) {
