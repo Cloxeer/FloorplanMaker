@@ -28,7 +28,46 @@ export function docChecklistCodes(doc) {
   if (!hasHall) out.push({ level: 'error', code: 'checklist-no-hall', message: 'Add at least one hallway.' });
   if (numberedRoomCount < 2) out.push({ level: 'error', code: 'checklist-no-numbered-room', message: 'Add at least two rooms with a number.' });
   if (hallsOverlap(items)) out.push({ level: 'warning', code: 'hall-overlap', message: "Hallways overlap — a hallway can't sit on top of another" });
+  if (hasUnconnectedHall(doc, items)) out.push({ level: 'warning', code: 'hall-unconnected', message: "Some hallways aren't connected — join them so people can walk through." });
   return out;
+}
+
+const TOUCH_TOL = 4;
+
+function inflatedTouch(a, b, tol) {
+  return a.x - tol < b.x + b.w + tol && a.x + a.w + tol > b.x - tol
+    && a.y - tol < b.y + b.h + tol && a.y + a.h + tol > b.y - tol;
+}
+
+function hasUnconnectedHall(doc, items) {
+  const halls = items.filter((it) => it.type === 'hall');
+  if (!halls.length) return false;
+  const stairs = items.filter((it) => it.type === 'stair');
+  const doors = items.filter((it) => it.type === 'door');
+  const outlinePts = (doc && doc.floor && doc.floor.points) || null;
+  return halls.some((h) => {
+    const hBox = { x: h.x, y: h.y, w: h.w, h: h.h };
+    if (halls.some((o) => o !== h && inflatedTouch(hBox, { x: o.x, y: o.y, w: o.w, h: o.h }, TOUCH_TOL))) return false;
+    if (stairs.some((s) => inflatedTouch(hBox, { x: s.x, y: s.y, w: s.w, h: s.h }, TOUCH_TOL))) return false;
+    if (doors.some((d) => {
+      const mx = (d.x1 + d.x2) / 2;
+      const my = (d.y1 + d.y2) / 2;
+      return mx >= hBox.x - TOUCH_TOL && mx <= hBox.x + hBox.w + TOUCH_TOL
+        && my >= hBox.y - TOUCH_TOL && my <= hBox.y + hBox.h + TOUCH_TOL;
+    })) return false;
+    if (outlinePts && outlinePts.length >= 2) {
+      for (let i = 0; i < outlinePts.length; i += 1) {
+        const [x1, y1] = outlinePts[i];
+        const [x2, y2] = outlinePts[(i + 1) % outlinePts.length];
+        const segBox = {
+          x: Math.min(x1, x2) - TOUCH_TOL, y: Math.min(y1, y2) - TOUCH_TOL,
+          w: Math.abs(x2 - x1) + TOUCH_TOL * 2, h: Math.abs(y2 - y1) + TOUCH_TOL * 2,
+        };
+        if (inflatedTouch(hBox, segBox, TOUCH_TOL)) return false;
+      }
+    }
+    return true;
+  });
 }
 
 function hallsOverlap(items) {

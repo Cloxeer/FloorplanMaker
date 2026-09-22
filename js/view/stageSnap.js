@@ -33,10 +33,43 @@ export function createSnapper(app) {
     cacheDoc = null;
     wallCache = null;
     wallCacheDoc = null;
+    itemEdgeCache = null;
+    itemEdgeCacheDoc = null;
+    itemEdgeCacheKey = '';
   }
 
   let wallCache = null;
   let wallCacheDoc = null;
+  let itemEdgeCache = null;
+  let itemEdgeCacheDoc = null;
+  let itemEdgeCacheKey = '';
+
+  // Axis-aligned edges of every other room/hall/stair box, in the same shape
+  // as collectWalls() targets, so a moving box can snap flush to a neighbour
+  // (not just the floor outline). Cached per drag (keyed by ignoreIds) so a
+  // full item scan happens once per drag, not per mousemove.
+  function collectItemEdges(ignoreIds) {
+    const key = [...(ignoreIds || [])].sort().join(',');
+    if (itemEdgeCache && itemEdgeCacheDoc === app.doc && itemEdgeCacheKey === key) return itemEdgeCache;
+    const edges = [];
+    const doc = app.doc;
+    if (doc) {
+      for (const item of doc.items) {
+        if (item.type !== 'room' && item.type !== 'hall' && item.type !== 'stair') continue;
+        if (ignoreIds && ignoreIds.has(item.id)) continue;
+        const b = itemBox(item);
+        if (!b) continue;
+        edges.push({ orient: 'v', at: b.x, min: b.y, max: b.y + b.h });
+        edges.push({ orient: 'v', at: b.x + b.w, min: b.y, max: b.y + b.h });
+        edges.push({ orient: 'h', at: b.y, min: b.x, max: b.x + b.w });
+        edges.push({ orient: 'h', at: b.y + b.h, min: b.x, max: b.x + b.w });
+      }
+    }
+    itemEdgeCache = edges;
+    itemEdgeCacheDoc = doc;
+    itemEdgeCacheKey = key;
+    return edges;
+  }
 
   // Axis-aligned wall segments from the floor outline, for the "snap to the
   // outline" magnet: each segment remembers its constant coordinate and the
@@ -135,7 +168,7 @@ export function createSnapper(app) {
       if (dy === 0 && cy.length) dy = snapToGrid(cy[0], grid) - cy[0];
     }
     if (magnet) {
-      const walls = collectWalls();
+      const walls = collectWalls().concat(collectItemEdges(opts.ignoreIds));
       const left = box.x + dx;
       const right = box.x + box.w + dx;
       const top = box.y + dy;
