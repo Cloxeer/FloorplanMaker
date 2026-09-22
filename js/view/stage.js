@@ -11,7 +11,7 @@
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import {
-  LAYER, buildItem, buildFloor, rebuildFloorPoints, buildGhost, buildGuide, buildRoute,
+  LAYER, buildItem, buildFloor, rebuildFloorPoints, buildGhost, buildGuide, buildRoute, pulseGhost,
 } from './stageObjects.js';
 import { createSnapper } from './stageSnap.js';
 import { attachView } from './stageView.js';
@@ -175,6 +175,13 @@ export function createStage(containerEl, app) {
     });
     restack();
     render();
+    if (overlays.ghosts.length) {
+      // Zoom out (stageView.zoomTo only fits the whole document, not an
+      // arbitrary box) so every freshly detected ghost is on screen, then
+      // pulse each one once to draw the eye to them.
+      zoomTo(true);
+      overlays.ghosts.forEach((obj) => pulseGhost(obj, render));
+    }
   }
   function setRoutePath(pts) {
     clearOverlay('route');
