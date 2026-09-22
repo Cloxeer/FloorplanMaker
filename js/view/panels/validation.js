@@ -27,7 +27,27 @@ export function docChecklistCodes(doc) {
   if (!hasDoorOrStair) out.push({ level: 'error', code: 'checklist-no-door', message: 'Add at least one door or stairs.' });
   if (!hasHall) out.push({ level: 'error', code: 'checklist-no-hall', message: 'Add at least one hallway.' });
   if (numberedRoomCount < 2) out.push({ level: 'error', code: 'checklist-no-numbered-room', message: 'Add at least two rooms with a number.' });
+  if (hallsOverlap(items)) out.push({ level: 'warning', code: 'hall-overlap', message: "Hallways overlap — a hallway can't sit on top of another" });
   return out;
+}
+
+function hallsOverlap(items) {
+  const halls = items.filter((it) => it.type === 'hall');
+  for (let i = 0; i < halls.length; i += 1) {
+    for (let j = i + 1; j < halls.length; j += 1) {
+      const a = halls[i];
+      const b = halls[j];
+      const axisA = a.w > a.h ? 'h' : 'v';
+      const axisB = b.w > b.h ? 'h' : 'v';
+      if (axisA !== axisB) continue;
+      const x1 = Math.max(a.x, b.x);
+      const y1 = Math.max(a.y, b.y);
+      const x2 = Math.min(a.x + a.w, b.x + b.w);
+      const y2 = Math.min(a.y + a.h, b.y + b.h);
+      if (x2 > x1 && y2 > y1) return true;
+    }
+  }
+  return false;
 }
 
 // Shared with previewStep.js, so the preview panel's checklist always
