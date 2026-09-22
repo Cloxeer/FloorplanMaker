@@ -216,7 +216,8 @@ export function createStudio(app, deps) {
     if (stripEl) {
       stepStripHandle = mountStepStrip(stripEl, app, {
         onPhoto: () => onChangePhoto(),
-        onExport: () => app.exportAll(),
+        onPreview: () => { if (!app._previewHandle && !app._exportHandle) app.exportAll(); },
+        onExport: () => { if (!app._previewHandle && !app._exportHandle) app.exportAll(); },
       });
     }
     studioUnsub = app.subscribe((evt) => {
@@ -464,19 +465,26 @@ export function createStudio(app, deps) {
   }
   function gotoTrace() {
     if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; }
+    if (app._exportHandle) { app._exportHandle.close(); app._exportHandle = null; }
     if (app.project) showScreen('studio');
+    app.emit({ type: 'step' });
   }
   function gotoPhoto() {
     if (!app.project) return;
     showPhotoStepFor(app.project, app.project.photo || null);
   }
   function gotoPreview() {
+    if (app._previewHandle || app._exportHandle) return;
+    if (app.exportAll) app.exportAll();
+  }
+  function gotoExport() {
+    if (app._exportHandle) return;
     if (app._previewHandle) return;
     if (app.exportAll) app.exportAll();
   }
 
   return {
     onStartBlueprint, onOpenProject, onImportJson, onImportSvg, closeProject, onExternalChangeForProject,
-    openBySlug, gotoTrace, gotoPhoto, gotoPreview,
+    openBySlug, gotoTrace, gotoPhoto, gotoPreview, gotoExport,
   };
 }

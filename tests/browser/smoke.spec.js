@@ -217,16 +217,19 @@ test.describe('Floor Plan Studio smoke test', () => {
     await expect(page.locator('#studio')).toBeVisible();
     await expect.poll(async () => (await doc(page)).items.length).toBe(itemsBefore);
 
-    // ---- 13. Export opens the Preview first, then downloads the SVG on
-    // "Download files" (hallways excluded) ----
+    // ---- 13. Export opens the Preview first; "Export ->" moves to the
+    // Export screen, where "Download" downloads the SVG (hallways excluded)
+    // ----
     await page.click('#btn-export');
     await expect(page.locator('#preview')).toBeVisible();
+    await page.click('#preview-export');
+    await expect(page.locator('#export-step')).toBeVisible();
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.click('#preview-download'),
+      page.click('#export-download'),
     ]);
-    expect(download.suggestedFilename()).toMatch(/\.(svg|jpg)$/);
-    await page.waitForEvent('download', { timeout: 4000 }).catch(() => {});
+    expect(download.suggestedFilename()).toMatch(/\.svg$/);
+    await page.click('#export-maintainer summary');
     await expect(page.locator('#ed-snippet')).toBeVisible();
 
     expect(consoleErrors, `console errors:\n${consoleErrors.join('\n')}`).toEqual([]);

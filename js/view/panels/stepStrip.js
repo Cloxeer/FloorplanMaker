@@ -15,13 +15,13 @@ const STEPS = [
   { n: 4, label: 'Export' },
 ];
 
-export function mountStepStrip(el, app, { onPhoto, onExport }) {
+export function mountStepStrip(el, app, { onPhoto, onPreview, onExport }) {
   function currentStep() {
     const project = app.project;
     if (!project) return 1;
     if (!project.photo) return 1;
-    const hasContent = (app.doc && (app.doc.items.length > 0 || app.doc.floor));
-    if (!hasContent) return 2;
+    if (app._exportHandle) return 4;
+    if (app._previewHandle) return 3;
     return 2;
   }
 
@@ -34,14 +34,15 @@ export function mountStepStrip(el, app, { onPhoto, onExport }) {
       btn.addEventListener('click', () => {
         const n = parseInt(btn.dataset.step, 10);
         if (n === 1) onPhoto();
-        else if (n === 3 || n === 4) onExport();
+        else if (n === 3) onPreview();
+        else if (n === 4) onExport();
       });
     });
   }
 
   render();
   const unsub = app.subscribe((evt) => {
-    if (evt.type === 'doc' || evt.type === 'project') render();
+    if (evt.type === 'doc' || evt.type === 'project' || evt.type === 'step') render();
   });
 
   return {

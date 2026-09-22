@@ -25,16 +25,12 @@ function hallIntersection(a, b) {
 }
 
 export function showPreviewStep({
-  svgText, validation, twoFiles, svgName, jpgName, halls, rooms,
-}, { onBack, onDownload }) {
+  svgText, validation, halls, rooms, initialLegendPos,
+}, { onBack, onExport }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
   el.id = 'preview';
   el.className = 'preview-screen';
-  const downloadLabel = twoFiles ? 'Download files' : 'Download file';
-  const downloadNote = twoFiles
-    ? `You get two files: ${svgName} is the plan itself; ${jpgName} is the flattened photo, kept next to it for reference.`
-    : `You get one file: ${svgName} is the plan itself.`;
   el.innerHTML = `
     <header class="preview-header">
       <button type="button" id="preview-back-top">&larr; Back to editing</button>
@@ -59,9 +55,8 @@ export function showPreviewStep({
           <button type="button" id="preview-save-legend" hidden>Save legend position</button>
           <button type="button" id="preview-remove-legend" hidden>Remove legend</button>
         </div>
-        <button type="button" id="preview-download" class="btn-primary">${downloadLabel}</button>
+        <button type="button" id="preview-export" class="btn-primary">Export &rarr;</button>
         <p class="preview-download-note">Drag the legend in the preview once placed; it's never over the plan.</p>
-        <p class="preview-download-note">${downloadNote}</p>
       </div>
     </div>
   `;
@@ -165,11 +160,11 @@ export function showPreviewStep({
   const placeBtn = el.querySelector('#preview-place-legend');
   const saveBtn = el.querySelector('#preview-save-legend');
   const removeBtn = el.querySelector('#preview-remove-legend');
-  const downloadBtn = el.querySelector('#preview-download');
+  const exportBtn = el.querySelector('#preview-export');
   const NS = 'http://www.w3.org/2000/svg';
   const MARGIN = 20;
 
-  let savedLegendPos = null; // {x,y,scale} in SVG user units, confirmed via Save
+  let savedLegendPos = initialLegendPos || null; // {x,y,scale} in SVG user units, confirmed via Save
   let placementMode = false;
   let legendGroupEl = null;
   let dragOffset = null;
@@ -371,7 +366,7 @@ export function showPreviewStep({
   function enterPlacement() {
     if (!svgEl) return;
     placementMode = true;
-    downloadBtn.disabled = true;
+    exportBtn.disabled = true;
     placeBtn.hidden = true;
     saveBtn.hidden = false;
     removeBtn.hidden = false;
@@ -379,12 +374,14 @@ export function showPreviewStep({
   }
   function exitPlacement() {
     placementMode = false;
-    downloadBtn.disabled = false;
+    exportBtn.disabled = false;
     placeBtn.hidden = false;
     saveBtn.hidden = true;
     removeBtn.hidden = true;
     removeSelectionUI();
   }
+
+  if (savedLegendPos) renderLegendAt(savedLegendPos);
 
   placeBtn.addEventListener('click', enterPlacement);
   saveBtn.addEventListener('click', () => {
@@ -411,7 +408,7 @@ export function showPreviewStep({
 
   el.querySelector('#preview-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#preview-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
-  downloadBtn.addEventListener('click', () => { if (onDownload) onDownload(savedLegendPos); });
+  exportBtn.addEventListener('click', () => { if (onExport) onExport(savedLegendPos); });
 
   return { close };
 }
