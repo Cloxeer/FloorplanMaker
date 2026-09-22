@@ -111,7 +111,12 @@ export function createActions(app, deps) {
     const names = exportFileNames(doc.meta);
     const svgName = names.svg.split('/').pop();
     const jpgName = names.jpg.split('/').pop();
-    showPreviewStep({ svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName }, {
+    if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
+    app._previewHandle = showPreviewStep({ svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName }, {
+      onBack: () => {
+        app._previewHandle = null;
+        if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
+      },
       onDownload: () => showExportDialog({ svgText, jpgDataUrl, meta: doc.meta }),
     });
   }

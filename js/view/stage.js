@@ -170,6 +170,7 @@ export function createStage(containerEl, app) {
     clearOverlay('ghosts');
     (list || []).forEach((g, i) => {
       const obj = buildGhost(g, g.index != null ? g.index : i);
+      obj.opacity = planOpacity;
       overlays.ghosts.push(obj);
       canvas.add(obj);
     });

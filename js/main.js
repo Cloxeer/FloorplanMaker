@@ -26,6 +26,56 @@ function showScreen(name) {
   for (const key in screens) screens[key].hidden = key !== name;
 }
 
+// ---------------------------------------------------------------- router --
+// Every screen has a URL: #/projects, #/new, #/p/<slug>/photo|trace|preview.
+// Navigation call sites set location.hash; this hashchange handler (also run
+// once on load) is the only place that performs the actual screen switch, so
+// reload and browser back/forward both work. `currentRouteHash` guards
+// against re-entering a hash we've already applied.
+let currentRouteHash = null;
+// True while applyRoute is running: navigation triggered *by* the screen
+// logic it calls (e.g. a fresh blueprint immediately showing its photo step)
+// must not re-enter the router, or it'll look up a project that hasn't been
+// saved yet and bounce back to #/projects. Such calls just update the URL.
+let routing = false;
+function setRoute(hash) {
+  if (location.hash === hash) return;
+  if (routing) { history.replaceState(null, '', hash); currentRouteHash = hash; return; }
+  location.hash = hash;
+}
+async function applyRoute(studio) {
+  if (!location.hash) { setRoute('#/projects'); return; }
+  const hash = location.hash;
+  if (hash === currentRouteHash) return;
+  currentRouteHash = hash;
+  routing = true;
+  try {
+    const m = hash.match(/^#\/p\/([^/]+)\/(photo|trace|preview)$/);
+    if (m) {
+      const slug = decodeURIComponent(m[1]);
+      const ok = await studio.openBySlug(slug);
+      if (!ok) {
+        showToast('Could not find that project.');
+        setRoute('#/projects');
+        return;
+      }
+      if (m[2] === 'photo') studio.gotoPhoto();
+      else if (m[2] === 'preview') studio.gotoPreview();
+      else studio.gotoTrace();
+      return;
+    }
+    if (hash === '#/new') {
+      showScreen('start');
+      await studio.onStartBlueprint();
+      return;
+    }
+    if (app.project) studio.closeProject();
+    else showScreen('start');
+  } finally {
+    routing = false;
+  }
+}
+
 // ---------------------------------------------------------------- route worker --
 const routeWorker = new Worker(new URL('./workers/route.worker.js', import.meta.url), { type: 'module' });
 let routeReqId = 0;
@@ -161,6 +211,7 @@ app.snap = function snap(pt, opts = {}) {
 app.prompt = showPrompt;
 app.confirm = showConfirm;
 app.toast = showToast;
+app.setRoute = setRoute;
 
 const actions = createActions(app, { routeRequest });
 app.duplicateInRow = actions.duplicateInRow;
@@ -235,8 +286,8 @@ async function init() {
   await refreshFolder();
 
   projectsHandle = mountProjects(document.getElementById('projects'), app, {
-    onStart: studio.onStartBlueprint,
-    onOpen: studio.onOpenProject,
+    onStart: () => app.setRoute('#/new'),
+    onOpen: (entry) => app.setRoute(`#/p/${entry.slug}/trace`),
     onImport: studio.onImportJson,
     onImportSvg: studio.onImportSvg,
   });
@@ -252,7 +303,8 @@ async function init() {
     showToast(`Unexpected error: ${e.message}`);
   });
 
-  showScreen('start');
+  window.addEventListener('hashchange', () => applyRoute(studio));
+  await applyRoute(studio);
 }
 
 // Exposed for the browser test suite (tests/browser/perf.spec.js).
