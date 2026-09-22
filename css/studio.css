@@ -397,10 +397,13 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 .palette-step h4 { margin: 0 0 4px; font-size: 13px; line-height: 1.3; }
 .palette-step .step-desc { margin: 0 0 8px; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .btn-big-tool {
-  display: block; width: 100%; padding: 8px 8px; margin-bottom: 8px; font-size: 13px; line-height: 1.3;
+  display: block; width: 100%; height: 36px; box-sizing: border-box; padding: 0 8px; margin-bottom: 8px;
+  font-size: 13px; line-height: 1.3;
   border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel); cursor: pointer;
 }
 .btn-big-tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-big-tool.btn-detect { color: var(--muted); background: var(--panel-muted, #f5f6f8); }
+.btn-big-tool.btn-detect:disabled { cursor: not-allowed; }
 .hotkey-hint { color: var(--muted); font-size: 10px; margin-left: 4px; }
 
 .floor-ghost-dot { fill: var(--accent); stroke: #fff; stroke-width: 1; pointer-events: none; }

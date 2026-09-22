@@ -267,7 +267,10 @@ export function mountSuggest(app) {
     if (guideMode === 'stairs') {
       const nDoors = ghosts.filter((g) => g.kind === 'door').length;
       const nStairs = ghosts.filter((g) => g.kind === 'stair').length;
-      statusText = `We found ${nDoors} door${nDoors === 1 ? '' : 's'} and ${nStairs} stair${nStairs === 1 ? '' : 's'}. Tap one to keep it, or Keep all.`;
+      const skipDoors = !!(app.doc && app.doc.meta && app.doc.meta.floor > 1);
+      statusText = skipDoors
+        ? `We found ${nStairs} stair${nStairs === 1 ? '' : 's'}. Tap one to keep it, or Keep all.`
+        : `We found ${nDoors} door${nDoors === 1 ? '' : 's'} and ${nStairs} stair${nStairs === 1 ? '' : 's'}. Tap one to keep it, or Keep all.`;
     } else {
       statusText = `We found ${ghosts.length} hallway${ghosts.length === 1 ? '' : 's'}. Tap one to keep it, or Keep all.`;
     }
@@ -326,8 +329,9 @@ export function mountSuggest(app) {
     });
 
     const outline = app.doc && app.doc.floor && app.doc.floor.points ? app.doc.floor.points : null;
+    const skipDoors = !!(app.doc && app.doc.meta && app.doc.meta.floor > 1);
     guideWorker.postMessage({
-      id: 'stairs', kind: 'stairs', width: pixelData.width, height: pixelData.height, data: pixelData.data, outline,
+      id: 'stairs', kind: 'stairs', width: pixelData.width, height: pixelData.height, data: pixelData.data, outline, skipDoors,
     });
   }
 
