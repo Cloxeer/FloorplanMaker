@@ -334,6 +334,14 @@ export function showPreviewStep({
     selRect.setAttribute('y', t.y - 2);
     selRect.setAttribute('width', w + 4);
     selRect.setAttribute('height', h + 4);
+    // Red warning while the legend sits over the plan — it must be off the pieces.
+    const overPlan = planBBox && rectsOverlap(
+      { x: t.x, y: t.y, w, h },
+      { x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height },
+    );
+    selRect.setAttribute('stroke', overPlan ? '#e5484d' : '#1a73e8');
+    const bg = legendGroupEl && legendGroupEl.querySelector('rect');
+    if (bg) { bg.setAttribute('fill', overPlan ? '#ffdede' : '#ffffff'); bg.setAttribute('stroke', overPlan ? '#e5484d' : '#c7cad0'); }
     if (!selHandle) {
       selHandle = document.createElementNS(NS, 'circle');
       selHandle.setAttribute('r', '7');
@@ -344,6 +352,8 @@ export function showPreviewStep({
       selHandle.addEventListener('pointerdown', onResizePointerDown);
       svgEl.appendChild(selHandle);
     }
+    const hr = Math.max(7, Math.min(w, h) * 0.11);
+    selHandle.setAttribute('r', String(Math.round(hr)));
     selHandle.setAttribute('cx', t.x + w);
     selHandle.setAttribute('cy', t.y + h);
 
@@ -353,10 +363,12 @@ export function showPreviewStep({
       svgEl.appendChild(zoomInBtn);
       svgEl.appendChild(zoomOutBtn);
     }
-    const bs = 18; // button size, SVG units
-    const by = t.y - 2 - bs - 4;
-    positionZoomButton(zoomOutBtn, t.x - 2, by, bs);
-    positionZoomButton(zoomInBtn, t.x - 2 + bs + 4, by, bs);
+    // Big buttons that scale up/down with the legend's rendered size.
+    const bs = Math.max(30, Math.min(w, h) * 0.34);
+    const gap = bs * 0.28;
+    const by = t.y - 2 - bs - gap;
+    positionZoomButton(zoomInBtn, t.x - 2, by, bs);
+    positionZoomButton(zoomOutBtn, t.x - 2 + bs + gap, by, bs);
   }
   function removeSelectionUI() {
     if (selRect && selRect.parentNode) selRect.parentNode.removeChild(selRect);
@@ -398,8 +410,10 @@ export function showPreviewStep({
     g._rect.setAttribute('y', y);
     g._rect.setAttribute('width', size);
     g._rect.setAttribute('height', size);
+    g._rect.setAttribute('rx', String(Math.round(size * 0.16)));
     g._text.setAttribute('x', x + size / 2);
     g._text.setAttribute('y', y + size / 2);
+    g._text.setAttribute('font-size', String(Math.round(size * 0.62)));
   }
 
   function onLegendPointerDown(evt) {
