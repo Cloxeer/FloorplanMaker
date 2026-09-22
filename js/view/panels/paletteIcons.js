@@ -16,21 +16,55 @@ export const PIECE_SIZE = {
   door: { w: 90, h: 20 },
   void: { w: 100, h: 90 },
   compass: { w: 60, h: 60 },
+  closet: { w: 70, h: 60 },
+  authwall: { w: 120, h: 16 },
 };
 
 function svgWrap(vb, inner) {
   return `<svg viewBox="0 0 ${vb[0]} ${vb[1]}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
 }
 
+// Scales a label's font-size down (with an average-glyph-width estimate) so
+// it always fits inside a boxW x boxH area with a small margin, then adds an
+// SVG `textLength`/`lengthAdjust` safety net for the rare case the estimate
+// still runs long. Shared by every chip preview so no label ever spills past
+// its box edge (mirrors stageObjects.js's `fitText`, which does the same via
+// real canvas measurement on the stage).
+function fitLabelSvg(text, cx, cy, boxW, boxH, opts = {}) {
+  if (!text) return '';
+  const margin = opts.margin != null ? opts.margin : 4;
+  const maxW = Math.max(4, boxW - margin * 2);
+  const maxH = Math.max(4, boxH - margin * 2);
+  const charW = 0.58; // average glyph width as a fraction of font-size, for this sans-serif
+  const maxSize = opts.max != null ? opts.max : 16;
+  const minSize = opts.min != null ? opts.min : 6;
+  let size = maxW / Math.max(1, text.length * charW);
+  size = Math.min(size, maxH * 0.85, maxSize);
+  size = Math.max(size, minSize);
+  const estW = text.length * size * charW;
+  const lengthAttr = estW > maxW ? ` textLength="${maxW.toFixed(1)}" lengthAdjust="spacingAndGlyphs"` : '';
+  const fill = opts.fill || '#2b2e33';
+  const weight = opts.weight || 400;
+  // font-size is set via the `style` attribute, not the bare presentation
+  // attribute: studio.css defines fixed-size `.lbl`/`.lblS` rules for the
+  // exported-SVG dialect, and a stylesheet rule always beats a plain
+  // presentation attribute, which silently ignored our computed size and
+  // let long names (e.g. "Classroom") overflow the small chip box.
+  return `<text x="${cx}" y="${(cy + size * 0.35).toFixed(1)}" text-anchor="middle" fill="${fill}" style="font-size:${size.toFixed(1)}px;font-weight:${weight}"${lengthAttr}>${text}</text>`;
+}
+
 function roomChip(cls, label, vb) {
   const [w, h] = vb;
-  const text = label
-    ? `<text x="${w / 2}" y="${h / 2 + 5}" class="${label.length > 4 ? 'lblS' : 'lbl'}" text-anchor="middle" font-size="${label.length > 4 ? 11 : 16}">${label}</text>`
-    : '';
+  const text = label ? fitLabelSvg(label, w / 2, h / 2, w, h, {}) : '';
   return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="${cls}"/>${text}`);
 }
 
-function hatchLinesSvg(w, h, spacing = 8) {
+function closetChip(vb) {
+  const [w, h] = vb;
+  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>${fitLabelSvg('Utility', w / 2, h / 2, w, h, {})}`);
+}
+
+export function hatchLinesSvg(w, h, spacing = 8) {
   const lines = [];
   const step = Math.max(4, spacing);
   for (let d = -h; d < w; d += step) {
@@ -49,17 +83,23 @@ function voidChip(vb) {
   `);
 }
 
-// Shared elevator glyph markup (up/down double-arrow), reused by both the
-// palette chip and the stage glyph (see glyphFor in stageObjects.js) so they
-// match exactly. `size` = arrow height in local units, centered at (cx, cy).
+// Shared elevator glyph markup: two SEPARATE arrows side by side (an up
+// arrow and a down arrow, like ▲ ▼ — not one combined double-headed shaft),
+// reused by both the palette chip and the stage glyph (see elevatorGlyph in
+// stageObjects.js) so they match exactly. `size` = arrow height in local
+// units, the pair centered at (cx, cy).
 export function elevatorArrowSvg(cx, cy, size, stroke = '#5f6368') {
-  const shaftX1 = cx - size * 0.16, shaftX2 = cx + size * 0.16;
+  const gap = size * 0.18;
+  const leftX = cx - gap / 2 - size * 0.16;
+  const rightX = cx + gap / 2 + size * 0.16;
   const top = cy - size / 2, bottom = cy + size / 2;
-  const headW = size * 0.22, headH = size * 0.22;
+  const headW = size * 0.16, headH = size * 0.2;
+  const shaftW = Math.max(1.5, size * 0.09);
   return `
-    <line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" stroke="${stroke}" stroke-width="${Math.max(1.5, size * 0.09)}"/>
-    <polygon points="${cx},${top} ${cx - headW},${top + headH} ${cx + headW},${top + headH}" fill="${stroke}"/>
-    <polygon points="${cx},${bottom} ${cx - headW},${bottom - headH} ${cx + headW},${bottom - headH}" fill="${stroke}"/>
+    <line x1="${leftX}" y1="${top + headH}" x2="${leftX}" y2="${bottom}" stroke="${stroke}" stroke-width="${shaftW}"/>
+    <polygon points="${leftX},${top} ${leftX - headW},${top + headH} ${leftX + headW},${top + headH}" fill="${stroke}"/>
+    <line x1="${rightX}" y1="${top}" x2="${rightX}" y2="${bottom - headH}" stroke="${stroke}" stroke-width="${shaftW}"/>
+    <polygon points="${rightX},${bottom} ${rightX - headW},${bottom - headH} ${rightX + headW},${bottom - headH}" fill="${stroke}"/>
   `;
 }
 
@@ -72,22 +112,18 @@ function elevatorChip(vb) {
   `);
 }
 
-// Sideways (profile) toilet: a low tank on one side, a rounded bowl on the
-// other, seen from the side rather than from above.
+// Restroom glyph: Bootstrap Icons "badge-wc-fill" (MIT license,
+// https://icons.getbootstrap.com/icons/badge-wc-fill/), a 16x16 "WC" badge
+// glyph, embedded as a single inline path and reused by both the palette
+// chip and the stage glyph (see restroomGlyph in stageObjects.js) so they
+// match exactly. `size` = glyph box side length, centered at (cx, cy).
+export const RESTROOM_ICON_D = 'M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm11.666 1.89c.682 0 1.139.47 1.187 1.107H14v-.11c-.053-1.187-1.024-2-2.342-2-1.604 0-2.518 1.05-2.518 2.751v.747c0 1.7.905 2.73 2.518 2.73 1.314 0 2.285-.792 2.342-1.939v-.114h-1.147c-.048.615-.497 1.05-1.187 1.05-.839 0-1.318-.62-1.318-1.727v-.742c0-1.112.488-1.754 1.318-1.754zm-6.188.926h.044L6.542 11h1.006L9 5.001H7.818l-.82 4.355h-.056L5.97 5.001h-.94l-.972 4.355h-.053l-.827-4.355H2L3.452 11h1.005z';
+
 export function restroomSideSvg(cx, cy, size, stroke = '#5f6368') {
-  const bodyW = size * 0.62, bodyH = size * 0.42, tankW = size * 0.16, tankH = size * 0.32;
-  const baseY = cy + bodyH / 2;
-  const tankX = cx - bodyW / 2;
-  const bowlCx = cx + (bodyW - tankW) / 2 + tankW * 0.1;
-  const sw = Math.max(1.2, size * 0.05);
-  return `
-    <rect x="${tankX}" y="${baseY - bodyH - tankH}" width="${tankW}" height="${tankH + bodyH * 0.3}" rx="${tankW * 0.2}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
-    <path d="M ${tankX + tankW} ${baseY - bodyH * 0.7}
-             C ${cx} ${baseY - bodyH * 1.15}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH * 0.5}
-             C ${bowlCx + bodyW * 0.22} ${baseY}, ${cx - bodyW * 0.05} ${baseY}, ${tankX + tankW * 0.3} ${baseY - bodyH * 0.15}
-             Z" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>
-    <line x1="${tankX - size * 0.02}" y1="${baseY}" x2="${bowlCx + bodyW * 0.22}" y2="${baseY}" stroke="${stroke}" stroke-width="${sw}"/>
-  `;
+  const s = size / 16;
+  const x = cx - size / 2;
+  const y = cy - size / 2;
+  return `<g transform="translate(${x},${y}) scale(${s})"><path d="${RESTROOM_ICON_D}" fill="${stroke}"/></g>`;
 }
 
 function restroomChip(vb) {
@@ -122,6 +158,15 @@ function doorChip(vb) {
   `);
 }
 
+function authwallChip(vb) {
+  const [w, h] = vb;
+  const y = h / 2;
+  return svgWrap(vb, `
+    <line x1="4" y1="${y}" x2="${w - 4}" y2="${y}" stroke="#7c3aed" stroke-width="5" stroke-dasharray="6 4" stroke-linecap="round"/>
+    <circle cx="${w / 2}" cy="${y}" r="5" fill="#7c3aed"/>
+  `);
+}
+
 function compassChip(vb) {
   const [w, h] = vb;
   const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 4;
@@ -151,6 +196,8 @@ export function chipSvg(key) {
     case 'door': return doorChip(vb);
     case 'void': return voidChip(vb);
     case 'compass': return compassChip(vb);
+    case 'closet': return closetChip(vb);
+    case 'authwall': return authwallChip(vb);
     default: return svgWrap(vb, '');
   }
 }
@@ -174,6 +221,8 @@ export function ghostSvg(key, zoom) {
     case 'door': inner = doorChip(vb); break;
     case 'void': inner = voidChip(vb); break;
     case 'compass': inner = compassChip(vb); break;
+    case 'closet': inner = closetChip(vb); break;
+    case 'authwall': inner = authwallChip(vb); break;
     default: inner = svgWrap(vb, '');
   }
   return { svg: inner, w, h };

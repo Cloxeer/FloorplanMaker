@@ -11,6 +11,7 @@ import {
   legendHtml, legendSvgGroupAt, legendGroupSize, LEGEND_NOTE,
 } from './legend.js';
 import { checklistHtml } from './validation.js';
+import { elevatorArrowSvg, restroomSideSvg, hatchLinesSvg } from './paletteIcons.js';
 
 function hallIntersection(a, b) {
   const axisA = a.w > a.h ? 'h' : 'v';
@@ -25,7 +26,7 @@ function hallIntersection(a, b) {
 }
 
 export function showPreviewStep({
-  svgText, validation, twoFiles, svgName, jpgName, halls,
+  svgText, validation, twoFiles, svgName, jpgName, halls, rooms,
 }, { onBack, onDownload }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
@@ -113,6 +114,58 @@ export function showPreviewStep({
           svgEl.appendChild(r);
         }
       }
+    }
+
+    // Elevator/restroom icons and the void criss-cross hatch are studio-only
+    // decoration (the exported SVG only carries the plain core rect + its
+    // text label) — overlaid here into the inline preview SVG only, same
+    // shapes as the stage glyphs in stageObjects.js (elevatorGlyph /
+    // restroomGlyph / the void hatch in buildRoomRect), never into svgText.
+    let hatchClipId = 0;
+    for (const room of (rooms || [])) {
+      if (room.shape !== 'rect') continue;
+      const {
+        x, y, w, h,
+      } = room;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      if (room.cls === 'void') {
+        hatchClipId += 1;
+        const clipId = `preview-void-clip-${hatchClipId}`;
+        const clip = document.createElementNS(ns, 'clipPath');
+        clip.setAttribute('id', clipId);
+        const clipRect = document.createElementNS(ns, 'rect');
+        clipRect.setAttribute('x', x);
+        clipRect.setAttribute('y', y);
+        clipRect.setAttribute('width', w);
+        clipRect.setAttribute('height', h);
+        clip.appendChild(clipRect);
+        svgEl.appendChild(clip);
+        const g = document.createElementNS(ns, 'g');
+        g.setAttribute('clip-path', `url(#${clipId})`);
+        g.setAttribute('transform', `translate(${x},${y})`);
+        g.innerHTML = hatchLinesSvg(w, h, 18);
+        svgEl.appendChild(g);
+        continue;
+      }
+      if (room.cls !== 'core') continue;
+      const name = (room.name || '').trim().toLowerCase();
+      const isElevator = name.startsWith('elevator');
+      const isRestroom = name.startsWith('restroom');
+      if (!isElevator && !isRestroom) continue;
+      // Same layout as makeIconAndLabel in stageObjects.js: icon in the
+      // upper ~58% of the box (a label is always shown below it here), so
+      // the icon never collides with the exported label text.
+      const margin = 6;
+      const innerW = Math.max(4, w - margin * 2);
+      const innerH = Math.max(4, h - margin * 2);
+      const iconMaxH = innerH * 0.58;
+      const iconCap = Math.min(w, h) * 0.6;
+      const iconSize = Math.max(10, Math.min(innerW * 0.9, iconMaxH, iconCap));
+      const iconCy = cy - innerH / 2 + iconSize / 2;
+      const g = document.createElementNS(ns, 'g');
+      g.innerHTML = isElevator ? elevatorArrowSvg(cx, iconCy, iconSize) : restroomSideSvg(cx, iconCy, iconSize);
+      svgEl.appendChild(g);
     }
 
     // Paper-frame preview aid: a thin grey Letter-ratio rectangle centered

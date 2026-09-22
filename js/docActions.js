@@ -97,9 +97,12 @@ export function createActions(app, deps) {
     }, 400);
   }
   function exportAll() {
-    // Hallways are studio-only guides: they are saved in the .json project but
-    // never reach the exported SVG.
-    const doc = { ...app.doc, items: app.doc.items.filter((it) => it.type !== 'hall') };
+    // Hallways and staff walls are studio-only guides: they are saved in the
+    // .json project but never reach the exported SVG.
+    const doc = {
+      ...app.doc,
+      items: app.doc.items.filter((it) => it.type !== 'hall' && it.type !== 'authwall'),
+    };
     const results = validate(doc);
     app.validation = results;
     app.emit({ type: 'validation' });
@@ -114,8 +117,9 @@ export function createActions(app, deps) {
     const jpgName = names.jpg.split('/').pop();
     if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
     const halls = app.doc.items.filter((it) => it.type === 'hall');
+    const rooms = doc.items.filter((it) => it.type === 'room');
     app._previewHandle = showPreviewStep({
-      svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName, halls,
+      svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName, halls, rooms,
     }, {
       onBack: () => {
         app._previewHandle = null;

@@ -14,6 +14,7 @@ const PIECES = [
   { key: 'ours', label: 'Our room' },
   { key: 'restroom', label: 'Restroom' },
   { key: 'elevator', label: 'Elevator' },
+  { key: 'closet', label: 'Closet' },
   { key: 'stair', label: 'Stairs' },
   { key: 'void', label: 'Void' },
   { key: 'compass', label: 'Compass' },
@@ -48,6 +49,7 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
       <button type="button" class="btn-big-tool btn-detect" id="btn-detect-rooms">⌕ Detect rooms</button>
+      <button type="button" class="btn-big-tool" id="btn-tool-authwall">Staff wall</button>
     </div>
   `;
 
@@ -58,6 +60,7 @@ export function mountPalette(el, app) {
     stair: el.querySelector('#btn-tool-stair'),
     hall: el.querySelector('#btn-tool-hall'),
     room: el.querySelector('#btn-tool-room'),
+    authwall: el.querySelector('#btn-tool-authwall'),
   };
   async function toggleTool(name, pieceKey) {
     if (name === 'room') app.pendingRoomPiece = pieceKey || 'room';
@@ -135,6 +138,7 @@ export function mountPalette(el, app) {
     stair: hasFloor,
     hall: hasDoorOrStair,
     room: hasHall,
+    authwall: hasHall,
   };
 
   function refresh() {
