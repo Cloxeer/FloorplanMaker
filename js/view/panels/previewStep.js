@@ -11,6 +11,7 @@ import {
   legendHtml, legendSvgGroupAt, legendGroupSize, LEGEND_NOTE,
 } from './legend.js';
 import { checklistHtml } from './validation.js';
+import { pointInPolygon, segmentsIntersect } from '../../model/geometry.js';
 
 function hallIntersection(a, b) {
   const axisA = a.w > a.h ? 'h' : 'v';
@@ -22,6 +23,52 @@ function hallIntersection(a, b) {
   const y2 = Math.min(a.y + a.h, b.y + b.h);
   if (x2 <= x1 || y2 <= y1) return null;
   return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+// Reads the building outline's own points straight out of the preview SVG
+// (the <polygon class="floor"> the export writes), so the red/blue legend
+// warning tracks the actual wall shape, not just its bounding box.
+function floorPolygonPoints(svgEl) {
+  if (!svgEl) return null;
+  const poly = svgEl.querySelector('polygon.floor');
+  if (!poly) return null;
+  const raw = (poly.getAttribute('points') || '').trim();
+  if (!raw) return null;
+  const pts = raw.split(/\s+/).map((pair) => pair.split(',').map(Number));
+  if (pts.some((p) => p.length !== 2 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return null;
+  return pts.length >= 3 ? pts : null;
+}
+
+// True only when the legend rectangle actually intersects the outline
+// polygon: any rect corner inside the polygon, any polygon vertex inside the
+// rect, or any polygon edge crossing any rect edge. A legend sitting in blank
+// margin within the bbox but outside the outline reports false.
+function rectIntersectsPolygon(rect, poly) {
+  if (!poly || poly.length < 3) return false;
+  const corners = [
+    [rect.x, rect.y],
+    [rect.x + rect.w, rect.y],
+    [rect.x + rect.w, rect.y + rect.h],
+    [rect.x, rect.y + rect.h],
+  ];
+  for (const c of corners) if (pointInPolygon(c, poly)) return true;
+  for (const v of poly) {
+    if (v[0] >= rect.x && v[0] <= rect.x + rect.w && v[1] >= rect.y && v[1] <= rect.y + rect.h) return true;
+  }
+  const rectEdges = [
+    [corners[0], corners[1]],
+    [corners[1], corners[2]],
+    [corners[2], corners[3]],
+    [corners[3], corners[0]],
+  ];
+  for (let i = 0; i < poly.length; i += 1) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    for (const [r1, r2] of rectEdges) {
+      if (segmentsIntersect(a, b, r1, r2)) return true;
+    }
+  }
+  return false;
 }
 
 export function showPreviewStep({
@@ -67,6 +114,7 @@ export function showPreviewStep({
   el.querySelector('#preview-svg-wrap').innerHTML = svgText;
   const svgEl = el.querySelector('#preview-svg-wrap svg');
   let planBBox = null;
+  const floorPoly = floorPolygonPoints(svgEl);
   if (svgEl) {
     svgEl.removeAttribute('width');
     svgEl.removeAttribute('height');
@@ -334,11 +382,12 @@ export function showPreviewStep({
     selRect.setAttribute('y', t.y - 2);
     selRect.setAttribute('width', w + 4);
     selRect.setAttribute('height', h + 4);
-    // Red warning while the legend sits over the plan — it must be off the pieces.
-    const overPlan = planBBox && rectsOverlap(
-      { x: t.x, y: t.y, w, h },
-      { x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height },
-    );
+    // Red warning only when the legend rect actually crosses the building
+    // outline — not merely when it's within the plan's bounding box (which
+    // includes blank margin around an irregular building shape).
+    const overPlan = !!(floorPoly && rectIntersectsPolygon({
+      x: t.x, y: t.y, w, h,
+    }, floorPoly));
     selRect.setAttribute('stroke', overPlan ? '#e5484d' : '#1a73e8');
     const bg = legendGroupEl && legendGroupEl.querySelector('rect');
     if (bg) { bg.setAttribute('fill', overPlan ? '#ffdede' : '#ffffff'); bg.setAttribute('stroke', overPlan ? '#e5484d' : '#c7cad0'); }

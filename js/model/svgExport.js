@@ -175,6 +175,7 @@ export function exportSvg(doc) {
   lines.push('    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }');
   lines.push('    .compass-north  { fill: #8C0B42; }');
+  lines.push('    .floor-edge { fill:none; stroke:#3a3d42; stroke-width:6; stroke-linejoin:round; }');
   lines.push('  </style>');
   lines.push('');
 
@@ -220,6 +221,10 @@ export function exportSvg(doc) {
   for (const door of doors) {
     const [d, t] = doorLines(door);
     lines.push(d + t.trim());
+  }
+
+  if (doc.floor && doc.floor.points && doc.floor.points.length) {
+    lines.push(`${IND}<polygon class="floor-edge" points="${pointsAttr(doc.floor.points)}"/>`);
   }
 
   const compasses = doc.items.filter((it) => it.type === 'compass');

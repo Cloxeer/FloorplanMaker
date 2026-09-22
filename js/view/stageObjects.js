@@ -19,7 +19,7 @@ export const STROKE = '#8f959c';
 // Back-to-front draw order.
 export const LAYER = {
   grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5, door: 5,
-  compass: 6, ghost: 7, guide: 8,
+  compass: 6, floorEdge: 6.5, ghost: 7, guide: 8,
 };
 
 const BASE = {
@@ -381,6 +381,25 @@ export function buildFloor(points, grid) {
 export function rebuildFloorPoints(poly, points) {
   setPolyPoints(poly, points);
   attachPolyControls(poly, poly.snapGrid);
+}
+
+// A stroke-only, fill-none copy of the floor outline, drawn topmost (see
+// LAYER.floorEdge) so the building wall line is never covered by rooms/halls
+// drawn flush to it. Not interactive — the real editable outline is the
+// fill polygon from buildFloor(); this is purely a visual guarantee.
+export function buildFloorEdge(points) {
+  const poly = new fabric.Polygon(points.map(([x, y]) => ({ x, y })), {
+    fill: 'rgba(0,0,0,0)', stroke: '#3a3d42', strokeWidth: 6, strokeLineJoin: 'round',
+    selectable: false, evented: false, objectCaching: false,
+  });
+  poly.itemId = 'floor-edge';
+  poly.itemType = 'floorEdge';
+  poly.zLayer = LAYER.floorEdge;
+  return poly;
+}
+
+export function rebuildFloorEdgePoints(poly, points) {
+  setPolyPoints(poly, points);
 }
 
 // ------------------------------------------------------------ dispatcher ---

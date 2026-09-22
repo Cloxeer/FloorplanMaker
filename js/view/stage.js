@@ -11,7 +11,8 @@
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import {
-  LAYER, buildItem, buildFloor, rebuildFloorPoints, buildGhost, buildGuide, buildRoute, pulseGhost,
+  LAYER, buildItem, buildFloor, rebuildFloorPoints, buildFloorEdge, rebuildFloorEdgePoints,
+  buildGhost, buildGuide, buildRoute, pulseGhost,
   hallIntersection, buildHallOverlap,
 } from './stageObjects.js';
 import { roomPolygon } from '../model/document.js';
@@ -106,8 +107,10 @@ export function createStage(containerEl, app) {
   function syncFloor(newDoc) {
     const pts = newDoc.floor && newDoc.floor.points;
     const existing = objects.get('floor');
+    const existingEdge = objects.get('floor-edge');
     if (!pts || pts.length < 3) {
       if (existing) dropItem('floor');
+      if (existingEdge) dropItem('floor-edge');
       return;
     }
     if (!existing) {
@@ -115,10 +118,14 @@ export function createStage(containerEl, app) {
       poly.opacity = planOpacity;
       objects.set('floor', poly);
       canvas.add(poly);
+      const edge = buildFloorEdge(pts);
+      objects.set('floor-edge', edge);
+      canvas.add(edge);
       return;
     }
     if (prevDoc && prevDoc.floor === newDoc.floor) return;
     rebuildFloorPoints(existing, pts);
+    if (existingEdge) rebuildFloorEdgePoints(existingEdge, pts);
   }
 
   function setDoc(newDoc) {
