@@ -570,6 +570,39 @@ export function showPreviewStep({
     }
   }
 
+  // On-screen arrow scrollers, shown only during placement, so the view can
+  // always be moved even after zooming/placing the legend off-screen.
+  let panPad = null;
+  function panBy(fx, fy) {
+    const vb = getViewBox();
+    const cap = lastGrownVB || baseVB || vb;
+    if (!vb || !cap) return;
+    let nx = vb.x + fx * vb.w * 0.3;
+    let ny = vb.y + fy * vb.h * 0.3;
+    nx = Math.min(Math.max(nx, cap.x), Math.max(cap.x, cap.x + cap.w - vb.w));
+    ny = Math.min(Math.max(ny, cap.y), Math.max(cap.y, cap.y + cap.h - vb.h));
+    svgEl.setAttribute('viewBox', `${Math.round(nx)} ${Math.round(ny)} ${Math.round(vb.w)} ${Math.round(vb.h)}`);
+    syncSelectionUI();
+  }
+  function showPanPad() {
+    if (panPad) { panPad.hidden = false; return; }
+    const wrap = el.querySelector('#preview-svg-wrap');
+    if (!wrap) return;
+    panPad = document.createElement('div');
+    panPad.id = 'preview-pan-pad';
+    const defs = [['up', '▲', 0, -1], ['down', '▼', 0, 1], ['left', '◀', -1, 0], ['right', '▶', 1, 0]];
+    for (const [dir, glyph, fx, fy] of defs) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `pan-arrow pan-${dir}`;
+      b.textContent = glyph;
+      b.addEventListener('click', (e) => { e.preventDefault(); panBy(fx, fy); });
+      panPad.appendChild(b);
+    }
+    wrap.appendChild(panPad);
+  }
+  function hidePanPad() { if (panPad) panPad.hidden = true; }
+
   function enterPlacement() {
     if (!svgEl) return;
     placementMode = true;
@@ -578,6 +611,7 @@ export function showPreviewStep({
     saveBtn.hidden = false;
     removeBtn.hidden = false;
     renderLegendAt(savedLegendPos || defaultLegendPos());
+    showPanPad();
   }
   function exitPlacement() {
     placementMode = false;
@@ -586,6 +620,7 @@ export function showPreviewStep({
     saveBtn.hidden = true;
     removeBtn.hidden = true;
     removeSelectionUI();
+    hidePanPad();
   }
 
   if (savedLegendPos) renderLegendAt(savedLegendPos);
