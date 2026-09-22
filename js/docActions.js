@@ -10,6 +10,7 @@ import { validate } from './model/validate.js';
 import { exportSvg, exportFileNames } from './model/svgExport.js';
 import { showExportDialog } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
+import { legendSvgGroup } from './view/panels/legend.js';
 
 function boxOfItem(item) {
   if (item.shape === 'poly') return bbox(item.points);
@@ -120,7 +121,12 @@ export function createActions(app, deps) {
         app._previewHandle = null;
         if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
       },
-      onDownload: () => showExportDialog({ svgText, jpgDataUrl, meta: doc.meta }),
+      onDownload: (includeLegend) => {
+        const finalSvg = includeLegend
+          ? svgText.replace('</svg>', `${legendSvgGroup(doc.viewBox)}</svg>`)
+          : svgText;
+        showExportDialog({ svgText: finalSvg, jpgDataUrl, meta: doc.meta });
+      },
     });
   }
 

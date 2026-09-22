@@ -7,7 +7,7 @@
 // building-extras.json snippet).
 // Depends on: js/view/panels/legend.js, js/view/panels/validation.js (checklistHtml).
 
-import { legendHtml, LEGEND_NOTE } from './legend.js';
+import { legendHtml, legendSvgGroup, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 
 function hallIntersection(a, b) {
@@ -44,7 +44,6 @@ export function showPreviewStep({
       <aside class="preview-side">
         <div class="section-title">Legend</div>
         ${legendHtml('legend-list')}
-        <p class="legend-note">Hallway (guide, not exported)</p>
         <p class="legend-note">${LEGEND_NOTE}</p>
         <div class="section-title">Checklist</div>
         <ul class="checklist">${checklistHtml(validation || [])}</ul>
@@ -53,7 +52,12 @@ export function showPreviewStep({
     <div class="preview-actions">
       <button type="button" id="preview-back">Back to editing</button>
       <div class="preview-download-group">
+        <label class="preview-legend-toggle">
+          <input type="checkbox" id="preview-include-legend">
+          Include the legend in the downloaded SVG
+        </label>
         <button type="button" id="preview-download" class="btn-primary">${downloadLabel}</button>
+        <p class="preview-download-note">This legend is a preview aid.</p>
         <p class="preview-download-note">${downloadNote}</p>
       </div>
     </div>
@@ -82,9 +86,10 @@ export function showPreviewStep({
       r.setAttribute('y', h.y);
       r.setAttribute('width', h.w);
       r.setAttribute('height', h.h);
-      r.setAttribute('fill', '#cfe3ff');
-      r.setAttribute('fill-opacity', '0.5');
-      r.setAttribute('stroke', 'none');
+      r.setAttribute('fill', '#ffe066');
+      r.setAttribute('fill-opacity', '0.55');
+      r.setAttribute('stroke', '#e0a800');
+      r.setAttribute('stroke-width', '1.5');
       svgEl.appendChild(r);
     }
     for (let i = 0; i < halls_.length; i += 1) {
@@ -103,7 +108,49 @@ export function showPreviewStep({
         }
       }
     }
+
+    // Paper-frame preview aid: a thin grey Letter-ratio rectangle centered
+    // on the plan bbox with ~6% margin, so the user sees how it fits a
+    // printed sheet. Preview only — never written into svgText.
+    const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+    if (vb.length === 4 && vb.every((n) => Number.isFinite(n))) {
+      const [vx, vy, vw, vh] = vb;
+      const cx = vx + vw / 2;
+      const cy = vy + vh / 2;
+      const margin = 0.06;
+      const targetW = vw * (1 + margin * 2);
+      const targetH = vh * (1 + margin * 2);
+      const letterRatio = vw >= vh ? 11 / 8.5 : 8.5 / 11;
+      let frameW;
+      let frameH;
+      if (targetW / targetH > letterRatio) { frameW = targetW; frameH = targetW / letterRatio; }
+      else { frameH = targetH; frameW = frameH * letterRatio; }
+      const fx = cx - frameW / 2;
+      const fy = cy - frameH / 2;
+      const frame = document.createElementNS(ns, 'rect');
+      frame.setAttribute('x', fx);
+      frame.setAttribute('y', fy);
+      frame.setAttribute('width', frameW);
+      frame.setAttribute('height', frameH);
+      frame.setAttribute('fill', 'none');
+      frame.setAttribute('stroke', '#9aa0a8');
+      frame.setAttribute('stroke-width', Math.max(1, vw / 500));
+      frame.setAttribute('stroke-dasharray', `${Math.max(2, vw / 200)} ${Math.max(2, vw / 200)}`);
+      svgEl.appendChild(frame);
+      const label = document.createElementNS(ns, 'text');
+      label.setAttribute('x', fx + frameW * 0.02);
+      label.setAttribute('y', fy + frameH * 0.03 + (vw / 60));
+      label.setAttribute('fill', '#9aa0a8');
+      label.setAttribute('font-size', Math.max(10, vw / 60));
+      label.setAttribute('font-family', 'sans-serif');
+      label.textContent = 'Letter sheet';
+      svgEl.appendChild(label);
+    }
   }
+
+  let includeLegend = false;
+  const legendToggle = el.querySelector('#preview-include-legend');
+  legendToggle.addEventListener('change', () => { includeLegend = legendToggle.checked; });
 
   function close() {
     document.removeEventListener('keydown', onKeyDown);
@@ -116,7 +163,7 @@ export function showPreviewStep({
 
   el.querySelector('#preview-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#preview-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
-  el.querySelector('#preview-download').addEventListener('click', () => { if (onDownload) onDownload(); });
+  el.querySelector('#preview-download').addEventListener('click', () => { if (onDownload) onDownload(includeLegend); });
 
   return { close };
 }
