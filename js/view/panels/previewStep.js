@@ -363,9 +363,10 @@ export function showPreviewStep({
       svgEl.appendChild(zoomInBtn);
       svgEl.appendChild(zoomOutBtn);
     }
-    // Big buttons that scale up/down with the legend's rendered size.
-    const bs = Math.max(30, Math.min(w, h) * 0.34);
-    const gap = bs * 0.28;
+    // Big buttons that scale up/down with the legend's rendered size. Sized
+    // generously in SVG units because the whole preview is scaled down to fit.
+    const bs = Math.max(90, Math.min(w, h) * 0.9);
+    const gap = bs * 0.2;
     const by = t.y - 2 - bs - gap;
     positionZoomButton(zoomInBtn, t.x - 2, by, bs);
     positionZoomButton(zoomOutBtn, t.x - 2 + bs + gap, by, bs);
