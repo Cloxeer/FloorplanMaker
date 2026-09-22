@@ -10,7 +10,7 @@ import { validate } from './model/validate.js';
 import { exportSvg } from './model/svgExport.js';
 import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
-import { legendSvgGroupAt } from './view/panels/legend.js';
+import { legendSvgGroupAt, legendGroupSize } from './view/panels/legend.js';
 
 function boxOfItem(item) {
   if (item.shape === 'poly') return bbox(item.points);
@@ -116,6 +116,23 @@ export function createActions(app, deps) {
     const rooms = doc.items.filter((it) => it.type === 'room');
     let legendPos = null;
 
+    // Splice the legend group in and grow the root viewBox so it isn't clipped.
+    function withLegend(text, pos) {
+      const g = legendGroupSize();
+      const sc = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
+      let out = text.replace('</svg>', `${legendSvgGroupAt(pos.x, pos.y, sc)}</svg>`);
+      out = out.replace(/viewBox="(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)"/,
+        (m, x, y, w, h) => {
+          const vx = Number(x); const vy = Number(y); const vw = Number(w); const vh = Number(h);
+          const minX = Math.min(vx, pos.x - 20);
+          const minY = Math.min(vy, pos.y - 20);
+          const maxX = Math.max(vx + vw, pos.x + g.w * sc + 20);
+          const maxY = Math.max(vy + vh, pos.y + g.h * sc + 20);
+          return `viewBox="${Math.round(minX)} ${Math.round(minY)} ${Math.round(maxX - minX)} ${Math.round(maxY - minY)}"`;
+        });
+      return out;
+    }
+
     function closePreview() { if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; } }
     function closeExport() { if (app._exportHandle) { app._exportHandle.close(); app._exportHandle = null; } }
 
@@ -139,9 +156,7 @@ export function createActions(app, deps) {
     }
     function openExport() {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/export`);
-      const finalSvg = legendPos
-        ? svgText.replace('</svg>', `${legendSvgGroupAt(legendPos.x, legendPos.y, legendPos.scale)}</svg>`)
-        : svgText;
+      const finalSvg = legendPos ? withLegend(svgText, legendPos) : svgText;
       app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta }, {
         onBack: () => {
           app._exportHandle = null;
