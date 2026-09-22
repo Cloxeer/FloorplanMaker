@@ -252,21 +252,22 @@ export function buildItem(item, grid) {
 }
 
 // ------------------------------------------------- overlays (no item id) ---
-// Ghost color/label by kind: plain room suggestions are blue with the read
-// (or "?") room number; 'hall'/'stair' ghosts (from the "Find hallways and
-// stairs" trace) are blue/grey respectively, labelled by kind.
-const GHOST_STYLE = {
-  hall: { color: '#2f6feb', label: 'Hall' },
-  stair: { color: '#7f8c8d', label: 'Stairs' },
+// Ghost color/label by kind: all detected ghosts (rooms, doors, halls,
+// stairs) use a uniform accent-blue dashed box so they read as "found, not
+// yet placed" regardless of kind; the label still names the kind.
+const ACCENT_BLUE = '#2f6feb';
+const GHOST_LABEL = {
+  hall: 'Hall',
+  stair: 'Stairs',
+  door: 'Door',
 };
 
 export function buildGhost(g, index) {
-  const style = GHOST_STYLE[g.kind];
-  const color = style ? style.color : '#2f6feb';
-  const label = style ? style.label : (g.number ? String(g.number) : '?');
+  const color = ACCENT_BLUE;
+  const label = GHOST_LABEL[g.kind] || (g.number ? String(g.number) : '?');
   const rect = new fabric.Rect({
     left: g.x, top: g.y, width: g.w, height: g.h,
-    fill: `${color}1f`, stroke: color,
+    fill: `${color}40`, stroke: color, opacity: 0.25,
     strokeWidth: 2, strokeDashArray: [7, 5], strokeUniform: true, objectCaching: false,
   });
   const t = new fabric.FabricText(label, {
@@ -280,6 +281,19 @@ export function buildGhost(g, index) {
   grp.zLayer = LAYER.ghost;
   grp.overlay = true;
   return grp;
+}
+
+// One 0.25 -> 0.6 -> 0.25 pulse over ~600ms to draw the eye to freshly
+// detected ghosts. Fabric's own `.animate()` handles the tween + repaint.
+export function pulseGhost(obj, render) {
+  if (!obj || typeof obj.animate !== 'function') return;
+  obj.animate('opacity', 0.6, {
+    duration: 300,
+    onChange: render,
+    onComplete: () => {
+      obj.animate('opacity', 0.25, { duration: 300, onChange: render });
+    },
+  });
 }
 
 export function buildGuide(guide, view) {

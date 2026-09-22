@@ -200,6 +200,13 @@ test.describe('Floor Plan Studio smoke test', () => {
     await page.keyboard.press('Delete');
     await expect.poll(async () => (await doc(page)).items.length).toBe(countBefore - 1);
 
+    // ---- 11b. A second numbered room: export needs at least two ----
+    await dragChip(page, 'room', 500, 320);
+    await expect(page.locator('#pr-value')).toBeVisible();
+    await page.fill('#pr-value', '102');
+    await page.click('#pr-ok');
+    await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'room').length).toBe(2);
+
     // ---- 12. Reload; the project reopens with the same items ----
     const itemsBefore = (await doc(page)).items.length;
     await page.waitForTimeout(1000); // let the debounced autosave land
