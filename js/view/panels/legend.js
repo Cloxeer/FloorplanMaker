@@ -47,7 +47,7 @@ const LEGEND_STYLE = `
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
   .lg-door  { stroke: #ffffff; stroke-width: 4; filter: drop-shadow(0 0 0 #cfd3d8); }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }
-  .lg-hall  { fill: #ffe066; fill-opacity: 0.55; stroke: #e0a800; stroke-width: 1.5; }
+  .lg-hall  { fill: #d7dbe0; }
   .lg-outline { fill: #ffffff; stroke: #3a3d42; stroke-width: 2; }
 `;
 
@@ -74,7 +74,7 @@ const SWATCH_FILLS = {
   'lg-selected': { fill: '#cfe0ff', stroke: '#2f6feb' },
   'lg-core': { fill: '#dfe3e8', stroke: '#8f959c' },
   'lg-void': { fill: 'none', stroke: '#b7bbc1' },
-  'lg-hall': { fill: '#ffe066', stroke: '#e0a800' },
+  'lg-hall': { fill: '#d7dbe0', stroke: '#d7dbe0' },
   'lg-outline': { fill: '#ffffff', stroke: '#3a3d42' },
 };
 function swatchFor(item) {

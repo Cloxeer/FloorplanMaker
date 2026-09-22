@@ -126,14 +126,16 @@ function buildPolyLabel(item) {
 
 // ---------------------------------------------------- hall / stair / door --
 function buildHall(item) {
+  // Solid opaque grey with no border, so overlapping/connecting halls merge into
+  // one open corridor: no seam line where they meet, no opacity doubling.
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
-    fill: 'rgba(207,227,255,0.5)', stroke: '#cfe3ff', strokeWidth: 1,
+    fill: '#d7dbe0', stroke: null, strokeWidth: 0,
     strokeUniform: true, objectCaching: false,
   });
   const t = new fabric.FabricText('Hallway', {
     left: item.x + item.w / 2, top: item.y + item.h / 2, originX: 'center', originY: 'center',
-    fontSize: 18, fill: '#2f6feb', fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
+    fontSize: 18, fill: '#6b7280', fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
   });
   fitText(t, item.w, item.h);
   const g = new fabric.Group([rect, t], {

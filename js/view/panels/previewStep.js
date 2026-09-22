@@ -86,10 +86,7 @@ export function showPreviewStep({
       r.setAttribute('y', h.y);
       r.setAttribute('width', h.w);
       r.setAttribute('height', h.h);
-      r.setAttribute('fill', '#ffe066');
-      r.setAttribute('fill-opacity', '0.55');
-      r.setAttribute('stroke', '#e0a800');
-      r.setAttribute('stroke-width', '1.5');
+      r.setAttribute('fill', '#d7dbe0');
       svgEl.appendChild(r);
     }
     for (let i = 0; i < halls_.length; i += 1) {
