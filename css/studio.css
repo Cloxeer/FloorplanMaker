@@ -455,3 +455,17 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 
 /* the View popover must not be clipped by the top bar */
 #topbar { overflow: visible; position: relative; z-index: 30; }
+
+/* Block phones: the tracing tools need a mouse and a wide canvas. */
+#mobile-block { display: none; }
+@media (max-width: 767px) {
+  #mobile-block {
+    display: flex; position: fixed; inset: 0; z-index: 9999;
+    align-items: center; justify-content: center; padding: 24px;
+    background: #ffffff; text-align: center;
+  }
+  #mobile-block .mb-card { max-width: 320px; }
+  #mobile-block h1 { font-size: 20px; margin: 0 0 12px; color: #1d1f23; }
+  #mobile-block p { font-size: 15px; line-height: 1.4; color: #6b7280; margin: 0; }
+  #start, #photo-step, #studio, #dialogs { display: none !important; }
+}
