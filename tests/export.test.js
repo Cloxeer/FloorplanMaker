@@ -75,16 +75,21 @@ test('no id=, style=, defs, image attributes/elements', () => {
   assert.equal(/<image/.test(svg), false);
 });
 
-test('transform= only inside the compass group', () => {
+test('transform= only inside the compass or icon groups', () => {
   const lines = svg.split('\n');
-  let inCompass = false;
   for (const line of lines) {
-    if (line.includes('<g class="compass"')) inCompass = true;
     if (line.includes('transform=')) {
-      assert.ok(line.includes('class="compass"'), `unexpected transform outside compass: ${line}`);
+      assert.ok(
+        line.includes('class="compass"') || line.includes('class="icon"'),
+        `unexpected transform outside compass/icon: ${line}`
+      );
     }
-    if (inCompass && line.trim() === '</g>') inCompass = false;
   }
+});
+
+test('elevator/restroom core rooms get an icon group, void gets a hatch group', () => {
+  assert.ok(svg.includes('<g class="icon"'), 'expected at least one icon group');
+  assert.ok(svg.includes('<g class="void-hatch">'), 'expected the void hatch group');
 });
 
 test('void has no label', () => {
@@ -103,11 +108,14 @@ test('lblS chosen for the small room', () => {
   assert.ok(line.includes('class="lblS"'), line);
 });
 
-test('fill="#5f6368" only on the Door text', () => {
+test('fill="#5f6368" only on the Door text or an icon glyph', () => {
   const matches = [...svg.matchAll(/^.*fill="#5f6368".*$/gm)];
   assert.ok(matches.length >= 1);
   for (const m of matches) {
-    assert.ok(m[0].includes('class="exit"') && m[0].includes('>Door<'), m[0]);
+    assert.ok(
+      (m[0].includes('class="exit"') && m[0].includes('>Door<')) || m[0].includes('class="icon"'),
+      m[0]
+    );
   }
 });
 

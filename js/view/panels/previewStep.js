@@ -11,7 +11,6 @@ import {
   legendHtml, legendSvgGroupAt, legendGroupSize, LEGEND_NOTE,
 } from './legend.js';
 import { checklistHtml } from './validation.js';
-import { elevatorArrowSvg, restroomSideSvg, hatchLinesSvg } from './paletteIcons.js';
 
 function hallIntersection(a, b) {
   const axisA = a.w > a.h ? 'h' : 'v';
@@ -116,57 +115,12 @@ export function showPreviewStep({
       }
     }
 
-    // Elevator/restroom icons and the void criss-cross hatch are studio-only
-    // decoration (the exported SVG only carries the plain core rect + its
-    // text label) — overlaid here into the inline preview SVG only, same
-    // shapes as the stage glyphs in stageObjects.js (elevatorGlyph /
-    // restroomGlyph / the void hatch in buildRoomRect), never into svgText.
-    let hatchClipId = 0;
-    for (const room of (rooms || [])) {
-      if (room.shape !== 'rect') continue;
-      const {
-        x, y, w, h,
-      } = room;
-      const cx = x + w / 2;
-      const cy = y + h / 2;
-      if (room.cls === 'void') {
-        hatchClipId += 1;
-        const clipId = `preview-void-clip-${hatchClipId}`;
-        const clip = document.createElementNS(ns, 'clipPath');
-        clip.setAttribute('id', clipId);
-        const clipRect = document.createElementNS(ns, 'rect');
-        clipRect.setAttribute('x', x);
-        clipRect.setAttribute('y', y);
-        clipRect.setAttribute('width', w);
-        clipRect.setAttribute('height', h);
-        clip.appendChild(clipRect);
-        svgEl.appendChild(clip);
-        const g = document.createElementNS(ns, 'g');
-        g.setAttribute('clip-path', `url(#${clipId})`);
-        g.setAttribute('transform', `translate(${x},${y})`);
-        g.innerHTML = hatchLinesSvg(w, h, 18);
-        svgEl.appendChild(g);
-        continue;
-      }
-      if (room.cls !== 'core') continue;
-      const name = (room.name || '').trim().toLowerCase();
-      const isElevator = name.startsWith('elevator');
-      const isRestroom = name.startsWith('restroom');
-      if (!isElevator && !isRestroom) continue;
-      // Same layout as makeIconAndLabel in stageObjects.js: icon in the
-      // upper ~58% of the box (a label is always shown below it here), so
-      // the icon never collides with the exported label text.
-      const margin = 6;
-      const innerW = Math.max(4, w - margin * 2);
-      const innerH = Math.max(4, h - margin * 2);
-      const iconMaxH = innerH * 0.58;
-      const iconCap = Math.min(w, h) * 0.6;
-      const iconSize = Math.max(10, Math.min(innerW * 0.9, iconMaxH, iconCap));
-      const iconCy = cy - innerH / 2 + iconSize / 2;
-      const g = document.createElementNS(ns, 'g');
-      g.innerHTML = isElevator ? elevatorArrowSvg(cx, iconCy, iconSize) : restroomSideSvg(cx, iconCy, iconSize);
-      svgEl.appendChild(g);
-    }
+    // Elevator/restroom icons and the void criss-cross hatch are now part of
+    // svgText itself (see roomExtraLine in js/model/svgExport.js), so the
+    // preview no longer needs to draw them separately — it already matches
+    // the download byte-for-byte on this front. `rooms` is only kept for
+    // the hall overlay above.
+    void rooms;
 
     // Paper-frame preview aid: a thin grey Letter-ratio rectangle centered
     // on the plan bbox with ~6% margin, so the user sees how it fits a
@@ -215,10 +169,13 @@ export function showPreviewStep({
   const NS = 'http://www.w3.org/2000/svg';
   const MARGIN = 20;
 
-  let savedLegendPos = null; // {x,y} in SVG user units, confirmed via Save
+  let savedLegendPos = null; // {x,y,scale} in SVG user units, confirmed via Save
   let placementMode = false;
   let legendGroupEl = null;
   let dragOffset = null;
+  let selRect = null;
+  let selHandle = null;
+  let resizeStart = null;
 
   function getViewBox() {
     const vb = (svgEl && svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
@@ -232,15 +189,15 @@ export function showPreviewStep({
   function defaultLegendPos() {
     const vb = getViewBox();
     const { w: gw, h: gh } = legendGroupSize();
-    if (!vb) return { x: 0, y: 0 };
+    if (!vb) return { x: 0, y: 0, scale: 1 };
     const plan = planBBox || {
       x: vb.x, y: vb.y, width: vb.w, height: vb.h,
     };
     const rightSpace = (vb.x + vb.w) - (plan.x + plan.width);
     if (rightSpace >= gw + MARGIN) {
-      return { x: plan.x + plan.width + MARGIN, y: Math.max(vb.y, plan.y) };
+      return { x: plan.x + plan.width + MARGIN, y: Math.max(vb.y, plan.y), scale: 1 };
     }
-    return { x: Math.max(vb.x, plan.x), y: plan.y + plan.height + MARGIN };
+    return { x: Math.max(vb.x, plan.x), y: plan.y + plan.height + MARGIN, scale: 1 };
   }
 
   function rectsOverlap(a, b) {
@@ -249,8 +206,11 @@ export function showPreviewStep({
 
   function clampLegendPos(pos) {
     const vb = getViewBox();
-    const { w: gw, h: gh } = legendGroupSize();
-    if (!vb) return pos;
+    const { w: gw0, h: gh0 } = legendGroupSize();
+    const scale = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
+    if (!vb) return { ...pos, scale };
+    const gw = gw0 * scale;
+    const gh = gh0 * scale;
     let { x, y } = pos;
     x = Math.min(Math.max(x, vb.x), vb.x + vb.w - gw);
     y = Math.min(Math.max(y, vb.y), vb.y + vb.h - gh);
@@ -264,19 +224,21 @@ export function showPreviewStep({
     }, plan)) {
       return defaultLegendPos();
     }
-    return { x, y };
+    return { x, y, scale };
   }
 
   function renderLegendAt(pos) {
     if (!svgEl) return;
+    const scale = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
     const wrap = document.createElementNS(NS, 'g');
-    wrap.innerHTML = legendSvgGroupAt(pos.x, pos.y);
+    wrap.innerHTML = legendSvgGroupAt(pos.x, pos.y, scale);
     const newGroup = wrap.firstElementChild;
     if (legendGroupEl && legendGroupEl.parentNode) legendGroupEl.parentNode.removeChild(legendGroupEl);
     legendGroupEl = newGroup;
     svgEl.appendChild(legendGroupEl);
     legendGroupEl.style.cursor = 'grab';
     legendGroupEl.addEventListener('pointerdown', onLegendPointerDown);
+    syncSelectionUI();
   }
 
   function svgPointFromEvent(evt) {
@@ -289,17 +251,65 @@ export function showPreviewStep({
     return { x: loc.x, y: loc.y };
   }
 
-  function currentTranslate() {
+  function currentTransformState() {
     const t = (legendGroupEl && legendGroupEl.getAttribute('transform')) || '';
-    const m = t.match(/translate\(([-\d.]+)[,\s]+([-\d.]+)\)/);
-    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+    const m = t.match(/translate\(([-\d.]+)[,\s]+([-\d.]+)\)(?:\s*scale\(([-\d.]+)\))?/);
+    return m
+      ? { x: parseFloat(m[1]), y: parseFloat(m[2]), scale: m[3] ? parseFloat(m[3]) : 1 }
+      : { x: 0, y: 0, scale: 1 };
+  }
+  function setLegendTransform(x, y, scale) {
+    legendGroupEl.setAttribute('transform', `translate(${Math.round(x)},${Math.round(y)}) scale(${scale})`);
+  }
+
+  // A selection outline + a single bottom-right resize handle, drawn as
+  // siblings positioned in SVG space (not inside the scaled legend group)
+  // so their stroke/handle sizes stay constant on screen regardless of the
+  // legend's own scale.
+  function syncSelectionUI() {
+    if (!placementMode || !svgEl || !legendGroupEl) return;
+    const t = currentTransformState();
+    const { w: gw0, h: gh0 } = legendGroupSize();
+    const w = gw0 * t.scale;
+    const h = gh0 * t.scale;
+    if (!selRect) {
+      selRect = document.createElementNS(NS, 'rect');
+      selRect.setAttribute('fill', 'none');
+      selRect.setAttribute('stroke', '#1a73e8');
+      selRect.setAttribute('stroke-width', '2');
+      selRect.setAttribute('stroke-dasharray', '6 4');
+      selRect.setAttribute('pointer-events', 'none');
+      svgEl.appendChild(selRect);
+    }
+    selRect.setAttribute('x', t.x - 2);
+    selRect.setAttribute('y', t.y - 2);
+    selRect.setAttribute('width', w + 4);
+    selRect.setAttribute('height', h + 4);
+    if (!selHandle) {
+      selHandle = document.createElementNS(NS, 'circle');
+      selHandle.setAttribute('r', '7');
+      selHandle.setAttribute('fill', '#ffffff');
+      selHandle.setAttribute('stroke', '#1a73e8');
+      selHandle.setAttribute('stroke-width', '2');
+      selHandle.style.cursor = 'nwse-resize';
+      selHandle.addEventListener('pointerdown', onResizePointerDown);
+      svgEl.appendChild(selHandle);
+    }
+    selHandle.setAttribute('cx', t.x + w);
+    selHandle.setAttribute('cy', t.y + h);
+  }
+  function removeSelectionUI() {
+    if (selRect && selRect.parentNode) selRect.parentNode.removeChild(selRect);
+    if (selHandle && selHandle.parentNode) selHandle.parentNode.removeChild(selHandle);
+    selRect = null;
+    selHandle = null;
   }
 
   function onLegendPointerDown(evt) {
     if (!placementMode) return;
     evt.preventDefault();
     const p = svgPointFromEvent(evt);
-    const cur = currentTranslate();
+    const cur = currentTransformState();
     dragOffset = { x: p.x - cur.x, y: p.y - cur.y };
     legendGroupEl.style.cursor = 'grabbing';
     legendGroupEl.setPointerCapture(evt.pointerId);
@@ -311,7 +321,9 @@ export function showPreviewStep({
     const p = svgPointFromEvent(evt);
     const x = p.x - dragOffset.x;
     const y = p.y - dragOffset.y;
-    legendGroupEl.setAttribute('transform', `translate(${Math.round(x)},${Math.round(y)})`);
+    const { scale } = currentTransformState();
+    setLegendTransform(x, y, scale);
+    syncSelectionUI();
   }
   function onLegendPointerUp(evt) {
     dragOffset = null;
@@ -319,6 +331,40 @@ export function showPreviewStep({
       legendGroupEl.style.cursor = 'grab';
       legendGroupEl.removeEventListener('pointermove', onLegendPointerMove);
       legendGroupEl.removeEventListener('pointerup', onLegendPointerUp);
+    }
+  }
+
+  // Uniform resize from the bottom-right handle: scale is driven by the
+  // distance from the legend's (fixed) top-left corner to the pointer, so
+  // the box always keeps its aspect ratio.
+  function onResizePointerDown(evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const p = svgPointFromEvent(evt);
+    const t = currentTransformState();
+    resizeStart = { ox: t.x, oy: t.y };
+    void p;
+    selHandle.setPointerCapture(evt.pointerId);
+    selHandle.addEventListener('pointermove', onResizePointerMove);
+    selHandle.addEventListener('pointerup', onResizePointerUp);
+  }
+  function onResizePointerMove(evt) {
+    if (!resizeStart) return;
+    const p = svgPointFromEvent(evt);
+    const { w: gw0, h: gh0 } = legendGroupSize();
+    const baseDiag = Math.hypot(gw0, gh0);
+    const dx = Math.max(0, p.x - resizeStart.ox);
+    const dy = Math.max(0, p.y - resizeStart.oy);
+    let scale = Math.hypot(dx, dy) / baseDiag;
+    scale = Math.min(4, Math.max(0.3, scale));
+    setLegendTransform(resizeStart.ox, resizeStart.oy, scale);
+    syncSelectionUI();
+  }
+  function onResizePointerUp() {
+    resizeStart = null;
+    if (selHandle) {
+      selHandle.removeEventListener('pointermove', onResizePointerMove);
+      selHandle.removeEventListener('pointerup', onResizePointerUp);
     }
   }
 
@@ -337,11 +383,12 @@ export function showPreviewStep({
     placeBtn.hidden = false;
     saveBtn.hidden = true;
     removeBtn.hidden = true;
+    removeSelectionUI();
   }
 
   placeBtn.addEventListener('click', enterPlacement);
   saveBtn.addEventListener('click', () => {
-    const pos = clampLegendPos(currentTranslate());
+    const pos = clampLegendPos(currentTransformState());
     savedLegendPos = pos;
     renderLegendAt(pos);
     exitPlacement();

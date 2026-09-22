@@ -302,6 +302,17 @@ export function importSvg(svgText) {
       continue;
     }
 
+    // Icon / void-hatch decoration (see roomExtraLine in svgExport.js): a
+    // pure function of cls+name+box, never stored on the item, so the
+    // importer just skips these groups (and everything inside them) rather
+    // than re-deriving anything from them.
+    if (t.kind === 'open' && t.name === 'g' && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch')) {
+      let j = i + 1;
+      while (j < tokens.length && !(tokens[j].kind === 'close' && tokens[j].name === 'g')) j++;
+      i = j;
+      continue;
+    }
+
     if ((t.kind === 'open' || t.kind === 'selfclose') && t.name === 'g' && t.attrs.class === 'compass') {
       const transform = t.attrs.transform || '';
       const tm = /translate\(([-\d.]+)[,\s]+([-\d.]+)\)/.exec(transform);

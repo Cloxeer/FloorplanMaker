@@ -4,6 +4,8 @@
 // canvas rendering (see js/view/stageObjects.js) so chips look like the
 // real thing. Pure string templates, no DOM dependency.
 
+import { iconSvg } from '../icons.js';
+
 // Each entry: { w, h } = plan-unit footprint used for the drag ghost's scale.
 export const PIECE_SIZE = {
   room: { w: 120, h: 100 },
@@ -83,55 +85,23 @@ function voidChip(vb) {
   `);
 }
 
-// Shared elevator glyph markup: two SEPARATE arrows side by side (an up
-// arrow and a down arrow, like ▲ ▼ — not one combined double-headed shaft),
-// reused by both the palette chip and the stage glyph (see elevatorGlyph in
-// stageObjects.js) so they match exactly. `size` = arrow height in local
-// units, the pair centered at (cx, cy).
-export function elevatorArrowSvg(cx, cy, size, stroke = '#5f6368') {
-  const gap = size * 0.18;
-  const leftX = cx - gap / 2 - size * 0.16;
-  const rightX = cx + gap / 2 + size * 0.16;
-  const top = cy - size / 2, bottom = cy + size / 2;
-  const headW = size * 0.16, headH = size * 0.2;
-  const shaftW = Math.max(1.5, size * 0.09);
-  return `
-    <line x1="${leftX}" y1="${top + headH}" x2="${leftX}" y2="${bottom}" stroke="${stroke}" stroke-width="${shaftW}"/>
-    <polygon points="${leftX},${top} ${leftX - headW},${top + headH} ${leftX + headW},${top + headH}" fill="${stroke}"/>
-    <line x1="${rightX}" y1="${top}" x2="${rightX}" y2="${bottom - headH}" stroke="${stroke}" stroke-width="${shaftW}"/>
-    <polygon points="${rightX},${bottom} ${rightX - headW},${bottom - headH} ${rightX + headW},${bottom - headH}" fill="${stroke}"/>
-  `;
-}
-
+// Elevator and restroom chips draw the exact user-supplied icons from
+// js/view/icons.js (ICONS.elevator / ICONS.restroom via iconSvg), the same
+// source the stage glyph (stageObjects.js) and the SVG export
+// (js/model/svgExport.js) use, so all three match.
 function elevatorChip(vb) {
   const [w, h] = vb;
-  const size = Math.min(w, h) * 0.55;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    ${elevatorArrowSvg(w / 2, h / 2, size)}
+    ${iconSvg('elevator', 2, 2, w - 4, h - 4, 0.55)}
   `);
-}
-
-// Restroom glyph: Bootstrap Icons "badge-wc-fill" (MIT license,
-// https://icons.getbootstrap.com/icons/badge-wc-fill/), a 16x16 "WC" badge
-// glyph, embedded as a single inline path and reused by both the palette
-// chip and the stage glyph (see restroomGlyph in stageObjects.js) so they
-// match exactly. `size` = glyph box side length, centered at (cx, cy).
-export const RESTROOM_ICON_D = 'M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm11.666 1.89c.682 0 1.139.47 1.187 1.107H14v-.11c-.053-1.187-1.024-2-2.342-2-1.604 0-2.518 1.05-2.518 2.751v.747c0 1.7.905 2.73 2.518 2.73 1.314 0 2.285-.792 2.342-1.939v-.114h-1.147c-.048.615-.497 1.05-1.187 1.05-.839 0-1.318-.62-1.318-1.727v-.742c0-1.112.488-1.754 1.318-1.754zm-6.188.926h.044L6.542 11h1.006L9 5.001H7.818l-.82 4.355h-.056L5.97 5.001h-.94l-.972 4.355h-.053l-.827-4.355H2L3.452 11h1.005z';
-
-export function restroomSideSvg(cx, cy, size, stroke = '#5f6368') {
-  const s = size / 16;
-  const x = cx - size / 2;
-  const y = cy - size / 2;
-  return `<g transform="translate(${x},${y}) scale(${s})"><path d="${RESTROOM_ICON_D}" fill="${stroke}"/></g>`;
 }
 
 function restroomChip(vb) {
   const [w, h] = vb;
-  const size = Math.min(w, h) * 0.8;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    ${restroomSideSvg(w / 2, h / 2, size)}
+    ${iconSvg('restroom', 2, 2, w - 4, h - 4, 0.65)}
   `);
 }
 
