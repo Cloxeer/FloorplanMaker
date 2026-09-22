@@ -163,6 +163,25 @@ export function showPreviewStep({
   const exportBtn = el.querySelector('#preview-export');
   const NS = 'http://www.w3.org/2000/svg';
   const MARGIN = 20;
+  let baseVB = null;
+  function ensureBaseVB() {
+    if (!baseVB) baseVB = getViewBox();
+    return baseVB;
+  }
+  // Grow the preview's viewBox so a legend placed beside/below the plan is
+  // visible (the plan's own viewBox has no blank margin). pos=null restores it.
+  function fitViewBox(pos) {
+    const vb = ensureBaseVB();
+    if (!vb || !svgEl) return;
+    if (!pos) { svgEl.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); return; }
+    const { w: gw0, h: gh0 } = legendGroupSize();
+    const sc = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
+    const minX = Math.min(vb.x, pos.x - MARGIN);
+    const minY = Math.min(vb.y, pos.y - MARGIN);
+    const maxX = Math.max(vb.x + vb.w, pos.x + gw0 * sc + MARGIN);
+    const maxY = Math.max(vb.y + vb.h, pos.y + gh0 * sc + MARGIN);
+    svgEl.setAttribute('viewBox', `${Math.round(minX)} ${Math.round(minY)} ${Math.round(maxX - minX)} ${Math.round(maxY - minY)}`);
+  }
 
   let savedLegendPos = initialLegendPos || null; // {x,y,scale} in SVG user units, confirmed via Save
   let placementMode = false;
@@ -182,7 +201,7 @@ export function showPreviewStep({
   }
 
   function defaultLegendPos() {
-    const vb = getViewBox();
+    const vb = ensureBaseVB();
     const { w: gw, h: gh } = legendGroupSize();
     if (!vb) return { x: 0, y: 0, scale: 1 };
     const plan = planBBox || {
@@ -200,39 +219,42 @@ export function showPreviewStep({
   }
 
   function clampLegendPos(pos) {
-    const vb = getViewBox();
+    const vb = ensureBaseVB();
     const { w: gw0, h: gh0 } = legendGroupSize();
     const scale = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
     if (!vb) return { ...pos, scale };
     const gw = gw0 * scale;
     const gh = gh0 * scale;
     let { x, y } = pos;
-    x = Math.min(Math.max(x, vb.x), vb.x + vb.w - gw);
-    y = Math.min(Math.max(y, vb.y), vb.y + vb.h - gh);
     const plan = planBBox
-      ? {
-        x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height,
-      }
+      ? { x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height }
       : null;
-    if (plan && rectsOverlap({
-      x, y, w: gw, h: gh,
-    }, plan)) {
-      return defaultLegendPos();
+    if (plan && rectsOverlap({ x, y, w: gw, h: gh }, plan)) {
+      // Keep the legend off the plan: park it in the right-hand margin.
+      x = plan.x + plan.w + MARGIN;
+      y = Math.max(vb.y, plan.y);
     }
+    if (y < vb.y) y = vb.y;
     return { x, y, scale };
   }
 
   function renderLegendAt(pos) {
     if (!svgEl) return;
     const scale = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
-    const wrap = document.createElementNS(NS, 'g');
-    wrap.innerHTML = legendSvgGroupAt(pos.x, pos.y, scale);
-    const newGroup = wrap.firstElementChild;
+    // Parse the legend markup in the SVG namespace. Setting innerHTML on an SVG
+    // element parses children as HTML, which never renders — so build a real
+    // SVG node tree with DOMParser and import it.
+    const parsed = new DOMParser().parseFromString(
+      `<svg xmlns="http://www.w3.org/2000/svg">${legendSvgGroupAt(pos.x, pos.y, scale)}</svg>`,
+      'image/svg+xml',
+    );
+    const newGroup = document.importNode(parsed.documentElement.firstElementChild, true);
     if (legendGroupEl && legendGroupEl.parentNode) legendGroupEl.parentNode.removeChild(legendGroupEl);
     legendGroupEl = newGroup;
     svgEl.appendChild(legendGroupEl);
     legendGroupEl.style.cursor = 'grab';
     legendGroupEl.addEventListener('pointerdown', onLegendPointerDown);
+    fitViewBox(pos);
     syncSelectionUI();
   }
 
