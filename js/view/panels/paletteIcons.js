@@ -49,22 +49,53 @@ function voidChip(vb) {
   `);
 }
 
+// Shared elevator glyph markup (up/down double-arrow), reused by both the
+// palette chip and the stage glyph (see glyphFor in stageObjects.js) so they
+// match exactly. `size` = arrow height in local units, centered at (cx, cy).
+export function elevatorArrowSvg(cx, cy, size, stroke = '#5f6368') {
+  const shaftX1 = cx - size * 0.16, shaftX2 = cx + size * 0.16;
+  const top = cy - size / 2, bottom = cy + size / 2;
+  const headW = size * 0.22, headH = size * 0.22;
+  return `
+    <line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" stroke="${stroke}" stroke-width="${Math.max(1.5, size * 0.09)}"/>
+    <polygon points="${cx},${top} ${cx - headW},${top + headH} ${cx + headW},${top + headH}" fill="${stroke}"/>
+    <polygon points="${cx},${bottom} ${cx - headW},${bottom - headH} ${cx + headW},${bottom - headH}" fill="${stroke}"/>
+  `;
+}
+
 function elevatorChip(vb) {
   const [w, h] = vb;
+  const size = Math.min(w, h) * 0.55;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    <text x="${w / 2}" y="${h / 2 + 6}" text-anchor="middle" font-size="20" font-weight="700" fill="#5f6368">&#8645;</text>
+    ${elevatorArrowSvg(w / 2, h / 2, size)}
   `);
+}
+
+// Sideways (profile) toilet: a low tank on one side, a rounded bowl on the
+// other, seen from the side rather than from above.
+export function restroomSideSvg(cx, cy, size, stroke = '#5f6368') {
+  const bodyW = size * 0.62, bodyH = size * 0.42, tankW = size * 0.16, tankH = size * 0.32;
+  const baseY = cy + bodyH / 2;
+  const tankX = cx - bodyW / 2;
+  const bowlCx = cx + (bodyW - tankW) / 2 + tankW * 0.1;
+  const sw = Math.max(1.2, size * 0.05);
+  return `
+    <rect x="${tankX}" y="${baseY - bodyH - tankH}" width="${tankW}" height="${tankH + bodyH * 0.3}" rx="${tankW * 0.2}" fill="none" stroke="${stroke}" stroke-width="${sw}"/>
+    <path d="M ${tankX + tankW} ${baseY - bodyH * 0.7}
+             C ${cx} ${baseY - bodyH * 1.15}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH * 0.5}
+             C ${bowlCx + bodyW * 0.22} ${baseY}, ${cx - bodyW * 0.05} ${baseY}, ${tankX + tankW * 0.3} ${baseY - bodyH * 0.15}
+             Z" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>
+    <line x1="${tankX - size * 0.02}" y1="${baseY}" x2="${bowlCx + bodyW * 0.22}" y2="${baseY}" stroke="${stroke}" stroke-width="${sw}"/>
+  `;
 }
 
 function restroomChip(vb) {
   const [w, h] = vb;
-  const cx = w / 2, cy = h / 2;
-  const bodyW = 16, bodyH = 12, tankH = 5;
+  const size = Math.min(w, h) * 0.8;
   return svgWrap(vb, `
     <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
-    <rect x="${cx - bodyW * 0.35}" y="${cy - bodyH / 2 - tankH}" width="${bodyW * 0.7}" height="${tankH}" rx="1.5" fill="none" stroke="#5f6368" stroke-width="1.5"/>
-    <rect x="${cx - bodyW / 2}" y="${cy - bodyH / 2}" width="${bodyW}" height="${bodyH}" rx="${bodyH / 2}" fill="none" stroke="#5f6368" stroke-width="1.5"/>
+    ${restroomSideSvg(w / 2, h / 2, size)}
   `);
 }
 

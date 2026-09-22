@@ -70,6 +70,53 @@ function makeLabel(item, p, maxW, maxH) {
   return kids;
 }
 
+// Icon (core rooms) + label stacked compactly inside the box: icon in the
+// upper portion, a small label below it, both scaled to fit maxW x maxH with
+// a margin so neither the icon nor the text ever overflows the room rect.
+function makeIconAndLabel(item, cx, cy, maxW, maxH) {
+  const margin = 6;
+  const innerW = Math.max(4, maxW - margin * 2);
+  const innerH = Math.max(4, maxH - margin * 2);
+  const hasName = !!(item.showName && item.name);
+  const txt = mainLabelText(item);
+  const hasLabel = !!txt || hasName;
+
+  // Reserve ~55% of the height for the icon, ~45% for label(s) when both are
+  // shown; icon gets the full height when there's no label.
+  const iconMaxH = hasLabel ? innerH * 0.58 : innerH;
+  const iconCap = Math.min(maxW, maxH) * 0.6;
+  const iconSize = Math.max(10, Math.min(innerW * 0.9, iconMaxH, iconCap));
+  const iconCy = hasLabel ? cy - innerH / 2 + iconSize / 2 : cy;
+
+  const kids = [];
+  const name = (item.name || '').trim().toLowerCase();
+  if (name.startsWith('elevator')) {
+    kids.push(...elevatorGlyph(cx, iconCy, iconSize));
+  } else if (name.startsWith('restroom')) {
+    kids.push(...restroomGlyph(cx, iconCy, iconSize));
+  }
+
+  if (hasLabel) {
+    const labelTop = kids.length ? iconCy + iconSize / 2 + 4 : cy;
+    const labelMaxH = kids.length ? Math.max(8, cy + innerH / 2 - labelTop) : innerH;
+    const lines = [];
+    if (hasName) lines.push({ text: item.name, weight: 700, fill: '#1d1f23' });
+    if (txt) lines.push({ text: txt, weight: 400, fill: '#2b2e33' });
+    const lineH = labelMaxH / lines.length;
+    lines.forEach((ln, i) => {
+      const t = new fabric.FabricText(ln.text, {
+        left: cx, top: labelTop + lineH * i + lineH / 2, originX: 'center', originY: 'center',
+        fontSize: labelClass(item) === 'lblS' ? STD.lblS : STD.lbl,
+        fontWeight: ln.weight, fill: ln.fill, fontFamily: FONT,
+        selectable: false, evented: false, objectCaching: false,
+      });
+      fitText(t, innerW, lineH - 2);
+      kids.push(t);
+    });
+  }
+  return kids;
+}
+
 function tag(obj, item, type) {
   obj.itemId = item.id;
   obj.itemType = type;
@@ -92,6 +139,19 @@ export function hatchLines(w, h, spacing = 18, opts = {}) {
   return lines.map(([x1, y1, x2, y2]) => new fabric.Line([x1, y1, x2, y2], {
     stroke, strokeWidth, selectable: false, evented: false, objectCaching: false,
   }));
+}
+
+// Non-fill contents of a room rect: for core rooms whose name matches a known
+// icon (Elevator, Restroom), icon + label are stacked and fit together so
+// neither spills outside the box; otherwise just the (fitted) label.
+function roomContentKids(item) {
+  const cx = item.x + item.w / 2;
+  const cy = item.y + item.h / 2;
+  const name = (item.name || '').trim().toLowerCase();
+  if (item.cls === 'core' && (name.startsWith('elevator') || name.startsWith('restroom'))) {
+    return makeIconAndLabel(item, cx, cy, item.w, item.h);
+  }
+  return makeLabel(item, labelPos(item), item.w, item.h);
 }
 
 function buildRoomRect(item) {
@@ -119,7 +179,7 @@ function buildRoomRect(item) {
     g.setCoords();
     return tag(g, item, 'room');
   }
-  const kids = [rect, ...glyphFor(item), ...makeLabel(item, labelPos(item), item.w, item.h)];
+  const kids = [rect, ...roomContentKids(item)];
   const g = new fabric.Group(kids, {
     ...BASE, subTargetCheck: false, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
   });
@@ -129,41 +189,60 @@ function buildRoomRect(item) {
   return tag(g, item, 'room');
 }
 
-// Small non-interactive glyph centered in a core room, based on its name
-// (Elevator: up/down arrow; Restroom(s): a simple toilet icon).
-function glyphFor(item) {
-  if (item.cls !== 'core') return [];
-  const name = (item.name || '').trim().toLowerCase();
-  const cx = item.x + item.w / 2;
-  const cy = item.y + item.h / 2;
-  const size = Math.max(16, Math.min(item.w, item.h) * 0.35);
-  if (name.startsWith('elevator')) {
-    const t = new fabric.FabricText('↕', {
-      left: cx, top: cy - (item.showName && item.name ? 12 : 0), originX: 'center', originY: 'center',
-      fontSize: size, fontWeight: 700, fill: '#5f6368', fontFamily: FONT,
-      selectable: false, evented: false, objectCaching: false,
-    });
-    return [t];
-  }
-  if (name.startsWith('restroom')) {
-    const s = size;
-    const bodyW = s * 0.62, bodyH = s * 0.5, tankH = s * 0.18;
-    const top = cy - (item.showName && item.name ? 12 : 0);
-    const tank = new fabric.Rect({
-      left: cx, top: top - bodyH / 2 - tankH / 2, width: bodyW * 0.7, height: tankH,
-      originX: 'center', originY: 'center', rx: 2, ry: 2,
-      fill: 'rgba(0,0,0,0)', stroke: '#5f6368', strokeWidth: 2, objectCaching: false,
+// Up/down double-arrow, same drawing as the palette chip's elevatorArrowSvg
+// in paletteIcons.js, redone with Fabric primitives (Line + two triangles)
+// so the stage glyph matches the chip exactly.
+function elevatorGlyph(cx, cy, size) {
+  const shaftW = Math.max(1.5, size * 0.09);
+  const headW = size * 0.22, headH = size * 0.22;
+  const top = cy - size / 2, bottom = cy + size / 2;
+  const stroke = '#5f6368';
+  const shaft = new fabric.Line([cx, top, cx, bottom], {
+    stroke, strokeWidth: shaftW, selectable: false, evented: false, objectCaching: false,
+  });
+  const upHead = new fabric.Triangle({
+    left: cx, top: top + headH / 2, originX: 'center', originY: 'center',
+    width: headW * 2, height: headH, angle: 0, fill: stroke,
+    selectable: false, evented: false, objectCaching: false,
+  });
+  const downHead = new fabric.Triangle({
+    left: cx, top: bottom - headH / 2, originX: 'center', originY: 'center',
+    width: headW * 2, height: headH, angle: 180, fill: stroke,
+    selectable: false, evented: false, objectCaching: false,
+  });
+  return [shaft, upHead, downHead];
+}
+
+// Sideways (profile-view) toilet — a low tank on one end, a rounded bowl on
+// the other — matching paletteIcons.js's restroomSideSvg, redone as a Fabric
+// Path so the stage glyph and the chip preview draw the same shape.
+function restroomGlyph(cx, cy, size) {
+  const stroke = '#5f6368';
+  const sw = Math.max(1.2, size * 0.05);
+  const bodyW = size * 0.62, bodyH = size * 0.42, tankW = size * 0.16, tankH = size * 0.32;
+  const baseY = cy + bodyH / 2;
+  const tankX = cx - bodyW / 2;
+  const bowlCx = cx + (bodyW - tankW) / 2 + tankW * 0.1;
+  const tank = new fabric.Rect({
+    left: tankX, top: baseY - bodyH - tankH, width: tankW, height: tankH + bodyH * 0.3,
+    rx: tankW * 0.2, ry: tankW * 0.2,
+    fill: 'rgba(0,0,0,0)', stroke, strokeWidth: sw, objectCaching: false,
+    selectable: false, evented: false,
+  });
+  const path = new fabric.Path(
+    `M ${tankX + tankW} ${baseY - bodyH * 0.7}
+     C ${cx} ${baseY - bodyH * 1.15}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH * 0.5}
+     C ${bowlCx + bodyW * 0.22} ${baseY}, ${cx - bodyW * 0.05} ${baseY}, ${tankX + tankW * 0.3} ${baseY - bodyH * 0.15}
+     Z`,
+    {
+      fill: 'rgba(0,0,0,0)', stroke, strokeWidth: sw, strokeLineJoin: 'round', objectCaching: false,
       selectable: false, evented: false,
-    });
-    const bowl = new fabric.Rect({
-      left: cx, top: top + tankH * 0.1, width: bodyW, height: bodyH,
-      originX: 'center', originY: 'center', rx: bodyH / 2, ry: bodyH / 2,
-      fill: 'rgba(0,0,0,0)', stroke: '#5f6368', strokeWidth: 2, objectCaching: false,
-      selectable: false, evented: false,
-    });
-    return [tank, bowl];
-  }
-  return [];
+    },
+  );
+  const base = new fabric.Line([tankX - size * 0.02, baseY, bowlCx + bodyW * 0.22, baseY], {
+    stroke, strokeWidth: sw, selectable: false, evented: false, objectCaching: false,
+  });
+  return [tank, path, base];
 }
 
 function buildRoomPoly(item, grid) {
