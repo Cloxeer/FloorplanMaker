@@ -260,7 +260,9 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
   background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
   padding: 8px 16px; display: flex; align-items: center; gap: 8px;
   box-shadow: 0 6px 20px rgba(0,0,0,.15); pointer-events: auto; z-index: 60; font-size: 12px; line-height: 1.3;
+  transition: opacity .15s;
 }
+body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 
 /* export dialog */
 .export-snippet { background: #f4f5f7; border-radius: 6px; padding: 8px; font-family: monospace; font-size: 11px; line-height: 1.4; white-space: pre-wrap; max-height: 140px; overflow: auto; margin: 8px 0; }
