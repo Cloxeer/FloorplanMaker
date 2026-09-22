@@ -162,8 +162,18 @@ export function attachTools(ctx, editing) {
     }
     render();
   }
+  function midInsideHall(a, b) {
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    return app.doc.items.some((it) => it.type === 'hall'
+      && mx >= it.x && mx <= it.x + it.w && my >= it.y && my <= it.y + it.h);
+  }
   function finishAuthwall(a, b) {
     if (dist([a.x, a.y], [b.x, b.y]) < MIN_BOX) return;
+    if (!midInsideHall(a, b)) {
+      app.toast('Staff walls go inside a hallway.');
+      return;
+    }
     const item = {
       id: newId(), type: 'authwall',
       x1: Math.round(a.x), y1: Math.round(a.y), x2: Math.round(b.x), y2: Math.round(b.y),

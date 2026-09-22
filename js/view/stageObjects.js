@@ -8,7 +8,7 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
-import { RESTROOM_ICON_D } from './panels/paletteIcons.js';
+import { ICONS, iconForRoom } from './icons.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 export const FILLS = {
@@ -90,11 +90,9 @@ function makeIconAndLabel(item, cx, cy, maxW, maxH) {
   const iconCy = hasLabel ? cy - innerH / 2 + iconSize / 2 : cy;
 
   const kids = [];
-  const name = (item.name || '').trim().toLowerCase();
-  if (name.startsWith('elevator')) {
-    kids.push(...elevatorGlyph(cx, iconCy, iconSize));
-  } else if (name.startsWith('restroom')) {
-    kids.push(...restroomGlyph(cx, iconCy, iconSize));
+  const iconKey = iconForRoom(item);
+  if (iconKey) {
+    kids.push(...iconGlyph(iconKey, cx, iconCy, iconSize));
   }
 
   if (hasLabel) {
@@ -148,8 +146,7 @@ export function hatchLines(w, h, spacing = 18, opts = {}) {
 function roomContentKids(item) {
   const cx = item.x + item.w / 2;
   const cy = item.y + item.h / 2;
-  const name = (item.name || '').trim().toLowerCase();
-  if (item.cls === 'core' && (name.startsWith('elevator') || name.startsWith('restroom'))) {
+  if (iconForRoom(item)) {
     return makeIconAndLabel(item, cx, cy, item.w, item.h);
   }
   return makeLabel(item, labelPos(item), item.w, item.h);
@@ -190,47 +187,20 @@ function buildRoomRect(item) {
   return tag(g, item, 'room');
 }
 
-// Two SEPARATE arrows (an up arrow and a down arrow, like ▲ ▼ — not one
-// combined double-headed shaft), same layout as the palette chip's
-// elevatorArrowSvg in paletteIcons.js, redone with Fabric primitives (two
-// Lines + two Triangles) so the stage glyph matches the chip exactly.
-function elevatorGlyph(cx, cy, size) {
-  const shaftW = Math.max(1.5, size * 0.09);
-  const headW = size * 0.16, headH = size * 0.2;
-  const gap = size * 0.18;
-  const leftX = cx - gap / 2 - size * 0.16;
-  const rightX = cx + gap / 2 + size * 0.16;
-  const top = cy - size / 2, bottom = cy + size / 2;
-  const stroke = '#5f6368';
-  const upShaft = new fabric.Line([leftX, top + headH, leftX, bottom], {
-    stroke, strokeWidth: shaftW, selectable: false, evented: false, objectCaching: false,
-  });
-  const upHead = new fabric.Triangle({
-    left: leftX, top: top + headH / 2, originX: 'center', originY: 'center',
-    width: headW * 2, height: headH, angle: 0, fill: stroke,
-    selectable: false, evented: false, objectCaching: false,
-  });
-  const downShaft = new fabric.Line([rightX, top, rightX, bottom - headH], {
-    stroke, strokeWidth: shaftW, selectable: false, evented: false, objectCaching: false,
-  });
-  const downHead = new fabric.Triangle({
-    left: rightX, top: bottom - headH / 2, originX: 'center', originY: 'center',
-    width: headW * 2, height: headH, angle: 180, fill: stroke,
-    selectable: false, evented: false, objectCaching: false,
-  });
-  return [upShaft, upHead, downShaft, downHead];
-}
-
-// Restroom glyph: Bootstrap Icons "badge-wc-fill" (MIT license,
-// https://icons.getbootstrap.com/icons/badge-wc-fill/), embedded as a Fabric
-// Path from the same `d` string paletteIcons.js's restroomSideSvg uses, so
-// the stage glyph and the chip preview draw the same shape.
-function restroomGlyph(cx, cy, size) {
-  const path = new fabric.Path(RESTROOM_ICON_D, {
+// Icon glyph, drawn from the shared ICONS path data (js/view/icons.js) so the
+// stage, the palette chip and the exported SVG all draw the exact same
+// user-supplied icon (elevator lift / restroom toilet), centred at (cx, cy)
+// and sized to `size` (its full box side length).
+function iconGlyph(key, cx, cy, size) {
+  const ic = ICONS[key];
+  if (!ic) return [];
+  const path = new fabric.Path(ic.d, {
     fill: '#5f6368', selectable: false, evented: false, objectCaching: false,
   });
-  const s = size / 16;
-  path.set({ left: cx, top: cy, originX: 'center', originY: 'center', scaleX: s, scaleY: s });
+  const s = size / ic.viewBox;
+  path.set({
+    left: cx, top: cy, originX: 'center', originY: 'center', scaleX: s, scaleY: s,
+  });
   return [path];
 }
 

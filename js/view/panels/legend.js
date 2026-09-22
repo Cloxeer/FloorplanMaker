@@ -115,11 +115,14 @@ function legendRows() {
   }).join('');
 }
 
-// Builds the legend <g> at an explicit position (SVG user units).
-export function legendSvgGroupAt(x, y) {
+// Builds the legend <g> at an explicit position (SVG user units), optionally
+// uniformly scaled (used by the preview's resizable legend placement).
+export function legendSvgGroupAt(x, y, scale = 1) {
   const gx = Math.round(x);
   const gy = Math.round(y);
-  return `<g class="legend" transform="translate(${gx},${gy})">`
+  const s = scale && Number.isFinite(scale) ? scale : 1;
+  const transform = s === 1 ? `translate(${gx},${gy})` : `translate(${gx},${gy}) scale(${s})`;
+  return `<g class="legend" transform="${transform}">`
     + `<rect x="0" y="0" width="${LEGEND_GROUP_W}" height="${LEGEND_GROUP_H}" fill="#ffffff" fill-opacity="0.92" stroke="#c7cad0" stroke-width="1"/>`
     + legendRows()
     + '</g>';

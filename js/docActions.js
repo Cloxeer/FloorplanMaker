@@ -127,7 +127,7 @@ export function createActions(app, deps) {
       },
       onDownload: (legendPos) => {
         const finalSvg = legendPos
-          ? svgText.replace('</svg>', `${legendSvgGroupAt(legendPos.x, legendPos.y)}</svg>`)
+          ? svgText.replace('</svg>', `${legendSvgGroupAt(legendPos.x, legendPos.y, legendPos.scale)}</svg>`)
           : svgText;
         showExportDialog({ svgText: finalSvg, jpgDataUrl, meta: doc.meta });
       },

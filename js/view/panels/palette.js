@@ -42,6 +42,7 @@ export function mountPalette(el, app) {
       <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
       <button type="button" class="btn-big-tool btn-detect" id="btn-detect-halls">⌕ Detect hallways</button>
+      <button type="button" class="btn-big-tool" id="btn-tool-authwall" aria-pressed="false">Staff wall</button>
     </div>
     <div class="palette-step" data-step="room">
       <h4>4. Add rooms</h4>
@@ -49,7 +50,6 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-room">Draw a room <span class="hotkey-hint">R</span></button>
       <div id="chip-row"></div>
       <button type="button" class="btn-big-tool btn-detect" id="btn-detect-rooms">⌕ Detect rooms</button>
-      <button type="button" class="btn-big-tool" id="btn-tool-authwall">Staff wall</button>
     </div>
   `;
 

@@ -82,6 +82,18 @@ export function makeSampleDoc() {
   const voidRoom = makeRoom('void', 500, 90, 80, 60, '');
   doc = addItem(doc, voidRoom);
 
+  // A core elevator room (gets the elevator icon in the export). Needs a
+  // real number (not just a name) — roomLabelLines() only emits the
+  // separate <text class="name"> line when the main label text is
+  // non-empty, so an unnumbered showName room would round-trip its name
+  // away.
+  const elevator = makeRoom('core', 600, 90, 80, 70, '150');
+  doc = addItem(doc, { ...elevator, name: 'Elevator', showName: true });
+
+  // A core restroom room (gets the restroom icon in the export).
+  const restroom = makeRoom('core', 700, 90, 80, 70, '151');
+  doc = addItem(doc, { ...restroom, name: 'Restroom', showName: true });
+
   // A pinned label with a font-size override, on r1 (128B). Pin inside shape.
   const r1Item = doc.items.find((it) => it.number === '128B');
   doc = updateItem(doc, r1Item.id, {
