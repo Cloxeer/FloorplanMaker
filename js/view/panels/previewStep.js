@@ -261,6 +261,47 @@ export function showPreviewStep({
     syncSelectionUI();
   }
 
+  // Simple pan: when zoomed in (viewBox smaller than the full fit), dragging
+  // empty preview space moves the view. Dragging the legend/handles/buttons is
+  // left to their own handlers.
+  let panState = null;
+  function onPanDown(evt) {
+    if (!svgEl) return;
+    if (legendGroupEl && (legendGroupEl.contains(evt.target)
+      || (selHandle && selHandle.contains && selHandle.contains(evt.target))
+      || (zoomInBtn && zoomInBtn.contains(evt.target))
+      || (zoomOutBtn && zoomOutBtn.contains(evt.target)))) return;
+    const vb = getViewBox();
+    const cap = lastGrownVB || baseVB || vb;
+    if (!vb || !cap || vb.w >= cap.w - 1) return; // only when zoomed in
+    panState = { x: evt.clientX, y: evt.clientY, vb };
+    svgEl.style.cursor = 'grabbing';
+    svgEl.setPointerCapture(evt.pointerId);
+    svgEl.addEventListener('pointermove', onPanMove);
+    svgEl.addEventListener('pointerup', onPanUp);
+  }
+  function onPanMove(evt) {
+    if (!panState) return;
+    const rect = svgEl.getBoundingClientRect();
+    const cap = lastGrownVB || baseVB || panState.vb;
+    const unit = panState.vb.w / (rect.width || 1);
+    let nx = panState.vb.x - (evt.clientX - panState.x) * unit;
+    let ny = panState.vb.y - (evt.clientY - panState.y) * unit;
+    nx = Math.min(Math.max(nx, cap.x), cap.x + cap.w - panState.vb.w);
+    ny = Math.min(Math.max(ny, cap.y), cap.y + cap.h - panState.vb.h);
+    svgEl.setAttribute('viewBox', `${Math.round(nx)} ${Math.round(ny)} ${Math.round(panState.vb.w)} ${Math.round(panState.vb.h)}`);
+    syncSelectionUI();
+  }
+  function onPanUp() {
+    panState = null;
+    if (svgEl) {
+      svgEl.style.cursor = '';
+      svgEl.removeEventListener('pointermove', onPanMove);
+      svgEl.removeEventListener('pointerup', onPanUp);
+    }
+  }
+  if (svgEl) svgEl.addEventListener('pointerdown', onPanDown);
+
   let savedLegendPos = initialLegendPos || null; // {x,y,scale} in SVG user units, confirmed via Save
   let placementMode = false;
   let legendGroupEl = null;
