@@ -26,6 +26,7 @@ const HINTS = {
   stair: 'Drag a box over the stairwell.',
   compass: 'Click where the compass should sit.',
   pan: 'Drag to move around the plan.',
+  authwall: 'Click the start, then the end (or drag) to draw a staff-only wall. Press Esc when done.',
 };
 
 export function attachTools(ctx, editing) {
@@ -148,6 +149,28 @@ export function attachTools(ctx, editing) {
     app.commit(addItem(app.doc, item), 'Draw room');
   }
 
+  // ---------------------------------------------------------- staff wall --
+  function authwallPreview() {
+    const b = draft.hover || draft.start;
+    if (!draft.line) {
+      draft.line = addPreview(new fabric.Line([draft.start.x, draft.start.y, b.x, b.y], {
+        stroke: '#7c3aed', strokeWidth: 6, strokeDashArray: [10, 8], strokeUniform: true,
+      }));
+    } else {
+      draft.line.set({ x1: draft.start.x, y1: draft.start.y, x2: b.x, y2: b.y });
+      draft.line.setCoords();
+    }
+    render();
+  }
+  function finishAuthwall(a, b) {
+    if (dist([a.x, a.y], [b.x, b.y]) < MIN_BOX) return;
+    const item = {
+      id: newId(), type: 'authwall',
+      x1: Math.round(a.x), y1: Math.round(a.y), x2: Math.round(b.x), y2: Math.round(b.y),
+    };
+    app.commit(addItem(app.doc, item), 'Draw staff wall');
+  }
+
   // --------------------------------------------------------------- doors --
   function placeDoor(pt) {
     const doc = app.doc;
@@ -185,6 +208,17 @@ export function attachTools(ctx, editing) {
       return;
     }
     if (tool === 'door') { placeDoor(pt); return; }
+    if (tool === 'authwall') {
+      if (draft && draft.kind === 'authwall') {
+        const a = draft.start;
+        clearDraft();
+        finishAuthwall(a, pt);
+        app.setTool('select');
+        return;
+      }
+      draft = { kind: 'authwall', start: pt, objs: [] };
+      return;
+    }
     if (tool === 'compass') {
       const doc = app.doc;
       const items = doc.items.filter((it) => it.type !== 'compass');
@@ -203,6 +237,11 @@ export function attachTools(ctx, editing) {
       floorPreview();
       return;
     }
+    if (draft.kind === 'authwall') {
+      draft.hover = pt;
+      authwallPreview();
+      return;
+    }
     draft.box = boxOf(draft.start, pt);
     if (draft.kind === 'hall') boxPreview('rgba(120,176,224,0.22)', '#5b9bd5');
     else boxPreview('rgba(47,111,235,0.10)', '#2f6feb');
@@ -214,6 +253,18 @@ export function attachTools(ctx, editing) {
 
   canvas.on('mouse:up', () => {
     if (!draft || draft.kind === 'floor') return;
+    if (draft.kind === 'authwall') {
+      const end = draft.hover || draft.start;
+      if (dist([end.x, end.y], [draft.start.x, draft.start.y]) >= MIN_BOX) {
+        const a = draft.start;
+        clearDraft();
+        finishAuthwall(a, end);
+        app.setTool('select');
+      }
+      // else: a plain click with no drag — keep the draft, wait for the
+      // second click (click-start, click-end flow).
+      return;
+    }
     const kind = draft.kind;
     const box = draft.box;
     clearDraft();
@@ -284,7 +335,7 @@ export function attachTools(ctx, editing) {
     return false;
   }
   const stubs = {};
-  for (const name of ['select', 'floor', 'door', 'hall', 'room', 'poly', 'stair', 'compass', 'pan']) {
+  for (const name of ['select', 'floor', 'door', 'hall', 'room', 'poly', 'stair', 'compass', 'pan', 'authwall']) {
     stubs[name] = { name, hint: HINTS[name] || '', onKey, cancel: clearDraft };
   }
 

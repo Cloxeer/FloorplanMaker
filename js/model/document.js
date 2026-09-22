@@ -30,6 +30,7 @@ export const STD = {
     elevator: { cls: 'core', w: 60, h: 60, name: 'Elevator' },
     stair: { w: 60, h: 110 },
     void: { cls: 'void', w: 100, h: 100 },
+    closet: { cls: 'core', w: 70, h: 60, name: 'Utility' },
   },
 };
 

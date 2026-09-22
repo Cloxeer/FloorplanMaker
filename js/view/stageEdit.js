@@ -223,6 +223,18 @@ export function attachEditing(ctx) {
       return { points: polyPoints(obj).map(([x, y]) => [grid(x), grid(y)]) };
     }
     if (item.type === 'door') return null;
+    if (item.type === 'authwall') {
+      const box = absBox(obj);
+      const ox = Math.min(item.x1, item.x2);
+      const oy = Math.min(item.y1, item.y2);
+      const dx = box.x - ox;
+      const dy = box.y - oy;
+      if (!dx && !dy) return null;
+      return {
+        x1: grid(item.x1 + dx), y1: grid(item.y1 + dy),
+        x2: grid(item.x2 + dx), y2: grid(item.y2 + dy),
+      };
+    }
     const box = absBox(obj);
     return {
       x: grid(box.x), y: grid(box.y),
@@ -362,6 +374,7 @@ export function attachEditing(ctx) {
       if (!item) continue;
       if (item.shape === 'poly') next = updateItem(next, id, { points: item.points.map(([x, y]) => [x + dx, y + dy]) });
       else if (item.type === 'door') next = updateItem(next, id, { x1: item.x1 + dx, y1: item.y1 + dy, x2: item.x2 + dx, y2: item.y2 + dy, label: { x: item.label.x + dx, y: item.label.y + dy } });
+      else if (item.type === 'authwall') next = updateItem(next, id, { x1: item.x1 + dx, y1: item.y1 + dy, x2: item.x2 + dx, y2: item.y2 + dy });
       else next = updateItem(next, id, { x: item.x + dx, y: item.y + dy });
     }
     app.commit(next, 'Nudge');

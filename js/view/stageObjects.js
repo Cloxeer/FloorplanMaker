@@ -8,6 +8,7 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
+import { RESTROOM_ICON_D } from './panels/paletteIcons.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 export const FILLS = {
@@ -17,7 +18,7 @@ export const STROKE = '#8f959c';
 
 // Back-to-front draw order.
 export const LAYER = {
-  grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, door: 5,
+  grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5, door: 5,
   compass: 6, ghost: 7, guide: 8,
 };
 
@@ -189,60 +190,48 @@ function buildRoomRect(item) {
   return tag(g, item, 'room');
 }
 
-// Up/down double-arrow, same drawing as the palette chip's elevatorArrowSvg
-// in paletteIcons.js, redone with Fabric primitives (Line + two triangles)
-// so the stage glyph matches the chip exactly.
+// Two SEPARATE arrows (an up arrow and a down arrow, like ▲ ▼ — not one
+// combined double-headed shaft), same layout as the palette chip's
+// elevatorArrowSvg in paletteIcons.js, redone with Fabric primitives (two
+// Lines + two Triangles) so the stage glyph matches the chip exactly.
 function elevatorGlyph(cx, cy, size) {
   const shaftW = Math.max(1.5, size * 0.09);
-  const headW = size * 0.22, headH = size * 0.22;
+  const headW = size * 0.16, headH = size * 0.2;
+  const gap = size * 0.18;
+  const leftX = cx - gap / 2 - size * 0.16;
+  const rightX = cx + gap / 2 + size * 0.16;
   const top = cy - size / 2, bottom = cy + size / 2;
   const stroke = '#5f6368';
-  const shaft = new fabric.Line([cx, top, cx, bottom], {
+  const upShaft = new fabric.Line([leftX, top + headH, leftX, bottom], {
     stroke, strokeWidth: shaftW, selectable: false, evented: false, objectCaching: false,
   });
   const upHead = new fabric.Triangle({
-    left: cx, top: top + headH / 2, originX: 'center', originY: 'center',
+    left: leftX, top: top + headH / 2, originX: 'center', originY: 'center',
     width: headW * 2, height: headH, angle: 0, fill: stroke,
     selectable: false, evented: false, objectCaching: false,
   });
+  const downShaft = new fabric.Line([rightX, top, rightX, bottom - headH], {
+    stroke, strokeWidth: shaftW, selectable: false, evented: false, objectCaching: false,
+  });
   const downHead = new fabric.Triangle({
-    left: cx, top: bottom - headH / 2, originX: 'center', originY: 'center',
+    left: rightX, top: bottom - headH / 2, originX: 'center', originY: 'center',
     width: headW * 2, height: headH, angle: 180, fill: stroke,
     selectable: false, evented: false, objectCaching: false,
   });
-  return [shaft, upHead, downHead];
+  return [upShaft, upHead, downShaft, downHead];
 }
 
-// Sideways (profile-view) toilet — a low tank on one end, a rounded bowl on
-// the other — matching paletteIcons.js's restroomSideSvg, redone as a Fabric
-// Path so the stage glyph and the chip preview draw the same shape.
+// Restroom glyph: Bootstrap Icons "badge-wc-fill" (MIT license,
+// https://icons.getbootstrap.com/icons/badge-wc-fill/), embedded as a Fabric
+// Path from the same `d` string paletteIcons.js's restroomSideSvg uses, so
+// the stage glyph and the chip preview draw the same shape.
 function restroomGlyph(cx, cy, size) {
-  const stroke = '#5f6368';
-  const sw = Math.max(1.2, size * 0.05);
-  const bodyW = size * 0.62, bodyH = size * 0.42, tankW = size * 0.16, tankH = size * 0.32;
-  const baseY = cy + bodyH / 2;
-  const tankX = cx - bodyW / 2;
-  const bowlCx = cx + (bodyW - tankW) / 2 + tankW * 0.1;
-  const tank = new fabric.Rect({
-    left: tankX, top: baseY - bodyH - tankH, width: tankW, height: tankH + bodyH * 0.3,
-    rx: tankW * 0.2, ry: tankW * 0.2,
-    fill: 'rgba(0,0,0,0)', stroke, strokeWidth: sw, objectCaching: false,
-    selectable: false, evented: false,
+  const path = new fabric.Path(RESTROOM_ICON_D, {
+    fill: '#5f6368', selectable: false, evented: false, objectCaching: false,
   });
-  const path = new fabric.Path(
-    `M ${tankX + tankW} ${baseY - bodyH * 0.7}
-     C ${cx} ${baseY - bodyH * 1.15}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH}, ${bowlCx + bodyW * 0.22} ${baseY - bodyH * 0.5}
-     C ${bowlCx + bodyW * 0.22} ${baseY}, ${cx - bodyW * 0.05} ${baseY}, ${tankX + tankW * 0.3} ${baseY - bodyH * 0.15}
-     Z`,
-    {
-      fill: 'rgba(0,0,0,0)', stroke, strokeWidth: sw, strokeLineJoin: 'round', objectCaching: false,
-      selectable: false, evented: false,
-    },
-  );
-  const base = new fabric.Line([tankX - size * 0.02, baseY, bowlCx + bodyW * 0.22, baseY], {
-    stroke, strokeWidth: sw, selectable: false, evented: false, objectCaching: false,
-  });
-  return [tank, path, base];
+  const s = size / 16;
+  path.set({ left: cx, top: cy, originX: 'center', originY: 'center', scaleX: s, scaleY: s });
+  return [path];
 }
 
 function buildRoomPoly(item, grid) {
@@ -338,6 +327,45 @@ function buildDoor(item) {
   return tag(g, item, 'door');
 }
 
+// ---------------------------------------------------------- staff wall ----
+// A "wall of authority": a thick dashed purple line with a small lock glyph
+// at its midpoint. Studio-only (filtered out of exportSvg in docActions.js,
+// same as halls) and never routed/validated (route.js/validate.js only look
+// at type === 'room' / 'door' / 'stair', so an 'authwall' item is inert to
+// both without any change there).
+function lockGlyph(cx, cy, size) {
+  const bodyW = size * 0.7, bodyH = size * 0.55;
+  const shackleR = size * 0.28;
+  const body = new fabric.Rect({
+    left: cx, top: cy + bodyH * 0.15, originX: 'center', originY: 'center',
+    width: bodyW, height: bodyH, rx: size * 0.06, ry: size * 0.06,
+    fill: '#ffffff', stroke: '#7c3aed', strokeWidth: Math.max(1, size * 0.06),
+    selectable: false, evented: false, objectCaching: false,
+  });
+  const shackle = new fabric.Circle({
+    left: cx, top: cy - bodyH * 0.25, originX: 'center', originY: 'center',
+    radius: shackleR, startAngle: 180, endAngle: 360,
+    fill: 'rgba(0,0,0,0)', stroke: '#7c3aed', strokeWidth: Math.max(1, size * 0.08),
+    selectable: false, evented: false, objectCaching: false,
+  });
+  return [shackle, body];
+}
+
+function buildAuthwall(item) {
+  const line = new fabric.Line([item.x1, item.y1, item.x2, item.y2], {
+    stroke: '#7c3aed', strokeWidth: 6, strokeDashArray: [10, 8], strokeUniform: true,
+    selectable: false, evented: false, objectCaching: false,
+  });
+  const mid = { x: (item.x1 + item.x2) / 2, y: (item.y1 + item.y2) / 2 };
+  const kids = [line, ...lockGlyph(mid.x, mid.y, 20)];
+  const g = new fabric.Group(kids, {
+    ...BASE, subTargetCheck: false, hasControls: false,
+    lockScalingX: true, lockScalingY: true, lockRotation: true,
+  });
+  g.setCoords();
+  return tag(g, item, 'authwall');
+}
+
 // -------------------------------------------------------------- compass ----
 function buildCompass(item) {
   const kids = [
@@ -399,6 +427,7 @@ export function buildItem(item, grid) {
   if (item.type === 'stair') return [buildStair(item)];
   if (item.type === 'door') return [buildDoor(item)];
   if (item.type === 'compass') return [buildCompass(item)];
+  if (item.type === 'authwall') return [buildAuthwall(item)];
   return [];
 }
 
