@@ -7,7 +7,9 @@
 // building-extras.json snippet).
 // Depends on: js/view/panels/legend.js, js/view/panels/validation.js (checklistHtml).
 
-import { legendHtml, legendSvgGroup, LEGEND_NOTE } from './legend.js';
+import {
+  legendHtml, legendSvgGroupAt, legendGroupSize, LEGEND_NOTE,
+} from './legend.js';
 import { checklistHtml } from './validation.js';
 
 function hallIntersection(a, b) {
@@ -52,12 +54,13 @@ export function showPreviewStep({
     <div class="preview-actions">
       <button type="button" id="preview-back">Back to editing</button>
       <div class="preview-download-group">
-        <label class="preview-legend-toggle">
-          <input type="checkbox" id="preview-include-legend">
-          Include the legend in the downloaded SVG
-        </label>
+        <div class="preview-legend-controls">
+          <button type="button" id="preview-place-legend">Place legend</button>
+          <button type="button" id="preview-save-legend" hidden>Save legend position</button>
+          <button type="button" id="preview-remove-legend" hidden>Remove legend</button>
+        </div>
         <button type="button" id="preview-download" class="btn-primary">${downloadLabel}</button>
-        <p class="preview-download-note">This legend is a preview aid.</p>
+        <p class="preview-download-note">Drag the legend in the preview once placed; it's never over the plan.</p>
         <p class="preview-download-note">${downloadNote}</p>
       </div>
     </div>
@@ -68,12 +71,18 @@ export function showPreviewStep({
   // byte-for-byte (only CSS scales it to fit the panel).
   el.querySelector('#preview-svg-wrap').innerHTML = svgText;
   const svgEl = el.querySelector('#preview-svg-wrap svg');
+  let planBBox = null;
   if (svgEl) {
     svgEl.removeAttribute('width');
     svgEl.removeAttribute('height');
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.background = '#ffffff';
+
+    // Snapshot of the plan's own footprint (rooms/floor/doors/etc, before
+    // any preview-only overlays are appended) — used to place the legend
+    // in blank margin, never over the plan.
+    try { planBBox = svgEl.getBBox(); } catch { planBBox = null; }
 
     // Hallways are studio-only guides, left out of the exported SVG text.
     // Overlay them here (and their overlaps) into the inline preview SVG
@@ -145,28 +154,150 @@ export function showPreviewStep({
     }
   }
 
-  let includeLegend = false;
-  const legendToggle = el.querySelector('#preview-include-legend');
+  // --- Draggable legend placement --------------------------------------
+  const placeBtn = el.querySelector('#preview-place-legend');
+  const saveBtn = el.querySelector('#preview-save-legend');
+  const removeBtn = el.querySelector('#preview-remove-legend');
+  const downloadBtn = el.querySelector('#preview-download');
+  const NS = 'http://www.w3.org/2000/svg';
+  const MARGIN = 20;
+
+  let savedLegendPos = null; // {x,y} in SVG user units, confirmed via Save
+  let placementMode = false;
   let legendGroupEl = null;
-  legendToggle.addEventListener('change', () => {
-    includeLegend = legendToggle.checked;
-    if (!svgEl) return;
-    if (includeLegend) {
-      if (!legendGroupEl) {
-        const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
-        if (vb.length === 4 && vb.every((n) => Number.isFinite(n))) {
-          const [vx, vy, vw, vh] = vb;
-          const wrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-          wrap.innerHTML = legendSvgGroup({
-            x: vx, y: vy, w: vw, h: vh,
-          });
-          legendGroupEl = wrap.firstElementChild;
-        }
-      }
-      if (legendGroupEl) svgEl.appendChild(legendGroupEl);
-    } else if (legendGroupEl && legendGroupEl.parentNode) {
-      legendGroupEl.parentNode.removeChild(legendGroupEl);
+  let dragOffset = null;
+
+  function getViewBox() {
+    const vb = (svgEl && svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+    if (vb.length !== 4 || !vb.every((n) => Number.isFinite(n))) return null;
+    const [x, y, w, h] = vb;
+    return {
+      x, y, w, h,
+    };
+  }
+
+  function defaultLegendPos() {
+    const vb = getViewBox();
+    const { w: gw, h: gh } = legendGroupSize();
+    if (!vb) return { x: 0, y: 0 };
+    const plan = planBBox || {
+      x: vb.x, y: vb.y, width: vb.w, height: vb.h,
+    };
+    const rightSpace = (vb.x + vb.w) - (plan.x + plan.width);
+    if (rightSpace >= gw + MARGIN) {
+      return { x: plan.x + plan.width + MARGIN, y: Math.max(vb.y, plan.y) };
     }
+    return { x: Math.max(vb.x, plan.x), y: plan.y + plan.height + MARGIN };
+  }
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function clampLegendPos(pos) {
+    const vb = getViewBox();
+    const { w: gw, h: gh } = legendGroupSize();
+    if (!vb) return pos;
+    let { x, y } = pos;
+    x = Math.min(Math.max(x, vb.x), vb.x + vb.w - gw);
+    y = Math.min(Math.max(y, vb.y), vb.y + vb.h - gh);
+    const plan = planBBox
+      ? {
+        x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height,
+      }
+      : null;
+    if (plan && rectsOverlap({
+      x, y, w: gw, h: gh,
+    }, plan)) {
+      return defaultLegendPos();
+    }
+    return { x, y };
+  }
+
+  function renderLegendAt(pos) {
+    if (!svgEl) return;
+    const wrap = document.createElementNS(NS, 'g');
+    wrap.innerHTML = legendSvgGroupAt(pos.x, pos.y);
+    const newGroup = wrap.firstElementChild;
+    if (legendGroupEl && legendGroupEl.parentNode) legendGroupEl.parentNode.removeChild(legendGroupEl);
+    legendGroupEl = newGroup;
+    svgEl.appendChild(legendGroupEl);
+    legendGroupEl.style.cursor = 'grab';
+    legendGroupEl.addEventListener('pointerdown', onLegendPointerDown);
+  }
+
+  function svgPointFromEvent(evt) {
+    const pt = svgEl.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const loc = pt.matrixTransform(ctm.inverse());
+    return { x: loc.x, y: loc.y };
+  }
+
+  function currentTranslate() {
+    const t = (legendGroupEl && legendGroupEl.getAttribute('transform')) || '';
+    const m = t.match(/translate\(([-\d.]+)[,\s]+([-\d.]+)\)/);
+    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+  }
+
+  function onLegendPointerDown(evt) {
+    if (!placementMode) return;
+    evt.preventDefault();
+    const p = svgPointFromEvent(evt);
+    const cur = currentTranslate();
+    dragOffset = { x: p.x - cur.x, y: p.y - cur.y };
+    legendGroupEl.style.cursor = 'grabbing';
+    legendGroupEl.setPointerCapture(evt.pointerId);
+    legendGroupEl.addEventListener('pointermove', onLegendPointerMove);
+    legendGroupEl.addEventListener('pointerup', onLegendPointerUp);
+  }
+  function onLegendPointerMove(evt) {
+    if (!dragOffset) return;
+    const p = svgPointFromEvent(evt);
+    const x = p.x - dragOffset.x;
+    const y = p.y - dragOffset.y;
+    legendGroupEl.setAttribute('transform', `translate(${Math.round(x)},${Math.round(y)})`);
+  }
+  function onLegendPointerUp(evt) {
+    dragOffset = null;
+    if (legendGroupEl) {
+      legendGroupEl.style.cursor = 'grab';
+      legendGroupEl.removeEventListener('pointermove', onLegendPointerMove);
+      legendGroupEl.removeEventListener('pointerup', onLegendPointerUp);
+    }
+  }
+
+  function enterPlacement() {
+    if (!svgEl) return;
+    placementMode = true;
+    downloadBtn.disabled = true;
+    placeBtn.hidden = true;
+    saveBtn.hidden = false;
+    removeBtn.hidden = false;
+    renderLegendAt(savedLegendPos || defaultLegendPos());
+  }
+  function exitPlacement() {
+    placementMode = false;
+    downloadBtn.disabled = false;
+    placeBtn.hidden = false;
+    saveBtn.hidden = true;
+    removeBtn.hidden = true;
+  }
+
+  placeBtn.addEventListener('click', enterPlacement);
+  saveBtn.addEventListener('click', () => {
+    const pos = clampLegendPos(currentTranslate());
+    savedLegendPos = pos;
+    renderLegendAt(pos);
+    exitPlacement();
+  });
+  removeBtn.addEventListener('click', () => {
+    savedLegendPos = null;
+    if (legendGroupEl && legendGroupEl.parentNode) legendGroupEl.parentNode.removeChild(legendGroupEl);
+    legendGroupEl = null;
+    exitPlacement();
   });
 
   function close() {
@@ -180,7 +311,7 @@ export function showPreviewStep({
 
   el.querySelector('#preview-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#preview-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
-  el.querySelector('#preview-download').addEventListener('click', () => { if (onDownload) onDownload(includeLegend); });
+  downloadBtn.addEventListener('click', () => { if (onDownload) onDownload(savedLegendPos); });
 
   return { close };
 }

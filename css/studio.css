@@ -447,6 +447,8 @@ button[aria-pressed="true"] { background: #e4ecff; border-color: var(--accent); 
 .preview-download-group { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 420px; }
 .preview-download-note { margin: 0; color: var(--muted); font-size: 11px; text-align: right; line-height: 1.4; }
 .preview-legend-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.preview-legend-controls { display: flex; gap: 8px; }
+#preview-download:disabled { opacity: 0.5; cursor: not-allowed; }
 .chip.disabled { opacity: 0.45; pointer-events: none; }
 
 /* --- Folder line (start screen) --- */

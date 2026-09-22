@@ -97,21 +97,38 @@ function swatchFor(item) {
   }
   return `<rect x="0" y="0" width="20" height="14" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.5"/>`;
 }
-export function legendSvgGroup(viewBox) {
-  const rowH = 24;
-  const groupW = 190;
-  const groupH = ITEMS.length * rowH + 16;
-  const gx = Math.round(viewBox.x + viewBox.w - groupW - 20);
-  const gy = Math.round(viewBox.y + viewBox.h - groupH - 20);
-  const rows = ITEMS.map((item, i) => {
-    const y = 12 + i * rowH;
+const LEGEND_ROW_H = 24;
+const LEGEND_GROUP_W = 190;
+const LEGEND_GROUP_H = ITEMS.length * LEGEND_ROW_H + 16;
+
+// Fixed footprint of the legend group, in SVG user units — used by callers
+// (previewStep.js) that need to lay the legend out before rendering it.
+export function legendGroupSize() {
+  return { w: LEGEND_GROUP_W, h: LEGEND_GROUP_H };
+}
+
+function legendRows() {
+  return ITEMS.map((item, i) => {
+    const y = 12 + i * LEGEND_ROW_H;
     const label = item.caption ? `${item.label} (${item.caption})` : item.label;
     return `<g transform="translate(4,${y})">${swatchFor(item)}<text x="28" y="11" font-size="11" fill="#1d1f23" font-family="sans-serif">${label}</text></g>`;
   }).join('');
+}
+
+// Builds the legend <g> at an explicit position (SVG user units).
+export function legendSvgGroupAt(x, y) {
+  const gx = Math.round(x);
+  const gy = Math.round(y);
   return `<g class="legend" transform="translate(${gx},${gy})">`
-    + `<rect x="0" y="0" width="${groupW}" height="${groupH}" fill="#ffffff" fill-opacity="0.92" stroke="#c7cad0" stroke-width="1"/>`
-    + rows
+    + `<rect x="0" y="0" width="${LEGEND_GROUP_W}" height="${LEGEND_GROUP_H}" fill="#ffffff" fill-opacity="0.92" stroke="#c7cad0" stroke-width="1"/>`
+    + legendRows()
     + '</g>';
+}
+
+export function legendSvgGroup(viewBox) {
+  const gx = viewBox.x + viewBox.w - LEGEND_GROUP_W - 20;
+  const gy = viewBox.y + viewBox.h - LEGEND_GROUP_H - 20;
+  return legendSvgGroupAt(gx, gy);
 }
 
 export const LEGEND_NOTE = 'This legend is for preview only — it is never written into the exported SVG.';

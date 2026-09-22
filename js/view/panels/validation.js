@@ -33,42 +33,71 @@ export function docChecklistCodes(doc) {
   return out;
 }
 
-const TOUCH_TOL = 4;
+const TOUCH_TOL = 1;
 
-function inflatedTouch(a, b, tol) {
-  return a.x - tol < b.x + b.w + tol && a.x + a.w + tol > b.x - tol
-    && a.y - tol < b.y + b.h + tol && a.y + a.h + tol > b.y - tol;
+// Strict rect link: real overlap or a shared edge within `tol`, not a mere
+// inflated-bbox touch. Requires actual interval overlap on one axis (the
+// axis "along" the shared edge) while the other axis is within `tol` of
+// touching — corner-only proximity (both axes merely close) doesn't count.
+function rectsLinked(a, b, tol) {
+  const gapX = Math.max(a.x, b.x) - Math.min(a.x + a.w, b.x + b.w);
+  const gapY = Math.max(a.y, b.y) - Math.min(a.y + a.h, b.y + b.h);
+  return (gapX <= tol && gapY <= 0) || (gapY <= tol && gapX <= 0);
 }
 
+function pointNearBox(px, py, box, tol) {
+  return px >= box.x - tol && px <= box.x + box.w + tol
+    && py >= box.y - tol && py <= box.y + box.h + tol;
+}
+
+function segmentNearBox(x1, y1, x2, y2, box, tol) {
+  const segBox = {
+    x: Math.min(x1, x2), y: Math.min(y1, y2),
+    w: Math.abs(x2 - x1), h: Math.abs(y2 - y1),
+  };
+  return rectsLinked(box, segBox, tol);
+}
+
+// A hall network is "connected" only when every hall belongs to one single
+// component (linked by real overlap/shared edges, tol<=1) AND that
+// component reaches an anchor — a stair box, a door midpoint, or the floor
+// outline edge, also within tol<=1. Two or more separate hall clusters, or
+// a lone cluster that never reaches an anchor, both fail.
 function hasUnconnectedHall(doc, items) {
   const halls = items.filter((it) => it.type === 'hall');
   if (!halls.length) return false;
   const stairs = items.filter((it) => it.type === 'stair');
   const doors = items.filter((it) => it.type === 'door');
   const outlinePts = (doc && doc.floor && doc.floor.points) || null;
-  return halls.some((h) => {
+
+  // Union-find over halls using the strict link.
+  const parent = halls.map((_, i) => i);
+  function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+  function union(i, j) { const ri = find(i); const rj = find(j); if (ri !== rj) parent[ri] = rj; }
+  for (let i = 0; i < halls.length; i += 1) {
+    for (let j = i + 1; j < halls.length; j += 1) {
+      const a = halls[i];
+      const b = halls[j];
+      if (rectsLinked({ x: a.x, y: a.y, w: a.w, h: a.h }, { x: b.x, y: b.y, w: b.w, h: b.h }, TOUCH_TOL)) union(i, j);
+    }
+  }
+  const roots = new Set(halls.map((_, i) => find(i)));
+  if (roots.size > 1) return true; // 2+ separate clusters
+
+  const reachesAnchor = halls.some((h) => {
     const hBox = { x: h.x, y: h.y, w: h.w, h: h.h };
-    if (halls.some((o) => o !== h && inflatedTouch(hBox, { x: o.x, y: o.y, w: o.w, h: o.h }, TOUCH_TOL))) return false;
-    if (stairs.some((s) => inflatedTouch(hBox, { x: s.x, y: s.y, w: s.w, h: s.h }, TOUCH_TOL))) return false;
-    if (doors.some((d) => {
-      const mx = (d.x1 + d.x2) / 2;
-      const my = (d.y1 + d.y2) / 2;
-      return mx >= hBox.x - TOUCH_TOL && mx <= hBox.x + hBox.w + TOUCH_TOL
-        && my >= hBox.y - TOUCH_TOL && my <= hBox.y + hBox.h + TOUCH_TOL;
-    })) return false;
+    if (stairs.some((s) => rectsLinked(hBox, { x: s.x, y: s.y, w: s.w, h: s.h }, TOUCH_TOL))) return true;
+    if (doors.some((d) => pointNearBox((d.x1 + d.x2) / 2, (d.y1 + d.y2) / 2, hBox, TOUCH_TOL))) return true;
     if (outlinePts && outlinePts.length >= 2) {
       for (let i = 0; i < outlinePts.length; i += 1) {
         const [x1, y1] = outlinePts[i];
         const [x2, y2] = outlinePts[(i + 1) % outlinePts.length];
-        const segBox = {
-          x: Math.min(x1, x2) - TOUCH_TOL, y: Math.min(y1, y2) - TOUCH_TOL,
-          w: Math.abs(x2 - x1) + TOUCH_TOL * 2, h: Math.abs(y2 - y1) + TOUCH_TOL * 2,
-        };
-        if (inflatedTouch(hBox, segBox, TOUCH_TOL)) return false;
+        if (segmentNearBox(x1, y1, x2, y2, hBox, TOUCH_TOL)) return true;
       }
     }
-    return true;
+    return false;
   });
+  return !reachesAnchor;
 }
 
 function hallsOverlap(items) {
