@@ -83,8 +83,8 @@ export function mountSuggest(app) {
     bar.querySelector('#sg-dismiss').addEventListener('click', dismiss);
   }
 
-  function pushGhostsToCanvas() {
-    app.canvas.setGhosts(ghosts.map((g, i) => ({ ...g, index: i })));
+  function pushGhostsToCanvas(fit = false) {
+    app.canvas.setGhosts(ghosts.map((g, i) => ({ ...g, index: i })), fit);
   }
 
   function onGhostAccept(e) {
@@ -193,7 +193,7 @@ export function mountSuggest(app) {
         const regions = (msg.regions || []).filter((r) => !overlapsExisting(r, app.doc));
         ghosts = regions.map((r, i) => ({ x: r.x, y: r.y, w: r.w, h: r.h, number: '', index: i }));
         proposeFloorOutline(app, regions);
-        pushGhostsToCanvas();
+        pushGhostsToCanvas(true);
         renderBar();
         app.setHint(`We found ${ghosts.length} rooms. Running text recognition…`);
         worker.postMessage({ id: 'ocr', kind: 'ocr', width: pixelData.width, height: pixelData.height, data: pixelData.data, regions: ghosts });
@@ -320,7 +320,7 @@ export function mountSuggest(app) {
         const stairs = (msg.stairs || []).map((r) => ({ ...r, kind: 'stair' }));
         const doors = (msg.doors || []).map((r) => ({ ...r, kind: 'door' }));
         ghosts = doors.concat(stairs).map((g, i) => ({ ...g, index: i }));
-        pushGhostsToCanvas();
+        pushGhostsToCanvas(true);
         renderGuideBar();
         app.setHint(ghosts.length ? 'Review the suggested doors/stairs, then accept or dismiss.' : 'No doors or stairs detected.');
       } else if (msg.kind === 'error' || msg.error) {
@@ -360,7 +360,7 @@ export function mountSuggest(app) {
       if (msg.kind === 'halls') {
         const halls = (msg.halls || []).map((r) => ({ ...r, kind: 'hall' }));
         ghosts = halls.map((g, i) => ({ ...g, index: i }));
-        pushGhostsToCanvas();
+        pushGhostsToCanvas(true);
         renderGuideBar();
         app.setHint(ghosts.length ? 'Review the suggested hallways, then accept or dismiss.' : 'No hallways detected.');
       } else if (msg.kind === 'error' || msg.error) {

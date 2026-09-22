@@ -183,7 +183,7 @@ export function createStage(containerEl, app) {
     }
     render();
   }
-  function setGhosts(list) {
+  function setGhosts(list, fit = false) {
     clearOverlay('ghosts');
     (list || []).forEach((g, i) => {
       const obj = buildGhost(g, g.index != null ? g.index : i);
@@ -194,10 +194,9 @@ export function createStage(containerEl, app) {
     restack();
     render();
     if (overlays.ghosts.length) {
-      // Zoom out (stageView.zoomTo only fits the whole document, not an
-      // arbitrary box) so every freshly detected ghost is on screen, then
-      // pulse each one once to draw the eye to them.
-      zoomTo(true);
+      // Only on a fresh detection do we fit the whole plan so every ghost is
+      // on screen; re-renders (keeping one, OCR updates) keep the user's zoom.
+      if (fit) zoomTo(true);
       overlays.ghosts.forEach((obj) => pulseGhost(obj, render));
     }
   }
