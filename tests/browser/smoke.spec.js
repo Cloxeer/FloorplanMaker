@@ -207,12 +207,13 @@ test.describe('Floor Plan Studio smoke test', () => {
     await page.click('#pr-ok');
     await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'room').length).toBe(2);
 
-    // ---- 12. Reload; the project reopens with the same items ----
+    // ---- 12. Reload; the URL is #/p/<slug>/trace, so the project reopens
+    // straight into the studio with the same items (no trip through the
+    // projects list) ----
     const itemsBefore = (await doc(page)).items.length;
     await page.waitForTimeout(1000); // let the debounced autosave land
+    expect(page.url()).toMatch(/#\/p\/[^/]+\/trace$/);
     await page.reload();
-    await expect(page.locator('#start')).toBeVisible();
-    await page.locator('.project-card').first().locator('.btn-open').click();
     await expect(page.locator('#studio')).toBeVisible();
     await expect.poll(async () => (await doc(page)).items.length).toBe(itemsBefore);
 

@@ -9,7 +9,7 @@
 import { createDoc } from './model/document.js';
 import { importSvg } from './model/svgImport.js';
 import {
-  loadProject, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
+  loadProject, listProjects, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
 } from './store/autosave.js';
 import * as folderStore from './store/folderStore.js';
 import { createStage } from './view/stage.js';
@@ -250,7 +250,10 @@ export function createStudio(app, deps) {
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     });
     onStudio(document.getElementById('btn-export'), 'click', () => app.exportAll());
-    onStudio(document.getElementById('btn-close'), 'click', () => closeProject());
+    onStudio(document.getElementById('btn-close'), 'click', () => {
+      if (app.setRoute && app.project) app.setRoute('#/projects');
+      else closeProject();
+    });
     onStudio(document.getElementById('btn-hand-toggle'), 'click', toggleHandTool);
     onStudio(document.getElementById('btn-overlay-draw'), 'click', (e) => {
       const overlay = document.getElementById('start-overlay');
@@ -323,6 +326,7 @@ export function createStudio(app, deps) {
     app.lastNumber = '';
 
     showScreen('studio');
+    if (app.setRoute) app.setRoute(`#/p/${project.slug}/trace`);
     setupCanvas();
     setupPanels();
     wireTopbar();
@@ -360,15 +364,17 @@ export function createStudio(app, deps) {
   }
 
   async function closeProject() {
-    if (!app.project) { showScreen('start'); return; }
+    if (!app.project) { showScreen('start'); if (app.setRoute) app.setRoute('#/projects'); return; }
     try { await saveNow(app.project); persistToFolder(app.project); } catch { /* ignore */ }
     teardownStudio();
     app.project = null; app.doc = null; app.selection = new Set(); app.validation = [];
     showScreen('start');
+    if (app.setRoute) app.setRoute('#/projects');
     if (deps.onClosed) deps.onClosed();
   }
   function showPhotoStepFor(project, existingPhoto) {
     showScreen('photoStep');
+    if (app.setRoute) app.setRoute(`#/p/${project.slug}/photo`);
     if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
     photoStepHandle = mountPhotoStep(document.getElementById('photo-step-body'), {
       initial: existingPhoto || undefined,
@@ -437,5 +443,40 @@ export function createStudio(app, deps) {
     if (app.project && app.project.id === id) { suspend(id); showReloadBar(id); }
   }
 
-  return { onStartBlueprint, onOpenProject, onImportJson, onImportSvg, closeProject, onExternalChangeForProject };
+  // ---- hash-router support: load a project by slug (folder first, then the
+  // IndexedDB store), and switch between the trace/photo/preview steps of an
+  // already-open project without a reload. ----
+  async function openBySlug(slug) {
+    if (app.project && app.project.slug === slug) return true;
+    let project = null;
+    if (app.folder && app.folder.state === 'granted' && app.folder.handle) {
+      try { project = await folderStore.readProject(app.folder.handle, slug); } catch { /* fall through */ }
+    }
+    if (!project) {
+      const list = await listProjects();
+      const entry = list.find((p) => p.slug === slug);
+      if (entry) project = await loadProject(entry.id);
+    }
+    if (!project) return false;
+    if (!project.history) project.history = { past: [], future: [] };
+    enterStudio(project);
+    return true;
+  }
+  function gotoTrace() {
+    if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; }
+    if (app.project) showScreen('studio');
+  }
+  function gotoPhoto() {
+    if (!app.project) return;
+    showPhotoStepFor(app.project, app.project.photo || null);
+  }
+  function gotoPreview() {
+    if (app._previewHandle) return;
+    if (app.exportAll) app.exportAll();
+  }
+
+  return {
+    onStartBlueprint, onOpenProject, onImportJson, onImportSvg, closeProject, onExternalChangeForProject,
+    openBySlug, gotoTrace, gotoPhoto, gotoPreview,
+  };
 }

@@ -252,32 +252,75 @@ export function buildItem(item, grid) {
 }
 
 // ------------------------------------------------- overlays (no item id) ---
-// Ghost color/label by kind: all detected ghosts (rooms, doors, halls,
-// stairs) use a uniform accent-blue dashed box so they read as "found, not
-// yet placed" regardless of kind; the label still names the kind.
-const ACCENT_BLUE = '#2f6feb';
-const GHOST_LABEL = {
-  hall: 'Hall',
-  stair: 'Stairs',
-  door: 'Door',
-};
+// Detection ghosts look like the real piece they'd become (same geometry as
+// buildStair/buildDoor/buildHall/buildRoomRect) but drawn in a yellow
+// "found, not yet placed" scheme, with a small "Found" tag above each.
+const GHOST_FILL = '#fff3b0';
+const GHOST_STROKE = '#e0a800';
+const GHOST_TEXT = '#7a5c00';
+
+function ghostTag(cx, top) {
+  return new fabric.FabricText('Found', {
+    left: cx, top: top - 6, originX: 'center', originY: 'bottom',
+    fontSize: 12, fontWeight: 700, fill: GHOST_TEXT, fontFamily: FONT,
+    selectable: false, evented: false, objectCaching: false,
+  });
+}
 
 export function buildGhost(g, index) {
-  const color = ACCENT_BLUE;
-  const label = GHOST_LABEL[g.kind] || (g.number ? String(g.number) : '?');
-  const rect = new fabric.Rect({
-    left: g.x, top: g.y, width: g.w, height: g.h,
-    fill: `${color}40`, stroke: color, opacity: 0.25,
-    strokeWidth: 2, strokeDashArray: [7, 5], strokeUniform: true, objectCaching: false,
-  });
-  const t = new fabric.FabricText(label, {
-    left: g.x + g.w / 2, top: g.y + g.h / 2, originX: 'center', originY: 'center',
-    fontSize: 22, fill: color, fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
-  });
-  const grp = new fabric.Group([rect, t], {
+  const kids = [];
+  let cx = g.x + (g.w || 0) / 2;
+  let top = g.y;
+
+  if (g.kind === 'door') {
+    kids.push(new fabric.Line([g.x1, g.y1, g.x2, g.y2], {
+      stroke: GHOST_STROKE, strokeWidth: 8, opacity: 0.8, strokeUniform: true,
+      selectable: false, evented: false, objectCaching: false,
+    }));
+    const mid = { x: (g.x1 + g.x2) / 2, y: (g.y1 + g.y2) / 2 };
+    kids.push(new fabric.FabricText('EXIT', {
+      left: mid.x, top: mid.y, originX: 'center', originY: 'center',
+      fontSize: 20, fontWeight: 700, fill: GHOST_TEXT, fontFamily: FONT,
+      selectable: false, evented: false, objectCaching: false,
+    }));
+    cx = mid.x;
+    top = Math.min(g.y1, g.y2) - 20;
+  } else if (g.kind === 'stair') {
+    kids.push(new fabric.Rect({
+      left: g.x, top: g.y, width: g.w, height: g.h,
+      fill: GHOST_FILL, opacity: 0.8, stroke: GHOST_STROKE, strokeWidth: 2,
+      strokeUniform: true, objectCaching: false,
+    }));
+    for (const t of stairTreads({ x: g.x, y: g.y, w: g.w, h: g.h, dir: g.dir || 'v' })) {
+      kids.push(new fabric.Line([t.x1, t.y1, t.x2, t.y2], {
+        stroke: GHOST_STROKE, strokeWidth: 2, strokeUniform: true,
+        selectable: false, evented: false, objectCaching: false,
+      }));
+    }
+  } else if (g.kind === 'hall') {
+    kids.push(new fabric.Rect({
+      left: g.x, top: g.y, width: g.w, height: g.h,
+      fill: GHOST_FILL, opacity: 0.8, stroke: GHOST_STROKE, strokeWidth: 2,
+      strokeUniform: true, objectCaching: false,
+    }));
+  } else {
+    kids.push(new fabric.Rect({
+      left: g.x, top: g.y, width: g.w, height: g.h,
+      fill: GHOST_FILL, opacity: 0.8, stroke: GHOST_STROKE, strokeWidth: 2,
+      strokeUniform: true, objectCaching: false,
+    }));
+    kids.push(new fabric.FabricText(g.number ? String(g.number) : '?', {
+      left: g.x + g.w / 2, top: g.y + g.h / 2, originX: 'center', originY: 'center',
+      fontSize: 22, fill: GHOST_TEXT, fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
+    }));
+  }
+  kids.push(ghostTag(cx, top));
+
+  const grp = new fabric.Group(kids, {
     selectable: false, evented: true, hoverCursor: 'pointer', objectCaching: false,
   });
   grp.ghostIndex = index;
+  grp.itemType = 'ghost';
   grp.zLayer = LAYER.ghost;
   grp.overlay = true;
   return grp;
