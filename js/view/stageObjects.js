@@ -341,7 +341,7 @@ function buildCompass(item) {
   const kids = [
     // Invisible square so the group's bounding box is centred on the needle.
     new fabric.Rect({ left: -70, top: -70, width: 140, height: 140, fill: 'rgba(0,0,0,0)', objectCaching: false }),
-    new fabric.Circle({ radius: 62, originX: 'center', originY: 'center', left: 0, top: 0, fill: '#ffffff', stroke: '#e6e6ea', strokeWidth: 3, objectCaching: false }),
+    new fabric.Circle({ radius: 80, originX: 'center', originY: 'center', left: 0, top: 0, fill: '#ffffff', stroke: '#1d1f23', strokeWidth: 3, objectCaching: false }),
     new fabric.Circle({ radius: 49, originX: 'center', originY: 'center', left: 0, top: 0, fill: 'rgba(0,0,0,0)', stroke: '#f0f0f3', strokeWidth: 2, objectCaching: false }),
     new fabric.Polygon([{ x: 0, y: -38 }, { x: 11, y: 0 }, { x: -11, y: 0 }], { fill: '#8C0B42', objectCaching: false }),
     new fabric.Polygon([{ x: 0, y: 38 }, { x: 11, y: 0 }, { x: -11, y: 0 }], { fill: '#c7c7cc', objectCaching: false }),
