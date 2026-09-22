@@ -12,6 +12,7 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import {
   LAYER, buildItem, buildFloor, rebuildFloorPoints, buildGhost, buildGuide, buildRoute, pulseGhost,
+  hallIntersection, buildHallOverlap,
 } from './stageObjects.js';
 import { createSnapper } from './stageSnap.js';
 import { attachView } from './stageView.js';
@@ -55,7 +56,7 @@ export function createStage(containerEl, app) {
 
   const objects = new Map(); // item id -> main fabric object
   const extras = new Map(); // item id -> [companion objects]
-  const overlays = { guides: [], ghosts: [], route: [] };
+  const overlays = { guides: [], ghosts: [], route: [], hallOverlap: [] };
   let gridRect = null;
   let doc = null;
   let prevDoc = null;
@@ -145,7 +146,23 @@ export function createStage(containerEl, app) {
     prevDoc = newDoc;
     snapper.invalidate();
     syncFloor(newDoc);
+    refreshHallOverlaps(newDoc);
     restack();
+  }
+
+  function refreshHallOverlaps(newDoc) {
+    clearOverlay('hallOverlap');
+    const halls = (newDoc.items || []).filter((it) => it.type === 'hall');
+    for (let i = 0; i < halls.length; i += 1) {
+      for (let j = i + 1; j < halls.length; j += 1) {
+        const rect = hallIntersection(halls[i], halls[j]);
+        if (rect) {
+          const obj = buildHallOverlap(rect);
+          overlays.hallOverlap.push(obj);
+          canvas.add(obj);
+        }
+      }
+    }
   }
 
   // ------------------------------------------------------------ overlays ---

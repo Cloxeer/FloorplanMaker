@@ -112,7 +112,10 @@ export function createActions(app, deps) {
     const svgName = names.svg.split('/').pop();
     const jpgName = names.jpg.split('/').pop();
     if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
-    app._previewHandle = showPreviewStep({ svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName }, {
+    const halls = app.doc.items.filter((it) => it.type === 'hall');
+    app._previewHandle = showPreviewStep({
+      svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName, halls,
+    }, {
       onBack: () => {
         app._previewHandle = null;
         if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);

@@ -10,8 +10,20 @@
 import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 
+function hallIntersection(a, b) {
+  const axisA = a.w > a.h ? 'h' : 'v';
+  const axisB = b.w > b.h ? 'h' : 'v';
+  if (axisA !== axisB) return null;
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+  if (x2 <= x1 || y2 <= y1) return null;
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
 export function showPreviewStep({
-  svgText, validation, twoFiles, svgName, jpgName,
+  svgText, validation, twoFiles, svgName, jpgName, halls,
 }, { onBack, onDownload }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
@@ -32,6 +44,7 @@ export function showPreviewStep({
       <aside class="preview-side">
         <div class="section-title">Legend</div>
         ${legendHtml('legend-list')}
+        <p class="legend-note">Hallway (guide, not exported)</p>
         <p class="legend-note">${LEGEND_NOTE}</p>
         <div class="section-title">Checklist</div>
         <ul class="checklist">${checklistHtml(validation || [])}</ul>
@@ -57,6 +70,39 @@ export function showPreviewStep({
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.background = '#ffffff';
+
+    // Hallways are studio-only guides, left out of the exported SVG text.
+    // Overlay them here (and their overlaps) into the inline preview SVG
+    // only — never mutate svgText itself.
+    const ns = 'http://www.w3.org/2000/svg';
+    const halls_ = halls || [];
+    for (const h of halls_) {
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', h.x);
+      r.setAttribute('y', h.y);
+      r.setAttribute('width', h.w);
+      r.setAttribute('height', h.h);
+      r.setAttribute('fill', '#cfe3ff');
+      r.setAttribute('fill-opacity', '0.5');
+      r.setAttribute('stroke', 'none');
+      svgEl.appendChild(r);
+    }
+    for (let i = 0; i < halls_.length; i += 1) {
+      for (let j = i + 1; j < halls_.length; j += 1) {
+        const rect = hallIntersection(halls_[i], halls_[j]);
+        if (rect) {
+          const r = document.createElementNS(ns, 'rect');
+          r.setAttribute('x', rect.x);
+          r.setAttribute('y', rect.y);
+          r.setAttribute('width', rect.w);
+          r.setAttribute('height', rect.h);
+          r.setAttribute('fill', '#e5484d');
+          r.setAttribute('fill-opacity', '0.35');
+          r.setAttribute('stroke', 'none');
+          svgEl.appendChild(r);
+        }
+      }
+    }
   }
 
   function close() {

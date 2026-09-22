@@ -128,8 +128,8 @@ function buildPolyLabel(item) {
 function buildHall(item) {
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
-    fill: 'rgba(120,176,224,0.22)', stroke: '#5b9bd5', strokeWidth: 2,
-    strokeDashArray: [8, 5], strokeUniform: true, objectCaching: false,
+    fill: 'rgba(207,227,255,0.5)', stroke: '#cfe3ff', strokeWidth: 1,
+    strokeUniform: true, objectCaching: false,
   });
   const t = new fabric.FabricText('Hallway', {
     left: item.x + item.w / 2, top: item.y + item.h / 2, originX: 'center', originY: 'center',
@@ -359,6 +359,37 @@ export function buildGuide(guide, view) {
   line.zLayer = LAYER.guide;
   line.overlay = true;
   return line;
+}
+
+// A hall's long axis: 'h' when it runs wider than tall, else 'v'. Two halls
+// crossing at a T/+ junction (one 'h', one 'v') are a normal junction, not a
+// stack-up — only same-axis overlap counts as "on top of".
+export function hallAxis(item) {
+  return item.w > item.h ? 'h' : 'v';
+}
+
+// Rect intersection of two axis-aligned hall items sharing the same long
+// axis, or null when they don't overlap (touching edges only, area 0, or
+// crossing at a T/+ junction, doesn't count).
+export function hallIntersection(a, b) {
+  if (hallAxis(a) !== hallAxis(b)) return null;
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+  if (x2 <= x1 || y2 <= y1) return null;
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+
+export function buildHallOverlap(rect) {
+  const r = new fabric.Rect({
+    left: rect.x, top: rect.y, width: rect.w, height: rect.h,
+    fill: 'rgba(229,72,77,0.35)', stroke: null,
+    selectable: false, evented: false, objectCaching: false,
+  });
+  r.zLayer = LAYER.guide;
+  r.overlay = true;
+  return r;
 }
 
 export function buildRoute(pts) {
