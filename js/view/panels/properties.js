@@ -7,12 +7,25 @@ import { getItem, updateItem, removeItems, NUMBER_RE } from '../../model/documen
 import { rectToPoints, dist } from '../../model/geometry.js';
 
 const CLASS_OPTIONS = [
-  { cls: 'room', label: 'Room' },
-  { cls: 'big', label: 'Big' },
-  { cls: 'ours', label: 'Ours' },
-  { cls: 'core', label: 'Core' },
-  { cls: 'void', label: 'Void' },
+  { key: 'room', cls: 'room', label: 'Room' },
+  { key: 'big', cls: 'big', label: 'Big room' },
+  { key: 'restroom', cls: 'core', name: 'Restrooms', label: 'Restroom' },
+  { key: 'elevator', cls: 'core', name: 'Elevator', label: 'Elevator' },
+  { key: 'void', cls: 'void', label: 'Void' },
 ];
+
+function coreOptionName(item) {
+  // Match an existing core item's name to Restroom/Elevator loosely.
+  const n = (item.name || '').trim().toLowerCase();
+  if (n.startsWith('elevator')) return 'Elevator';
+  return 'Restrooms';
+}
+
+function classOptionKey(item) {
+  if (item.cls === 'core') return coreOptionName(item) === 'Elevator' ? 'elevator' : 'restroom';
+  if (item.cls === 'ours') return 'ours';
+  return item.cls;
+}
 
 function selectedItems(app) {
   const ids = [...app.selection];
@@ -69,19 +82,37 @@ export function mountProperties(el, app) {
   }
 
   function classChipsHtml(item) {
+    const activeKey = classOptionKey(item);
+    const isOurs = item.cls === 'ours';
+    const oursChip = isOurs
+      ? `<button type="button" class="chip chip-ours active" data-cls="ours" disabled><span class="chip-swatch"></span>Ours</button>`
+      : '';
     return `
       <div class="form-row">
         <label>Type</label>
         <div class="chip-row" id="p-class">
-          ${CLASS_OPTIONS.map((c) => `<button type="button" class="chip chip-${c.cls} ${item.cls === c.cls ? 'active' : ''}" data-cls="${c.cls}"><span class="chip-swatch"></span>${c.label}</button>`).join('')}
+          ${oursChip}
+          ${CLASS_OPTIONS.map((c) => `<button type="button" class="chip chip-${c.cls} ${activeKey === c.key ? 'active' : ''}" data-key="${c.key}"><span class="chip-swatch"></span>${c.label}</button>`).join('')}
         </div>
       </div>
     `;
   }
 
   function wireClassChips(item) {
-    el.querySelectorAll('#p-class .chip').forEach((btn) => {
-      btn.addEventListener('click', () => commitField(item.id, { cls: btn.dataset.cls }, 'Change type'));
+    el.querySelectorAll('#p-class .chip[data-key]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const opt = CLASS_OPTIONS.find((c) => c.key === btn.dataset.key);
+        if (!opt) return;
+        const patch = { cls: opt.cls };
+        if (opt.name) {
+          patch.name = opt.name;
+        } else {
+          // Leaving core: clear a restroom/elevator name that no longer applies.
+          const wasCoreName = item.cls === 'core' && (item.name === 'Restrooms' || item.name === 'Elevator');
+          if (wasCoreName) patch.name = '';
+        }
+        commitField(item.id, patch, 'Change type');
+      });
     });
   }
 
