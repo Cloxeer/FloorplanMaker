@@ -75,7 +75,7 @@ self.onmessage = async (e) => {
       await ocrRegions(id, msg.width, msg.height, msg.data, msg.regions);
       self.postMessage({ id, kind: 'ocr-done' });
     } else if (kind === 'stairs') {
-      const { stairs, doors } = findStairsAndDoors(msg.width, msg.height, msg.data, msg.outline || null);
+      const { stairs, doors } = findStairsAndDoors(msg.width, msg.height, msg.data, msg.outline || null, !!msg.skipDoors);
       self.postMessage({ id, kind: 'stairs', stairs, doors });
     } else if (kind === 'halls') {
       const { halls } = findHalls(msg.width, msg.height, msg.data, msg.outline || null);
@@ -312,7 +312,7 @@ function findHalls(width, height, data, outline) {
   return { halls };
 }
 
-function findStairsAndDoors(width, height, data, outline) {
+function findStairsAndDoors(width, height, data, outline, skipDoors) {
   const { ink, dilated } = computeInkMask(width, height, data);
   const stairs = [];
 
@@ -332,23 +332,30 @@ function findStairsAndDoors(width, height, data, outline) {
     }
   });
 
-  const doors = findDoors(width, height, data, outline);
+  const doors = skipDoors ? [] : findDoors(width, height, data, outline);
   return { stairs, doors };
 }
 
-// Strong-green (EXIT sign) or strong-red (exit marker) pixel anywhere in a
-// 40x40 window centred at (cx, cy).
+// Strong-green (EXIT sign) or strong-red (exit marker) pixels in a 40x40
+// window centred at (cx, cy). Requires at least 40 matching pixels so a
+// stray sign or a couple of noisy pixels never invents a door.
+const EXIT_COLOR_MIN_PIXELS = 40;
+
 function hasExitColor(width, height, data, cx, cy) {
   const half = 20;
   const x0 = Math.max(0, Math.round(cx - half));
   const y0 = Math.max(0, Math.round(cy - half));
   const x1 = Math.min(width - 1, Math.round(cx + half));
   const y1 = Math.min(height - 1, Math.round(cy + half));
+  let count = 0;
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const o = (y * width + x) * 4;
       const r = data[o], g = data[o + 1], b = data[o + 2];
-      if ((g > r + 40 && g > b + 40) || (r > g + 60 && r > b + 60)) return true;
+      if ((g > r + 40 && g > b + 40) || (r > g + 60 && r > b + 60)) {
+        count++;
+        if (count >= EXIT_COLOR_MIN_PIXELS) return true;
+      }
     }
   }
   return false;
