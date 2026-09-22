@@ -14,6 +14,7 @@ const CHECKLIST = [
   { label: 'At least two rooms with a number', codes: ['checklist-no-numbered-room'] },
   { label: 'All hallways connect', codes: ['hall-unconnected'] },
   { label: 'Every room reaches a hallway', codes: ['room-not-touching-hall'] },
+  { label: 'Compass placed', codes: ['checklist-no-compass'] },
 ];
 
 // Some checklist rows need facts that js/model/validate.js does not report
@@ -25,7 +26,9 @@ export function docChecklistCodes(doc) {
   const hasDoorOrStair = items.some((it) => it.type === 'door' || it.type === 'stair');
   const hasHall = items.some((it) => it.type === 'hall');
   const numberedRoomCount = items.filter((it) => it.type === 'room' && it.number).length;
+  const hasCompass = items.some((it) => it.type === 'compass');
   const out = [];
+  if (!hasCompass) out.push({ level: 'warning', code: 'checklist-no-compass', message: 'Add a compass so the map is oriented.' });
   if (!hasDoorOrStair) out.push({ level: 'error', code: 'checklist-no-door', message: 'Add at least one door or stairs.' });
   if (!hasHall) out.push({ level: 'error', code: 'checklist-no-hall', message: 'Add at least one hallway.' });
   if (numberedRoomCount < 2) out.push({ level: 'error', code: 'checklist-no-numbered-room', message: 'Add at least two rooms with a number.' });
