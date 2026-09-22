@@ -14,6 +14,8 @@ import {
   LAYER, buildItem, buildFloor, rebuildFloorPoints, buildGhost, buildGuide, buildRoute, pulseGhost,
   hallIntersection, buildHallOverlap,
 } from './stageObjects.js';
+import { roomPolygon } from '../model/document.js';
+import { polygonsOverlap, bbox } from '../model/geometry.js';
 import { createSnapper } from './stageSnap.js';
 import { attachView } from './stageView.js';
 import { attachEditing } from './stageEdit.js';
@@ -56,7 +58,7 @@ export function createStage(containerEl, app) {
 
   const objects = new Map(); // item id -> main fabric object
   const extras = new Map(); // item id -> [companion objects]
-  const overlays = { guides: [], ghosts: [], route: [], hallOverlap: [] };
+  const overlays = { guides: [], ghosts: [], route: [], hallOverlap: [], roomOverlap: [] };
   let gridRect = null;
   let doc = null;
   let prevDoc = null;
@@ -147,6 +149,7 @@ export function createStage(containerEl, app) {
     snapper.invalidate();
     syncFloor(newDoc);
     refreshHallOverlaps(newDoc);
+    refreshRoomOverlaps(newDoc);
     restack();
   }
 
@@ -159,6 +162,34 @@ export function createStage(containerEl, app) {
         if (rect) {
           const obj = buildHallOverlap(rect);
           overlays.hallOverlap.push(obj);
+          canvas.add(obj);
+        }
+      }
+    }
+  }
+
+  // Rectangle intersection of two bboxes {x,y,w,h}, or null when they don't
+  // overlap (mirrors hallIntersection but without the same-axis restriction).
+  function rectIntersect(a, b) {
+    const x1 = Math.max(a.x, b.x);
+    const y1 = Math.max(a.y, b.y);
+    const x2 = Math.min(a.x + a.w, b.x + b.w);
+    const y2 = Math.min(a.y + a.h, b.y + b.h);
+    if (x2 <= x1 || y2 <= y1) return null;
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+
+  function refreshRoomOverlaps(newDoc) {
+    clearOverlay('roomOverlap');
+    const rooms = (newDoc.items || []).filter((it) => it.type === 'room' && it.cls !== 'void');
+    const polys = rooms.map((r) => roomPolygon(r));
+    for (let i = 0; i < rooms.length; i += 1) {
+      for (let j = i + 1; j < rooms.length; j += 1) {
+        if (!polygonsOverlap(polys[i], polys[j])) continue;
+        const rect = rectIntersect(bbox(polys[i]), bbox(polys[j]));
+        if (rect) {
+          const obj = buildHallOverlap(rect);
+          overlays.roomOverlap.push(obj);
           canvas.add(obj);
         }
       }
