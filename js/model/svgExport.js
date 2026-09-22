@@ -81,7 +81,7 @@ function compassLines(item) {
   return [
     `${IND}<!-- Which way the building really faces; matches the compass on the posted evacuation map. -->`,
     `${IND}<g class="compass" transform="translate(${r(item.x)},${r(item.y)}) rotate(${r(item.deg || 0)})">`,
-    `${I2}<circle r="62" fill="#ffffff" stroke="#e6e6ea" stroke-width="3"/>`,
+    `${I2}<circle r="62" fill="#ffffff" stroke="#1d1f23" stroke-width="3"/>`,
     `${I2}<circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>`,
     `${I2}<path d="M0,-38 L11,0 L-11,0 Z" fill="#8C0B42"/>`,
     `${I2}<path d="M0,38 L11,0 L-11,0 Z" fill="#c7c7cc"/>`,
