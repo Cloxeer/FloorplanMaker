@@ -1,6 +1,9 @@
 // exportDialog.js
-// Triggers the .svg and -posted.jpg downloads and shows a modal with the
-// building-extras.json snippet and the build commands, each with Copy.
+// Full-screen "Export" step (step 4): a format dropdown (SVG / PNG / SVG +
+// photo) and a single "Download" button that downloads exactly one thing per
+// click. Also shows a short plain-language note, and — collapsed by default,
+// behind a "For the map maintainer" <details> — the building-extras.json
+// snippet and the two build commands.
 // Depends on: js/model/svgExport.js (exportExtrasSnippet, exportCommands, exportFileNames).
 
 import { exportExtrasSnippet, exportCommands, exportFileNames } from '../../model/svgExport.js';
@@ -27,64 +30,126 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-export function showExportDialog({ svgText, jpgDataUrl, meta }) {
-  const host = document.getElementById('dialogs');
-  const names = exportFileNames(meta);
-  const snippet = exportExtrasSnippet(meta);
-  const commands = exportCommands().split('\n').filter(Boolean);
+function svgPixelSize(svgText) {
+  const m = svgText.match(/viewBox="([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"/);
+  if (m) return { w: Math.round(parseFloat(m[3])), h: Math.round(parseFloat(m[4])) };
+  return { w: 1600, h: 1200 };
+}
 
-  function doDownloads() {
-    downloadBlob(names.svg, new Blob([svgText], { type: 'image/svg+xml' }));
-    if (jpgDataUrl) downloadBlob(names.jpg, dataUrlToBlob(jpgDataUrl));
-  }
-  doDownloads();
-
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.style.maxWidth = '520px';
-  backdrop.appendChild(modal);
-
-  modal.innerHTML = `
-    <h3>Exported ${escapeHtml(names.svg)}</h3>
-    <p style="color:var(--muted)">Downloads started for <code>${escapeHtml(names.svg)}</code> and <code>${escapeHtml(names.jpg)}</code>.</p>
-    <div class="section-title">Add this to data/source/building-extras.json, then run:</div>
-    <div class="export-snippet" id="ed-snippet">${escapeHtml(snippet)}</div>
-    <button type="button" id="ed-copy-snippet">Copy snippet</button>
-    <div class="section-title">Run</div>
-    ${commands.map((c, i) => `<div class="export-cmd"><code>${escapeHtml(c)}</code><button type="button" data-cmd="${i}">Copy</button></div>`).join('')}
-    <div class="modal-actions">
-      <button type="button" id="ed-redownload">Download again</button>
-      <button type="button" id="ed-close" class="btn-primary">Done</button>
-    </div>
-  `;
-  host.appendChild(backdrop);
-
-  modal.querySelector('#ed-copy-snippet').addEventListener('click', () => {
-    navigator.clipboard && navigator.clipboard.writeText(snippet);
+function svgToPngBlob(svgText, w, h) {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) resolve(pngBlob);
+        else reject(new Error('Could not rasterize the plan.'));
+      }, 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not rasterize the plan.')); };
+    img.src = url;
   });
-  modal.querySelectorAll('[data-cmd]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const cmd = commands[parseInt(btn.dataset.cmd, 10)];
-      navigator.clipboard && navigator.clipboard.writeText(cmd);
-    });
-  });
-  modal.querySelector('#ed-redownload').addEventListener('click', doDownloads);
-
-  function close() {
-    document.removeEventListener('keydown', onKeyDown);
-    backdrop.remove();
-  }
-  function onKeyDown(e) {
-    if (e.key === 'Escape') close();
-  }
-  modal.querySelector('#ed-close').addEventListener('click', close);
-  document.addEventListener('keydown', onKeyDown);
 }
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+
+export function showExportStep({ svgText, jpgDataUrl, meta }, { onBack }) {
+  const host = document.getElementById('dialogs');
+  const names = exportFileNames(meta);
+  const snippet = exportExtrasSnippet(meta);
+  const commands = exportCommands().split('\n').filter(Boolean);
+
+  const el = document.createElement('div');
+  el.id = 'export-step';
+  el.className = 'export-screen';
+  el.innerHTML = `
+    <header class="preview-header">
+      <button type="button" id="export-back-top">&larr; Back to preview</button>
+      <h2>Export</h2>
+      <p>Choose what to download.</p>
+    </header>
+    <div class="export-body">
+      <label class="export-format-label" for="export-format">Format</label>
+      <select id="export-format">
+        <option value="svg" selected>SVG (plan)</option>
+        <option value="png">PNG (image)</option>
+        ${jpgDataUrl ? '<option value="both">SVG + photo (folder)</option>' : ''}
+      </select>
+      <button type="button" id="export-download" class="btn-primary">Download</button>
+      <p class="export-note">Your file: <code>${escapeHtml(names.svg)}</code>. Hand this to whoever maintains the map.</p>
+      <details id="export-maintainer">
+        <summary>For the map maintainer</summary>
+        <div class="section-title">Add this to data/source/building-extras.json, then run:</div>
+        <div class="export-snippet" id="ed-snippet">${escapeHtml(snippet)}</div>
+        <button type="button" id="ed-copy-snippet">Copy snippet</button>
+        <div class="section-title">Run</div>
+        ${commands.map((c, i) => `<div class="export-cmd"><code>${escapeHtml(c)}</code><button type="button" data-cmd="${i}">Copy</button></div>`).join('')}
+      </details>
+    </div>
+    <div class="preview-actions">
+      <button type="button" id="export-back">Back to preview</button>
+    </div>
+  `;
+  host.appendChild(el);
+
+  const formatSel = el.querySelector('#export-format');
+  const downloadBtn = el.querySelector('#export-download');
+
+  downloadBtn.addEventListener('click', async () => {
+    const fmt = formatSel.value;
+    downloadBtn.disabled = true;
+    try {
+      if (fmt === 'svg') {
+        downloadBlob(names.svg, new Blob([svgText], { type: 'image/svg+xml' }));
+      } else if (fmt === 'png') {
+        const { w, h } = svgPixelSize(svgText);
+        const pngBlob = await svgToPngBlob(svgText, w, h);
+        downloadBlob(names.svg.replace(/\.svg$/i, '.png'), pngBlob);
+      } else if (fmt === 'both') {
+        downloadBlob(names.svg, new Blob([svgText], { type: 'image/svg+xml' }));
+        if (jpgDataUrl) downloadBlob(names.jpg, dataUrlToBlob(jpgDataUrl));
+      }
+    } catch {
+      // eslint-disable-next-line no-alert
+      alert('Could not build that download. Try SVG instead.');
+    } finally {
+      downloadBtn.disabled = false;
+    }
+  });
+
+  el.querySelector('#ed-copy-snippet').addEventListener('click', () => {
+    navigator.clipboard && navigator.clipboard.writeText(snippet);
+  });
+  el.querySelectorAll('[data-cmd]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cmd = commands[parseInt(btn.dataset.cmd, 10)];
+      navigator.clipboard && navigator.clipboard.writeText(cmd);
+    });
+  });
+
+  function close() {
+    document.removeEventListener('keydown', onKeyDown);
+    el.remove();
+  }
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { close(); if (onBack) onBack(); }
+  }
+  document.addEventListener('keydown', onKeyDown);
+  el.querySelector('#export-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
+  el.querySelector('#export-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
+
+  return { close };
 }

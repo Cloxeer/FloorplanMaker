@@ -450,8 +450,24 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 .preview-download-note { margin: 0; color: var(--muted); font-size: 11px; text-align: right; line-height: 1.4; }
 .preview-legend-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .preview-legend-controls { display: flex; gap: 8px; }
-#preview-download:disabled { opacity: 0.5; cursor: not-allowed; }
+#preview-export:disabled { opacity: 0.5; cursor: not-allowed; }
 .chip.disabled { opacity: 0.45; pointer-events: none; }
+
+/* --- Export step (full-screen panel with the format dropdown + Download) --- */
+.export-screen {
+  position: fixed; inset: 0; z-index: 500; background: var(--panel, #fff);
+  display: flex; flex-direction: column; padding: 16px 24px;
+  pointer-events: auto;
+}
+#export-back-top { align-self: flex-start; background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0 0 8px; }
+.export-body { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 480px; }
+.export-format-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+#export-format { font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); }
+#export-download { margin-top: 4px; }
+#export-download:disabled { opacity: 0.5; cursor: not-allowed; }
+.export-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 8px 0 0; }
+#export-maintainer { margin-top: 16px; width: 100%; }
+#export-maintainer summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 
 /* --- Folder line (start screen) --- */
 .folder-line { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin: 8px 0 0; }

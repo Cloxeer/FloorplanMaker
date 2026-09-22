@@ -50,7 +50,7 @@ async function applyRoute(studio) {
   currentRouteHash = hash;
   routing = true;
   try {
-    const m = hash.match(/^#\/p\/([^/]+)\/(photo|trace|preview)$/);
+    const m = hash.match(/^#\/p\/([^/]+)\/(photo|trace|preview|export)$/);
     if (m) {
       const slug = decodeURIComponent(m[1]);
       const ok = await studio.openBySlug(slug);
@@ -61,6 +61,7 @@ async function applyRoute(studio) {
       }
       if (m[2] === 'photo') studio.gotoPhoto();
       else if (m[2] === 'preview') studio.gotoPreview();
+      else if (m[2] === 'export') studio.gotoExport();
       else studio.gotoTrace();
       return;
     }

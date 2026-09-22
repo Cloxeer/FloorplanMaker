@@ -7,8 +7,8 @@
 import { getItem, addItem, newId, nextNumber } from './model/document.js';
 import { bbox } from './model/geometry.js';
 import { validate } from './model/validate.js';
-import { exportSvg, exportFileNames } from './model/svgExport.js';
-import { showExportDialog } from './view/panels/exportDialog.js';
+import { exportSvg } from './model/svgExport.js';
+import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
 import { legendSvgGroupAt } from './view/panels/legend.js';
 
@@ -112,26 +112,46 @@ export function createActions(app, deps) {
     }
     const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    const names = exportFileNames(doc.meta);
-    const svgName = names.svg.split('/').pop();
-    const jpgName = names.jpg.split('/').pop();
-    if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
     const halls = app.doc.items.filter((it) => it.type === 'hall');
     const rooms = doc.items.filter((it) => it.type === 'room');
-    app._previewHandle = showPreviewStep({
-      svgText, validation: results, twoFiles: !!jpgDataUrl, svgName, jpgName, halls, rooms,
-    }, {
-      onBack: () => {
-        app._previewHandle = null;
-        if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
-      },
-      onDownload: (legendPos) => {
-        const finalSvg = legendPos
-          ? svgText.replace('</svg>', `${legendSvgGroupAt(legendPos.x, legendPos.y, legendPos.scale)}</svg>`)
-          : svgText;
-        showExportDialog({ svgText: finalSvg, jpgDataUrl, meta: doc.meta });
-      },
-    });
+    let legendPos = null;
+
+    function closePreview() { if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; } }
+    function closeExport() { if (app._exportHandle) { app._exportHandle.close(); app._exportHandle = null; } }
+
+    function openPreview() {
+      closeExport();
+      if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
+      app._previewHandle = showPreviewStep({
+        svgText, validation: results, halls, rooms, initialLegendPos: legendPos,
+      }, {
+        onBack: () => {
+          app._previewHandle = null;
+          if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
+        },
+        onExport: (pos) => {
+          legendPos = pos;
+          closePreview();
+          openExport();
+        },
+      });
+      app.emit({ type: 'step' });
+    }
+    function openExport() {
+      if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/export`);
+      const finalSvg = legendPos
+        ? svgText.replace('</svg>', `${legendSvgGroupAt(legendPos.x, legendPos.y, legendPos.scale)}</svg>`)
+        : svgText;
+      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta }, {
+        onBack: () => {
+          app._exportHandle = null;
+          openPreview();
+        },
+      });
+      app.emit({ type: 'step' });
+    }
+
+    openPreview();
   }
 
   return { duplicateInRow, copy, paste, routeToRoom, exportAll, scheduleRouteValidation };
