@@ -146,7 +146,7 @@ export function mountValidation(el, app) {
 
     const allSatisfied = checklistReady(results);
 
-    const readyHtml = allSatisfied ? '<div class="checklist-ready">Ready to export &#10003;</div>' : '';
+    const readyHtml = '';
 
     const fixListHtml = remainingErrors.length ? `
       <div class="section-title">Fix these before export</div>
