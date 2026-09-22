@@ -23,6 +23,7 @@ const STYLE_BLOCK = [
   '    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }',
   '    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }',
   '    .compass-north  { fill: #8C0B42; }',
+  '    .floor-edge { fill:none; stroke:#3a3d42; stroke-width:6; stroke-linejoin:round; }',
   '  </style>',
 ].join('\n');
 

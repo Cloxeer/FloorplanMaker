@@ -185,6 +185,13 @@ export function importSvg(svgText) {
       continue;
     }
 
+    // The outline is re-drawn stroke-only on top (see svgExport.js) purely so
+    // rooms/halls never visually cover the wall line. It's regenerated from
+    // doc.floor on every export, so the importer just ignores it here.
+    if ((t.kind === 'selfclose' || t.kind === 'open') && t.name === 'polygon' && t.attrs.class === 'floor-edge') {
+      continue;
+    }
+
     if ((t.kind === 'selfclose') && t.name === 'rect' && /^(room|big|ours|core|void)$/.test(t.attrs.class || '')) {
       const item = {
         id: newId(),
