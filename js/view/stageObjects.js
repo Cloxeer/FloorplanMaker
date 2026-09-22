@@ -85,8 +85,20 @@ function buildRoomRect(item) {
     strokeDashArray: item.cls === 'void' ? [6, 4] : null,
     strokeUniform: true, objectCaching: false,
   });
-  const kids = [rect];
-  if (item.cls !== 'void') kids.push(...makeLabel(item, labelPos(item), item.w, item.h));
+  // A void has no label, so there is nothing to group the rect with. Fabric's
+  // single-child Group recomputes its own bounding box/layout on move in a
+  // way that corrupts width/height (absBox ends up reporting a wildly wrong
+  // box), so voids are dragged as a plain Rect instead, same as poly rooms
+  // are a plain Polygon.
+  if (item.cls === 'void') {
+    rect.set({
+      ...BASE, perPixelTargetFind: false, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
+    });
+    rect.setControlVisible('mtr', false);
+    rect.setCoords();
+    return tag(rect, item, 'room');
+  }
+  const kids = [rect, ...makeLabel(item, labelPos(item), item.w, item.h)];
   const g = new fabric.Group(kids, {
     ...BASE, subTargetCheck: false, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
   });

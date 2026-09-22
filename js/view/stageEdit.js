@@ -23,25 +23,54 @@ export function attachEditing(ctx) {
   let committing = false;
   let hoverDot = null;
   let textBases = null;
-  const dragColors = new Map(); // fabric object -> its original fill/stroke
+  const dragColors = new Map(); // fabric object -> its true (undragged/unselected) fill/stroke
+  const selectColors = new Map(); // fabric object -> its true fill/stroke, while blue-selected
 
   // -------------------------------------------------------- drag highlight --
-  function paintYellow(obj) {
-    if (!obj || dragColors.has(obj)) return;
+  function paintWith(map, obj, fill, stroke) {
+    if (!obj || map.has(obj)) return;
     const kids = obj.getObjects ? obj.getObjects() : [obj];
     const saved = kids.map((o) => ({ o, fill: o.fill, stroke: o.stroke }));
-    dragColors.set(obj, saved);
+    map.set(obj, saved);
     for (const { o } of saved) {
-      if (o.fill !== undefined && o.fill !== null) o.set({ fill: '#fff3b0' });
-      if (o.stroke !== undefined && o.stroke !== null) o.set({ stroke: '#e0a800' });
+      if (o.fill !== undefined && o.fill !== null) o.set({ fill });
+      if (o.stroke !== undefined && o.stroke !== null) o.set({ stroke });
     }
   }
-  function clearDragColors() {
-    if (!dragColors.size) return;
-    for (const saved of dragColors.values()) {
+  function clearPaint(map, obj) {
+    const saved = map.get(obj);
+    if (!saved) return;
+    for (const { o, fill, stroke } of saved) o.set({ fill, stroke });
+    map.delete(obj);
+  }
+  function clearAllPaint(map) {
+    if (!map.size) return;
+    for (const saved of map.values()) {
       for (const { o, fill, stroke } of saved) o.set({ fill, stroke });
     }
-    dragColors.clear();
+    map.clear();
+  }
+
+  function paintYellow(obj) {
+    if (!obj || dragColors.has(obj)) return;
+    clearPaint(selectColors, obj); // drag colour wins over the blue "selected" tint
+    paintWith(dragColors, obj, '#fff3b0', '#e0a800');
+  }
+  function clearDragColors() {
+    clearAllPaint(dragColors);
+    // Dragging is over; if the object(s) are still selected, restore the
+    // blue highlight instead of their plain colours.
+    for (const obj of canvas.getActiveObjects()) paintBlue(obj);
+  }
+
+  // ------------------------------------------------- selection highlight --
+  function paintBlue(obj) {
+    if (!obj || dragColors.has(obj)) return; // actively dragging: yellow wins
+    paintWith(selectColors, obj, '#dbe7fd', '#2f6feb');
+  }
+  function repaintSelection() {
+    clearAllPaint(selectColors);
+    for (const obj of canvas.getActiveObjects()) paintBlue(obj);
   }
 
   function grid(v) {
@@ -54,6 +83,7 @@ export function attachEditing(ctx) {
     return active.map((o) => o.itemId).filter(Boolean);
   }
   function onSelectionEvent() {
+    repaintSelection();
     if (syncing) return;
     syncing = true;
     app.setSelection(currentIds());
@@ -70,6 +100,7 @@ export function attachEditing(ctx) {
       canvas.setActiveObject(new fabric.ActiveSelection(objs, { canvas }));
     }
     syncing = false;
+    repaintSelection();
     render();
   }
   // Removing an object makes Fabric clear the selection, which would wipe
@@ -107,6 +138,7 @@ export function attachEditing(ctx) {
   canvas.on('object:moving', (opt) => {
     const t = opt.target;
     if (!t) return;
+    document.body.classList.add('dragging');
     paintYellow(t);
     const box = absBox(t);
     const { dx, dy, guides } = snapper.snapBox(box, {
@@ -212,6 +244,7 @@ export function attachEditing(ctx) {
   function applyModified(t) {
     textBases = null;
     t.__lastPos = null;
+    document.body.classList.remove('dragging');
     clearDragColors();
     setGuides([]);
     snapper.invalidate();
@@ -236,7 +269,11 @@ export function attachEditing(ctx) {
     else render();
   }
 
-  canvas.on('mouse:up', () => { clearDragColors(); setGuides([]); });
+  canvas.on('mouse:up', () => {
+    document.body.classList.remove('dragging');
+    clearDragColors();
+    setGuides([]);
+  });
 
   // -------------------------------------------- vertex insert / hover dot --
   function activePoly() {
