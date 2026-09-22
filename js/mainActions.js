@@ -77,11 +77,13 @@ export function createStudio(app, deps) {
   function scheduleSaveView() {
     if (!app.project) return;
     const v = app.canvas.getView();
-    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity };
+    const legendPos = app.project.view && app.project.view.legendPos;
+    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity, legendPos };
     saveProject(app.project);
     persistToFolder(app.project);
     app.emit({ type: 'view' });
   }
+  app.saveView = scheduleSaveView;
   function isTypingTarget(e) {
     if (document.querySelector('.modal-backdrop')) return true;
     const t = e.target;

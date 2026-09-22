@@ -66,7 +66,7 @@ function escapeHtml(s) {
   }[c]));
 }
 
-export function showExportStep({ svgText, jpgDataUrl, meta }, { onBack }) {
+export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, projectName }, { onBack }) {
   const host = document.getElementById('dialogs');
   const names = exportFileNames(meta);
   const snippet = exportExtrasSnippet(meta);
@@ -87,9 +87,11 @@ export function showExportStep({ svgText, jpgDataUrl, meta }, { onBack }) {
         <option value="svg" selected>SVG (plan)</option>
         <option value="png">PNG (image)</option>
         ${jpgDataUrl ? '<option value="both">SVG + photo (folder)</option>' : ''}
+        ${projectJson ? '<option value="project">Editable project (.floorplan.json)</option>' : ''}
       </select>
       <button type="button" id="export-download" class="btn-primary">Download</button>
       <p class="export-note">Your file: <code>${escapeHtml(names.svg)}</code>. Hand this to whoever maintains the map.</p>
+      <p class="export-note">Keep working later: pick <em>Editable project (.floorplan.json)</em> to save a copy you can re-open from the start screen with <em>Open .json project</em>.</p>
       <details id="export-maintainer">
         <summary>For the map maintainer</summary>
         <div class="section-title">Add this to data/source/building-extras.json, then run:</div>
@@ -114,6 +116,8 @@ export function showExportStep({ svgText, jpgDataUrl, meta }, { onBack }) {
     try {
       if (fmt === 'svg') {
         downloadBlob(names.svg, new Blob([svgText], { type: 'image/svg+xml' }));
+      } else if (fmt === 'project') {
+        downloadBlob(projectName || 'plan.floorplan.json', new Blob([projectJson], { type: 'application/json' }));
       } else if (fmt === 'png') {
         const { w, h } = svgPixelSize(svgText);
         const pngBlob = await svgToPngBlob(svgText, w, h);
