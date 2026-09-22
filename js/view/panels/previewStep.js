@@ -346,16 +346,14 @@ export function showPreviewStep({
     if (!vb) return { ...pos, scale };
     const gw = gw0 * scale;
     const gh = gh0 * scale;
-    let { x, y } = pos;
-    const plan = planBBox
-      ? { x: planBBox.x, y: planBBox.y, w: planBBox.width, h: planBBox.height }
-      : null;
-    if (plan && rectsOverlap({ x, y, w: gw, h: gh }, plan)) {
-      // Keep the legend off the plan: park it in the right-hand margin.
-      x = plan.x + plan.w + MARGIN;
-      y = Math.max(vb.y, plan.y);
+    const { x, y } = pos;
+    // Only reposition if the legend actually sits ON the building outline
+    // (not merely within the plan's bounding box over white space); otherwise
+    // keep it exactly where the user dropped it.
+    if (floorPoly && floorPoly.length >= 3
+      && rectIntersectsPolygon({ x, y, w: gw, h: gh }, floorPoly) && planBBox) {
+      return { x: planBBox.x + planBBox.width + MARGIN, y: Math.max(vb.y, planBBox.y), scale };
     }
-    if (y < vb.y) y = vb.y;
     return { x, y, scale };
   }
 
