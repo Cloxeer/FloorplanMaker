@@ -10,6 +10,7 @@ import { validate } from './model/validate.js';
 import { exportSvg } from './model/svgExport.js';
 import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
+import { exportProjectJson } from './store/autosave.js';
 import { legendSvgGroupAt, legendGroupSize } from './view/panels/legend.js';
 
 function boxOfItem(item) {
@@ -114,7 +115,9 @@ export function createActions(app, deps) {
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
     const halls = app.doc.items.filter((it) => it.type === 'hall');
     const rooms = doc.items.filter((it) => it.type === 'room');
-    let legendPos = null;
+    let legendPos = (app.project && app.project.view && app.project.view.legendPos) || null;
+    const projectJson = app.project ? exportProjectJson(app.project) : null;
+    const projectName = app.project ? `${app.project.slug}.floorplan.json` : 'plan.floorplan.json';
 
     // Splice the legend group in and grow the root viewBox so it isn't clipped.
     function withLegend(text, pos) {
@@ -146,8 +149,16 @@ export function createActions(app, deps) {
           app._previewHandle = null;
           if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
         },
-        onExport: (pos) => {
+        onSaveLegend: (pos) => {
           legendPos = pos;
+          if (app.project) {
+            app.project.view = app.project.view || {};
+            app.project.view.legendPos = pos;
+            if (app.saveView) app.saveView();
+          }
+        },
+        onExport: (pos) => {
+          legendPos = pos != null ? pos : legendPos;
           closePreview();
           openExport();
         },
@@ -157,7 +168,7 @@ export function createActions(app, deps) {
     function openExport() {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/export`);
       const finalSvg = legendPos ? withLegend(svgText, legendPos) : svgText;
-      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta }, {
+      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName }, {
         onBack: () => {
           app._exportHandle = null;
           openPreview();

@@ -73,7 +73,7 @@ function rectIntersectsPolygon(rect, poly) {
 
 export function showPreviewStep({
   svgText, validation, halls, rooms, initialLegendPos,
-}, { onBack, onExport }) {
+}, { onBack, onExport, onSaveLegend }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
   el.id = 'preview';
@@ -631,6 +631,7 @@ export function showPreviewStep({
     savedLegendPos = pos;
     renderLegendAt(pos);
     exitPlacement();
+    if (onSaveLegend) onSaveLegend(pos);
   });
   removeBtn.addEventListener('click', () => {
     savedLegendPos = null;
@@ -639,6 +640,7 @@ export function showPreviewStep({
     lastGrownVB = null;
     fitViewBox(null);
     exitPlacement();
+    if (onSaveLegend) onSaveLegend(null);
   });
 
   function close() {
