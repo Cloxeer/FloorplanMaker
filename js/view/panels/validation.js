@@ -7,11 +7,12 @@ const CHECKLIST = [
   { label: 'Building outline drawn', codes: ['no-floor', 'floor-not-closed'] },
   { label: 'Every room has a number', codes: ['room-no-number', 'bad-number-format'] },
   { label: 'No two rooms share a number', codes: ['duplicate-number'] },
-  { label: 'Doors sit on the outline with an EXIT label', codes: ['door-off-outline', 'door-no-exit-label', 'door-no-floor'] },
+  { label: 'Any doors sit on the outside wall with a label', codes: ['door-off-outline', 'door-no-exit-label', 'door-no-floor'] },
   { label: 'Labels sit inside their rooms', codes: ['label-outside-shape', 'label-in-other-room'] },
   { label: 'At least one door or stairs', codes: ['checklist-no-door'] },
   { label: 'At least one hallway', codes: ['checklist-no-hall'] },
   { label: 'At least two rooms with a number', codes: ['checklist-no-numbered-room'] },
+  { label: 'All hallways connect', codes: ['hall-unconnected'] },
 ];
 
 // Some checklist rows need facts that js/model/validate.js does not report

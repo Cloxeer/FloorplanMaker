@@ -147,7 +147,27 @@ export function showPreviewStep({
 
   let includeLegend = false;
   const legendToggle = el.querySelector('#preview-include-legend');
-  legendToggle.addEventListener('change', () => { includeLegend = legendToggle.checked; });
+  let legendGroupEl = null;
+  legendToggle.addEventListener('change', () => {
+    includeLegend = legendToggle.checked;
+    if (!svgEl) return;
+    if (includeLegend) {
+      if (!legendGroupEl) {
+        const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+        if (vb.length === 4 && vb.every((n) => Number.isFinite(n))) {
+          const [vx, vy, vw, vh] = vb;
+          const wrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          wrap.innerHTML = legendSvgGroup({
+            x: vx, y: vy, w: vw, h: vh,
+          });
+          legendGroupEl = wrap.firstElementChild;
+        }
+      }
+      if (legendGroupEl) svgEl.appendChild(legendGroupEl);
+    } else if (legendGroupEl && legendGroupEl.parentNode) {
+      legendGroupEl.parentNode.removeChild(legendGroupEl);
+    }
+  });
 
   function close() {
     document.removeEventListener('keydown', onKeyDown);
