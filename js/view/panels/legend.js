@@ -12,7 +12,6 @@ const ITEMS = [
   { label: 'Big room', svg: '<rect class="lg-big" x="2" y="3" width="20" height="14"/>' },
   {
     label: 'Selected room',
-    caption: 'picked out on the live map',
     svg: '<rect class="lg-selected" x="2" y="3" width="20" height="14"/>',
   },
   { label: 'Core', svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>' },

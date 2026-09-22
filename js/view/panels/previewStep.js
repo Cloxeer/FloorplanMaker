@@ -170,6 +170,7 @@ export function showPreviewStep({
   }
   // Grow the preview's viewBox so a legend placed beside/below the plan is
   // visible (the plan's own viewBox has no blank margin). pos=null restores it.
+  let lastGrownVB = null; // the full-fit viewBox for the current legend pos; zoom never exceeds it
   function fitViewBox(pos) {
     const vb = ensureBaseVB();
     if (!vb || !svgEl) return;
@@ -180,7 +181,36 @@ export function showPreviewStep({
     const minY = Math.min(vb.y, pos.y - MARGIN);
     const maxX = Math.max(vb.x + vb.w, pos.x + gw0 * sc + MARGIN);
     const maxY = Math.max(vb.y + vb.h, pos.y + gh0 * sc + MARGIN);
-    svgEl.setAttribute('viewBox', `${Math.round(minX)} ${Math.round(minY)} ${Math.round(maxX - minX)} ${Math.round(maxY - minY)}`);
+    const grown = {
+      x: minX, y: minY, w: maxX - minX, h: maxY - minY,
+    };
+    lastGrownVB = grown;
+    svgEl.setAttribute('viewBox', `${Math.round(grown.x)} ${Math.round(grown.y)} ${Math.round(grown.w)} ${Math.round(grown.h)}`);
+  }
+
+  // Zoom the preview viewBox toward/away from the legend's center, so the
+  // user can position it precisely. Clamped to never exceed the full-fit
+  // viewBox (lastGrownVB) and never go narrower than ~200 units.
+  const MIN_ZOOM_W = 200;
+  function legendCenter() {
+    const t = currentTransformState();
+    const { w: gw0, h: gh0 } = legendGroupSize();
+    return { cx: t.x + (gw0 * t.scale) / 2, cy: t.y + (gh0 * t.scale) / 2 };
+  }
+  function zoomLegend(factor) {
+    if (!svgEl || !legendGroupEl) return;
+    const cur = getViewBox();
+    if (!cur) return;
+    const { cx, cy } = legendCenter();
+    const ratio = cur.h / cur.w;
+    const cap = lastGrownVB || cur;
+    let w = cur.w * factor;
+    w = Math.min(cap.w, Math.max(MIN_ZOOM_W, w));
+    const h = w * ratio;
+    const x = cx - w / 2;
+    const y = cy - h / 2;
+    svgEl.setAttribute('viewBox', `${Math.round(x)} ${Math.round(y)} ${Math.round(w)} ${Math.round(h)}`);
+    syncSelectionUI();
   }
 
   let savedLegendPos = initialLegendPos || null; // {x,y,scale} in SVG user units, confirmed via Save
@@ -190,6 +220,8 @@ export function showPreviewStep({
   let selRect = null;
   let selHandle = null;
   let resizeStart = null;
+  let zoomInBtn = null;
+  let zoomOutBtn = null;
 
   function getViewBox() {
     const vb = (svgEl && svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
@@ -314,12 +346,60 @@ export function showPreviewStep({
     }
     selHandle.setAttribute('cx', t.x + w);
     selHandle.setAttribute('cy', t.y + h);
+
+    if (!zoomInBtn) {
+      zoomInBtn = makeZoomButton('+', () => zoomLegend(0.7));
+      zoomOutBtn = makeZoomButton('−', () => zoomLegend(1.4));
+      svgEl.appendChild(zoomInBtn);
+      svgEl.appendChild(zoomOutBtn);
+    }
+    const bs = 18; // button size, SVG units
+    const by = t.y - 2 - bs - 4;
+    positionZoomButton(zoomOutBtn, t.x - 2, by, bs);
+    positionZoomButton(zoomInBtn, t.x - 2 + bs + 4, by, bs);
   }
   function removeSelectionUI() {
     if (selRect && selRect.parentNode) selRect.parentNode.removeChild(selRect);
     if (selHandle && selHandle.parentNode) selHandle.parentNode.removeChild(selHandle);
+    if (zoomInBtn && zoomInBtn.parentNode) zoomInBtn.parentNode.removeChild(zoomInBtn);
+    if (zoomOutBtn && zoomOutBtn.parentNode) zoomOutBtn.parentNode.removeChild(zoomOutBtn);
     selRect = null;
     selHandle = null;
+    zoomInBtn = null;
+    zoomOutBtn = null;
+  }
+
+  function makeZoomButton(label, onClick) {
+    const g = document.createElementNS(NS, 'g');
+    g.style.cursor = 'pointer';
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('rx', '3');
+    rect.setAttribute('fill', '#ffffff');
+    rect.setAttribute('stroke', '#1a73e8');
+    rect.setAttribute('stroke-width', '1.5');
+    const text = document.createElementNS(NS, 'text');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('fill', '#1a73e8');
+    text.setAttribute('font-size', '13');
+    text.setAttribute('font-family', 'sans-serif');
+    text.setAttribute('pointer-events', 'none');
+    text.textContent = label;
+    g.appendChild(rect);
+    g.appendChild(text);
+    g.addEventListener('pointerdown', (evt) => { evt.preventDefault(); evt.stopPropagation(); });
+    g.addEventListener('click', (evt) => { evt.preventDefault(); evt.stopPropagation(); onClick(); });
+    g._rect = rect;
+    g._text = text;
+    return g;
+  }
+  function positionZoomButton(g, x, y, size) {
+    g._rect.setAttribute('x', x);
+    g._rect.setAttribute('y', y);
+    g._rect.setAttribute('width', size);
+    g._rect.setAttribute('height', size);
+    g._text.setAttribute('x', x + size / 2);
+    g._text.setAttribute('y', y + size / 2);
   }
 
   function onLegendPointerDown(evt) {
@@ -416,6 +496,8 @@ export function showPreviewStep({
     savedLegendPos = null;
     if (legendGroupEl && legendGroupEl.parentNode) legendGroupEl.parentNode.removeChild(legendGroupEl);
     legendGroupEl = null;
+    lastGrownVB = null;
+    fitViewBox(null);
     exitPlacement();
   });
 
