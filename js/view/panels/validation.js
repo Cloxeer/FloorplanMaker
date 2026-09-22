@@ -13,6 +13,7 @@ const CHECKLIST = [
   { label: 'At least one hallway', codes: ['checklist-no-hall'] },
   { label: 'At least two rooms with a number', codes: ['checklist-no-numbered-room'] },
   { label: 'All hallways connect', codes: ['hall-unconnected'] },
+  { label: 'Every room reaches a hallway', codes: ['room-not-touching-hall'] },
 ];
 
 // Some checklist rows need facts that js/model/validate.js does not report
@@ -30,7 +31,29 @@ export function docChecklistCodes(doc) {
   if (numberedRoomCount < 2) out.push({ level: 'error', code: 'checklist-no-numbered-room', message: 'Add at least two rooms with a number.' });
   if (hallsOverlap(items)) out.push({ level: 'warning', code: 'hall-overlap', message: "Hallways overlap — a hallway can't sit on top of another" });
   if (hasUnconnectedHall(doc, items)) out.push({ level: 'warning', code: 'hall-unconnected', message: "Some hallways aren't connected — join them so people can walk through." });
+  if (hasRoomNotTouchingHall(items)) out.push({ level: 'warning', code: 'room-not-touching-hall', message: "Some rooms don't reach a hallway — move a hallway so people can walk to them." });
   return out;
+}
+
+const HALL_TOUCH_PAD = 4;
+const CORE_TOUCH_NAMES = new Set(['Elevator', 'Restrooms', 'Utility']);
+
+function inflatedTouch(a, b, pad) {
+  return !(a.x + a.w + pad < b.x || b.x + b.w < a.x - pad
+    || a.y + a.h + pad < b.y || b.y + b.h < a.y - pad);
+}
+
+function hasRoomNotTouchingHall(items) {
+  const halls = items.filter((it) => it.type === 'hall');
+  const rooms = items.filter((it) => {
+    if (it.type !== 'room') return false;
+    if (it.cls === 'room' || it.cls === 'big' || it.cls === 'ours') return true;
+    if (it.cls === 'core' && CORE_TOUCH_NAMES.has(it.name)) return true;
+    return false;
+  });
+  if (!rooms.length) return false;
+  if (!halls.length) return true;
+  return rooms.some((r) => !halls.some((h) => inflatedTouch(r, h, HALL_TOUCH_PAD)));
 }
 
 const TOUCH_TOL = 1;
@@ -128,11 +151,16 @@ export function checklistHtml(results) {
     return `<li class="check-${satisfied ? 'ok' : 'pending'}"><span class="check-mark">${satisfied ? '✓' : '○'}</span> ${escapeHtml(row.label)}</li>`;
   }).join('');
 }
+// Rows that show in the checklist for visibility but never block export
+// (pure warnings the user may reasonably leave unresolved).
+const NON_BLOCKING_CODES = new Set(['room-not-touching-hall']);
+
 export function checklistReady(results) {
   const byCode = new Set(results.map((r) => r.code));
   const checklistCodes = new Set(CHECKLIST.flatMap((row) => row.codes));
   const remainingErrors = results.filter((r) => r.level === 'error' && !checklistCodes.has(r.code));
-  return CHECKLIST.every((row) => !row.codes.some((c) => byCode.has(c))) && remainingErrors.length === 0;
+  const blockingRows = CHECKLIST.filter((row) => !row.codes.every((c) => NON_BLOCKING_CODES.has(c)));
+  return blockingRows.every((row) => !row.codes.some((c) => byCode.has(c))) && remainingErrors.length === 0;
 }
 
 export function mountValidation(el, app) {
