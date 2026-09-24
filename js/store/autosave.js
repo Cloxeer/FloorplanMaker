@@ -1,8 +1,9 @@
 // autosave.js — IndexedDB-backed project storage + cross-tab notification.
 // Depends on: nothing (pure browser APIs: indexedDB, BroadcastChannel).
 // Exports: openDb, listProjects, loadProject, saveProject, saveNow, flush,
-// deleteProject, exportProjectJson, importProjectJson, onExternalChange,
-// suspend, resume, lastSavedAt, formatSavedAgo, installAutosaveHooks.
+// deleteProject, exportProjectJson, importProjectJson, projectSignature,
+// onExternalChange, suspend, resume, lastSavedAt, formatSavedAgo,
+// installAutosaveHooks.
 // Guarded so importing this module in Node (no indexedDB) does not throw.
 
 const DB_NAME = 'floorplan-studio';
@@ -15,12 +16,43 @@ const HAS_BC = typeof BroadcastChannel !== 'undefined';
 
 export const TAB_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 const channel = HAS_BC ? new BroadcastChannel(CHANNEL_NAME) : null;
+// In Node (tests import this module) a BroadcastChannel keeps the event loop
+// alive; unref lets the process exit. No-op in browsers, where the method does
+// not exist, so cross-tab behaviour there is unchanged.
+if (channel && typeof channel.unref === 'function') channel.unref();
 
 let _lastSavedAt = null;
 let dbPromise = null;
-// id -> { timer, pending, resolvers:[{resolve,reject}], inFlight }
+// id -> { timer, pending, resolvers:[{resolve,reject}], inFlight, force }
 const pendingSaves = new Map();
 const suspended = new Set();
+// id -> signature of the last content actually persisted. Lets a debounced save
+// skip the physical write when nothing that gets stored has changed (e.g. a
+// plain click fires pointerup -> scheduleSaveView -> saveProject with an
+// unchanged doc/view/photo). The photo is a multi-MB data URL that never
+// changes after the straighten step, so this avoids rewriting it on every
+// mouse release. All observable effects (saved chip, broadcast, promise
+// resolution) still happen; only the disk write is skipped.
+const contentSigs = new Map();
+
+// Pure, exported for tests. Signature of everything a save persists, cheap to
+// compute: doc/view/name/slug are small and compared exactly; the big photo
+// data URL is fingerprinted by dimensions + length (a re-straighten produces a
+// different JPEG, hence a different length, so real changes always differ).
+// Deliberately excludes savedAt/id/createdAt/history: savedAt changes on every
+// write (would defeat dedup), the others never change without doc also changing.
+export function projectSignature(project) {
+  if (!project) return '';
+  const p = project.photo;
+  const photoSig = p && p.dataUrl ? `${p.width || 0}x${p.height || 0}:${p.dataUrl.length}` : '';
+  return JSON.stringify({
+    doc: project.doc,
+    view: project.view,
+    name: project.name,
+    slug: project.slug,
+    photo: photoSig,
+  });
+}
 
 export function openDb() {
   if (!HAS_IDB) return Promise.reject(new Error('IndexedDB is not available in this environment.'));
@@ -84,7 +116,7 @@ function broadcast(id, savedAt) {
 }
 function getEntry(id) {
   let entry = pendingSaves.get(id);
-  if (!entry) { entry = { timer: null, pending: null, resolvers: [], inFlight: null }; pendingSaves.set(id, entry); }
+  if (!entry) { entry = { timer: null, pending: null, resolvers: [], inFlight: null, force: false }; pendingSaves.set(id, entry); }
   return entry;
 }
 function finishOrRepeat(id) {
@@ -106,9 +138,17 @@ async function doWrite(id) {
     finishOrRepeat(id);
     return;
   }
+  const sig = projectSignature(project);
+  const force = entry.force;
+  entry.force = false;
+  // Skip the physical write when the stored content is unchanged, unless this
+  // is a forced save (saveNow, used for close/tab-hide) — those always hit disk
+  // so the final state is guaranteed durable even if the cache is out of sync.
+  const unchanged = !force && contentSigs.get(id) === sig;
   project.savedAt = Date.now();
-  entry.inFlight = writeProject(project)
+  entry.inFlight = (unchanged ? Promise.resolve() : writeProject(project))
     .then(() => {
+      contentSigs.set(id, sig);
       _lastSavedAt = project.savedAt;
       broadcast(id, project.savedAt);
       resolvers.forEach((r) => r.resolve());
@@ -137,6 +177,7 @@ export function saveNow(project) {
   if (suspended.has(id)) return Promise.resolve();
   const entry = getEntry(id);
   entry.pending = project;
+  entry.force = true;
   if (entry.timer) {
     clearTimeout(entry.timer);
     entry.timer = null;
@@ -169,6 +210,7 @@ export async function deleteProject(id) {
   });
   pendingSaves.delete(id);
   suspended.delete(id);
+  contentSigs.delete(id);
 }
 
 export function exportProjectJson(project) {

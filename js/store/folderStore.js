@@ -5,7 +5,7 @@
 // Exports: isSupported, pickFolder, getFolder, forgetFolder, writeProject,
 // listProjects, readProject, deleteProject.
 
-import { exportProjectJson, importProjectJson } from './autosave.js';
+import { exportProjectJson, importProjectJson, projectSignature } from './autosave.js';
 
 const DB_NAME = 'floor-plan-studio-settings';
 const DB_VERSION = 1;
@@ -61,6 +61,9 @@ export async function pickFolder() {
   if (!isSupported()) throw new Error('This browser does not support picking a local folder.');
   const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'floor-plan-studio' });
   await idbSet(KEY, handle);
+  // A newly chosen folder has none of our files yet, so drop the write cache to
+  // force the next save of each project to actually land on disk.
+  folderSigs.clear();
   return handle;
 }
 
@@ -94,6 +97,13 @@ export async function forgetFolder() {
   await idbDelete(KEY);
 }
 
+// slug -> signature of the content last written to this folder, so repeated
+// saves triggered by no-op interactions (a click, a pan that returns to the
+// same view) don't rewrite the whole .floorplan.json — including its embedded
+// multi-MB photo — to disk. Cleared when the target folder changes (pickFolder)
+// or a project is deleted.
+const folderSigs = new Map();
+
 // Serialise writes per slug so concurrent calls for the same project queue.
 const writeQueues = new Map();
 function queueWrite(slug, fn) {
@@ -108,7 +118,14 @@ function queueWrite(slug, fn) {
 export function writeProject(handle, project) {
   const slug = project && project.slug;
   if (!slug) return Promise.reject(new Error('Project is missing a slug.'));
-  return queueWrite(slug, () => doWriteProject(handle, project, slug));
+  const sig = projectSignature(project);
+  return queueWrite(slug, () => {
+    if (folderSigs.get(slug) === sig) return null; // unchanged since last write
+    return doWriteProject(handle, project, slug).then((h) => {
+      folderSigs.set(slug, sig);
+      return h;
+    });
+  });
 }
 
 async function doWriteProject(handle, project, slug) {
@@ -168,4 +185,5 @@ export async function readProject(handle, slug) {
 
 export async function deleteProject(handle, slug) {
   await handle.removeEntry(`${slug}.floorplan.json`);
+  folderSigs.delete(slug);
 }
