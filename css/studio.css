@@ -466,6 +466,13 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 #export-download { margin-top: 4px; }
 #export-download:disabled { opacity: 0.5; cursor: not-allowed; }
 .export-note { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 8px 0 0; }
+.export-status { font-size: 12px; line-height: 1.4; margin: 4px 0 0; color: #1a7f37; font-weight: 600; }
+.export-status.is-error { color: #b3261e; }
+.export-folder { margin-top: 18px; width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px 14px; }
+.export-folder legend { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 6px; }
+.export-folder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.export-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 8px 0 2px; cursor: pointer; }
+.export-toggle input { width: 15px; height: 15px; }
 #export-maintainer { margin-top: 16px; width: 100%; }
 #export-maintainer summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 

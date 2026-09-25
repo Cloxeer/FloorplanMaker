@@ -182,7 +182,7 @@ app.setSelection = function setSelection(ids) {
 };
 const HINT_OVERRIDES = {
   floor: 'Click each corner of the building. Press Enter or click the first corner to finish.',
-  door: 'Click on the outside wall where a door is. Press Esc when done.',
+  door: 'Click the outside wall for a doorway, or drag along it to size the opening. Press Esc when done.',
   room: 'Drag a box over a room on the photo.',
   select: 'Click a room to select it. Drag to move. Delete removes it.',
 };

@@ -79,7 +79,7 @@ transform into a single `app.commit`.
 | room, `shape:'rect'` | `Group([Rect, FabricText])` — box and number are one object, rotation locked, `mtr` control hidden; `object:modified` converts scale into integer `w`/`h` snapped to the 5-unit grid |
 | room, `shape:'poly'` | `Polygon` with one round control per vertex (`polygonPositionHandler` / `anchorWrapper` / `actionHandler`), scaling and rotation locked, plus a companion label `FabricText` |
 | floor | `Polygon`, class `floor` look, always at the back, movement locked, vertex controls, edge hover dot, double-click an edge inserts a vertex |
-| hall | dashed light-blue `Group([Rect, "Hallway"])`, below rooms, never exported |
+| hall | grey `Group([Rect, "Hallway"])`, below rooms, exported as grey `.hall` corridors |
 | stair | `Group([core Rect, tread Lines, label?])`, rotation locked ("Rotate" in properties flips `dir`) |
 | door | `Group([white Line, "EXIT" text])`, fully locked but selectable and deletable |
 | compass | `Group` drawn like the export, movable and rotatable with Fabric's rotate control (`snapAngle: 1`; `object:modified` writes `deg`) |

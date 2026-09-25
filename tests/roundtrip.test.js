@@ -23,6 +23,23 @@ test('export -> import -> export equality on the sample doc', () => {
   assert.equal(svg2, svg1);
 });
 
+test('hallways survive export -> import (and stay idempotent)', () => {
+  const doc = makeSampleDoc();
+  doc.items.push({ id: 'h1', type: 'hall', x: 100, y: 100, w: 300, h: 60 });
+  doc.items.push({ id: 'h2', type: 'hall', x: 380, y: 90, w: 60, h: 200 });
+  const svg1 = exportSvg(doc);
+  assert.ok(svg1.includes('class="hall"'), 'exported SVG should contain hall rects');
+  const { doc: doc2, problems } = importSvg(svg1);
+  assert.deepEqual(problems.filter((p) => p.code !== 'label-orphan'), [], 'no import problems for halls');
+  const halls = doc2.items.filter((i) => i.type === 'hall');
+  assert.equal(halls.length, 2, 'both hallways should be imported back');
+  assert.deepEqual(
+    halls.map((h) => ({ x: h.x, y: h.y, w: h.w, h: h.h })),
+    [{ x: 100, y: 100, w: 300, h: 60 }, { x: 380, y: 90, w: 60, h: 200 }],
+  );
+  assert.equal(exportSvg(doc2), svg1, 're-export with halls is not idempotent');
+});
+
 test('fixtures were found', () => {
   assert.ok(fixtureNames.length > 0, 'expected at least one fixture .svg file');
 });

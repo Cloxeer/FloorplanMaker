@@ -32,14 +32,14 @@ export function mountPalette(el, app) {
     </div>
     <div class="palette-step" data-step="door">
       <h4>2. Add doors and stairs</h4>
-      <p class="step-desc">Click a spot along the outline for each door.</p>
+      <p class="step-desc">Click the outline for a doorway, or drag along it to size the opening.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-door">Place doors <span class="hotkey-hint">O</span></button>
       <button type="button" class="btn-big-tool" id="btn-tool-stair">Place stairs <span class="hotkey-hint">S</span></button>
       <button type="button" class="btn-big-tool btn-detect" id="btn-detect-doors">⌕ Detect doors and stairs</button>
     </div>
     <div class="palette-step" data-step="hall">
       <h4>3. Add hallways</h4>
-      <p class="step-desc">Guides only &mdash; hallways are never exported.</p>
+      <p class="step-desc">Drawn on the exported plan as grey corridors, just like here.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-hall">Draw a hallway <span class="hotkey-hint">A</span></button>
       <button type="button" class="btn-big-tool btn-detect" id="btn-detect-halls">⌕ Detect hallways</button>
       <button type="button" class="btn-big-tool" id="btn-tool-authwall" aria-pressed="false">Staff wall</button>

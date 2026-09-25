@@ -98,11 +98,12 @@ export function createActions(app, deps) {
     }, 400);
   }
   function exportAll() {
-    // Hallways and staff walls are studio-only guides: they are saved in the
-    // .json project but never reach the exported SVG.
+    // Staff walls (authwall) are studio-only guides: saved in the .json project
+    // but never drawn in the exported SVG. Hallways ARE drawn in the SVG (grey
+    // corridors, as they appear in trace); the parsers ignore the "hall" class.
     const doc = {
       ...app.doc,
-      items: app.doc.items.filter((it) => it.type !== 'hall' && it.type !== 'authwall'),
+      items: app.doc.items.filter((it) => it.type !== 'authwall'),
     };
     const results = validate(doc);
     app.validation = results;
@@ -168,7 +169,15 @@ export function createActions(app, deps) {
     function openExport() {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/export`);
       const finalSvg = legendPos ? withLegend(svgText, legendPos) : svgText;
-      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName }, {
+      const folderApi = {
+        supported: !!(app.isFolderSupported && app.isFolderSupported()),
+        getHandle: () => ((app.folder && app.folder.state === 'granted' && app.folder.handle) ? app.folder.handle : null),
+        pick: async () => {
+          if (app.pickFolderThenContinue) await app.pickFolderThenContinue();
+          return (app.folder && app.folder.handle) ? app.folder.handle : null;
+        },
+      };
+      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName, folderApi }, {
         onBack: () => {
           app._exportHandle = null;
           openPreview();

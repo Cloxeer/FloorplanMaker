@@ -7,11 +7,13 @@
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import {
-  STD, newId, addItem, setFloor, makeRoom, doorFor, NUMBERED_CLASSES,
+  STD, newId, addItem, setFloor, makeRoom, doorFor, doorSpanFor, NUMBERED_CLASSES,
 } from '../model/document.js';
-import { snapToGrid, dist } from '../model/geometry.js';
+import { snapToGrid, dist, nearestPointOnPolyline } from '../model/geometry.js';
 
 const DOOR_REACH = 12;
+const DOOR_START_REACH = 40; // plan units: how close to the wall a door drag may start
+const MIN_DOOR = 12; // plan units: drag shorter than this = a plain click (default width)
 const MIN_BOX = 10;
 const CORNER_RADIUS = 8; // screen px, scaled by 1/zoom
 const CLOSE_REACH = 12; // screen px
@@ -19,7 +21,7 @@ const CLOSE_REACH = 12; // screen px
 const HINTS = {
   select: 'Click a room to select it. Drag to move. Delete removes it.',
   floor: 'Click each corner of the building. Press Enter or click the first corner to finish.',
-  door: 'Click on the outside wall where a door is. Press Esc when done.',
+  door: 'Click the outside wall for a doorway, or drag along it to size the opening. Press Esc when done.',
   hall: 'Drag a box along the hallway. Press Esc when done.',
   room: 'Drag a box over a room on the photo.',
   poly: 'Drag a box over a room on the photo.',
@@ -182,18 +184,39 @@ export function attachTools(ctx, editing) {
   }
 
   // --------------------------------------------------------------- doors --
-  function placeDoor(pt) {
+  // A door is placed on the outer wall. Two ways, both starting on the wall:
+  //   - a plain click drops a default-width opening centered where you clicked;
+  //   - dragging along the wall sizes the opening to the drag length.
+  // While dragging we show a live green bar (matching the EXIT green) so it is
+  // obvious how wide the entrance will be.
+  function outline() {
     const doc = app.doc;
-    const outline = doc.floor && doc.floor.points;
-    if (!outline || outline.length < 3) {
-      app.toast('Draw the building outline first.');
-      return;
-    }
-    const door = doorFor(outline, pt);
+    return doc.floor && doc.floor.points && doc.floor.points.length >= 3 ? doc.floor.points : null;
+  }
+  function nearWall(pt) {
+    const o = outline();
+    if (!o) return null;
+    const near = nearestPointOnPolyline([pt.x, pt.y], o, true);
+    if (!near) return null;
+    return dist([near.x, near.y], [pt.x, pt.y]) <= DOOR_START_REACH ? near : null;
+  }
+  function doorPreview(door) {
     if (!door) return;
-    const mid = { x: (door.x1 + door.x2) / 2, y: (door.y1 + door.y2) / 2 };
-    if (dist([mid.x, mid.y], [pt.x, pt.y]) > DOOR_REACH * 4) return;
-    app.commit(addItem(doc, { id: newId(), type: 'door', ...door, kind: 'EXIT' }), 'Place door');
+    if (!draft.line) {
+      draft.line = addPreview(new fabric.Line([door.x1, door.y1, door.x2, door.y2], {
+        stroke: '#1a7f37', strokeWidth: 10, strokeUniform: true, strokeLineCap: 'butt', opacity: 0.9,
+      }));
+    } else {
+      draft.line.set({ x1: door.x1, y1: door.y1, x2: door.x2, y2: door.y2 });
+      draft.line.setCoords();
+    }
+    render();
+  }
+  function commitDoor(door) {
+    // Drop the transient `span` field; the door item only needs its geometry.
+    const { span, ...geom } = door;
+    void span;
+    app.commit(addItem(app.doc, { id: newId(), type: 'door', ...geom, kind: 'EXIT' }), 'Place door');
   }
 
   // ------------------------------------------------------- mouse plumbing --
@@ -217,7 +240,12 @@ export function attachTools(ctx, editing) {
       floorPreview();
       return;
     }
-    if (tool === 'door') { placeDoor(pt); return; }
+    if (tool === 'door') {
+      if (!outline()) { app.toast('Draw the building outline first.'); return; }
+      if (!nearWall(pt)) return; // ignore clicks/drags that don't start on the wall
+      draft = { kind: 'door', downPt: pt, objs: [], door: null };
+      return;
+    }
     if (tool === 'authwall') {
       if (draft && draft.kind === 'authwall') {
         const a = draft.start;
@@ -252,6 +280,15 @@ export function attachTools(ctx, editing) {
       authwallPreview();
       return;
     }
+    if (draft.kind === 'door') {
+      const o = outline();
+      const span = o && doorSpanFor(o, draft.downPt, pt);
+      // Preview the dragged opening once it is meaningfully wide; before that,
+      // preview the default-width opening so the user sees where it will land.
+      draft.door = (span && span.span >= MIN_DOOR) ? span : (o && doorFor(o, draft.downPt));
+      doorPreview(draft.door);
+      return;
+    }
     draft.box = boxOf(draft.start, pt);
     if (draft.kind === 'hall') boxPreview('rgba(120,176,224,0.22)', '#5b9bd5');
     else boxPreview('rgba(47,111,235,0.10)', '#2f6feb');
@@ -263,6 +300,18 @@ export function attachTools(ctx, editing) {
 
   canvas.on('mouse:up', () => {
     if (!draft || draft.kind === 'floor') return;
+    if (draft.kind === 'door') {
+      const o = outline();
+      const downPt = draft.downPt;
+      const dragged = draft.door;
+      clearDraft();
+      if (!o) return;
+      // A real drag sizes the opening; a plain click (or a tiny drag) drops the
+      // default-width opening centered on where the wall was clicked.
+      const door = (dragged && dragged.span >= MIN_DOOR) ? dragged : doorFor(o, downPt);
+      if (door) commitDoor(door);
+      return; // stay in the door tool so several doors can be placed in a row
+    }
     if (draft.kind === 'authwall') {
       const end = draft.hover || draft.start;
       if (dist([end.x, end.y], [draft.start.x, draft.start.y]) >= MIN_BOX) {
@@ -286,7 +335,7 @@ export function attachTools(ctx, editing) {
   async function dropPieceAt(key, pt) {
     if (key === 'door') {
       app.setTool('door');
-      app.toast('Now click on the outside wall');
+      app.toast('Click the outside wall, or drag along it to size the opening');
       return;
     }
     if (key === 'compass') {
