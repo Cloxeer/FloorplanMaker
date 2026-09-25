@@ -102,6 +102,20 @@ function roomBlock(item) {
   return lines;
 }
 
+// Hallways: solid grey corridors with no border, matching buildHall() in
+// stageObjects.js so the SVG looks like the trace view. Drawn behind rooms.
+// The "hall" class is outside the parser's known set, so build_rooms.py and
+// svgImport.js both ignore these on read-back (halls live in the .json project).
+function hallLines(item) {
+  const lines = [];
+  lines.push(`${IND}<rect class="hall" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`);
+  // Skip the label on very thin/short segments so it never overflows the box.
+  if (item.w >= 80 && item.h >= 28) {
+    lines.push(`${IND}<text class="hall-lbl" x="${r(item.x + item.w / 2)}" y="${r(item.y + item.h / 2)}">Hallway</text>`);
+  }
+  return lines;
+}
+
 function stairLines(item) {
   const lines = [];
   lines.push(`${IND}<rect class="core" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`);
@@ -168,6 +182,8 @@ export function exportSvg(doc) {
   lines.push('    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
+  lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
+  lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .door  { stroke: #ffffff; stroke-width: 10; }');
   lines.push('    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }');
@@ -182,6 +198,13 @@ export function exportSvg(doc) {
   if (doc.floor && doc.floor.points && doc.floor.points.length) {
     lines.push(`${IND}<!-- OUTSIDE WALLS -->`);
     lines.push(`${IND}<polygon class="floor" points="${pointsAttr(doc.floor.points)}"/>`);
+    lines.push('');
+  }
+
+  const halls = doc.items.filter((it) => it.type === 'hall');
+  if (halls.length) {
+    lines.push(`${IND}<!-- HALLWAYS -->`);
+    for (const hall of halls) lines.push(...hallLines(hall));
     lines.push('');
   }
 
@@ -217,14 +240,17 @@ export function exportSvg(doc) {
     for (const l of stairLines(stair)) lines.push(l);
   }
 
+  // Redraw the outer wall as a stroke-only line so rooms/halls flush to it
+  // never cover it. Doors come AFTER this so their white opening cuts through
+  // the wall line (a visible gap = the entrance) instead of being painted over.
+  if (doc.floor && doc.floor.points && doc.floor.points.length) {
+    lines.push(`${IND}<polygon class="floor-edge" points="${pointsAttr(doc.floor.points)}"/>`);
+  }
+
   const doors = doc.items.filter((it) => it.type === 'door');
   for (const door of doors) {
     const [d, t] = doorLines(door);
     lines.push(d + t.trim());
-  }
-
-  if (doc.floor && doc.floor.points && doc.floor.points.length) {
-    lines.push(`${IND}<polygon class="floor-edge" points="${pointsAttr(doc.floor.points)}"/>`);
   }
 
   const compasses = doc.items.filter((it) => it.type === 'compass');

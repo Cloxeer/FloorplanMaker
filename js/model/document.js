@@ -201,6 +201,47 @@ function vecLen(v) {
   return Math.sqrt(v[0] * v[0] + v[1] * v[1]);
 }
 
+// Signed distance of a point projected onto edge a->b (in edge units), plus
+// the edge length and unit direction. Shared by doorFor / doorSpanFor.
+function projectOntoEdge(a, b, point) {
+  const edgeVec = vecSub(b, a);
+  const L = vecLen(edgeVec);
+  if (L === 0) return { s: 0, L: 0, dir: [0, 0] };
+  const dir = [edgeVec[0] / L, edgeVec[1] / L];
+  const to = vecSub([point.x, point.y], a);
+  return { s: to[0] * dir[0] + to[1] * dir[1], L, dir };
+}
+
+// Build a door object for the opening between edge-distances s1..s2 on edge
+// a->b of the outline. Clamps the span onto the edge and puts the EXIT/Door
+// label just inside the wall at the opening's midpoint.
+function doorOnEdge(outlinePoints, a, b, s1, s2) {
+  const edgeVec = vecSub(b, a);
+  const L = vecLen(edgeVec);
+  if (L === 0) return null;
+  const dir = [edgeVec[0] / L, edgeVec[1] / L];
+  let lo = Math.max(0, Math.min(L, Math.min(s1, s2)));
+  let hi = Math.max(0, Math.min(L, Math.max(s1, s2)));
+  const p1 = [a[0] + dir[0] * lo, a[1] + dir[1] * lo];
+  const p2 = [a[0] + dir[0] * hi, a[1] + dir[1] * hi];
+  const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+  const normal = insideNormal(outlinePoints, a, b);
+  const label = {
+    x: Math.round(mid[0] + normal[0] * STD.exitInset),
+    y: Math.round(mid[1] + normal[1] * STD.exitInset),
+  };
+  return {
+    x1: Math.round(p1[0]),
+    y1: Math.round(p1[1]),
+    x2: Math.round(p2[0]),
+    y2: Math.round(p2[1]),
+    label,
+    span: hi - lo,
+  };
+}
+
+// A default-width (STD.doorLen) door centered on the wall point nearest to
+// `point`. Used for a plain click and for door detection.
 export function doorFor(outlinePoints, point) {
   if (!outlinePoints || outlinePoints.length < 3) return null;
   const near = nearestPointOnPolyline([point.x, point.y], outlinePoints, true);
@@ -208,47 +249,30 @@ export function doorFor(outlinePoints, point) {
   const n = outlinePoints.length;
   const a = outlinePoints[near.segIndex];
   const b = outlinePoints[(near.segIndex + 1) % n];
-  const edgeVec = vecSub(b, a);
-  const L = vecLen(edgeVec);
+  const { s: sCenter, L } = projectOntoEdge(a, b, { x: near.x, y: near.y });
   if (L === 0) return null;
-  const dir = [edgeVec[0] / L, edgeVec[1] / L];
-
-  // param distance of the snapped center point along edge a->b
-  const toCenter = vecSub([near.x, near.y], a);
-  const sCenter = toCenter[0] * dir[0] + toCenter[1] * dir[1];
 
   const half = STD.doorLen / 2;
   let s1 = sCenter - half;
   let s2 = sCenter + half;
-
-  if (s1 < 0) {
-    const shift = -s1;
-    s1 = 0;
-    s2 += shift;
-  }
-  if (s2 > L) {
-    const shift = s2 - L;
-    s2 = L;
-    s1 -= shift;
-  }
+  if (s1 < 0) { s2 += -s1; s1 = 0; }
+  if (s2 > L) { s1 -= (s2 - L); s2 = L; }
   if (s1 < 0) s1 = 0;
-  if (s2 > L) s2 = L;
+  return doorOnEdge(outlinePoints, a, b, s1, s2);
+}
 
-  const p1 = [a[0] + dir[0] * s1, a[1] + dir[1] * s1];
-  const p2 = [a[0] + dir[0] * s2, a[1] + dir[1] * s2];
-
-  const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-  const normal = insideNormal(outlinePoints, a, b);
-  const label = {
-    x: Math.round(mid[0] + normal[0] * STD.exitInset),
-    y: Math.round(mid[1] + normal[1] * STD.exitInset),
-  };
-
-  return {
-    x1: Math.round(p1[0]),
-    y1: Math.round(p1[1]),
-    x2: Math.round(p2[0]),
-    y2: Math.round(p2[1]),
-    label,
-  };
+// A door whose width the user dragged: from the wall point under `pDown` to the
+// projection of `pUp` on that SAME edge, so both ends stay on one wall segment.
+// Returns { ..., span } so the caller can fall back to doorFor on a tiny drag.
+export function doorSpanFor(outlinePoints, pDown, pUp) {
+  if (!outlinePoints || outlinePoints.length < 3) return null;
+  const near = nearestPointOnPolyline([pDown.x, pDown.y], outlinePoints, true);
+  if (!near) return null;
+  const n = outlinePoints.length;
+  const a = outlinePoints[near.segIndex];
+  const b = outlinePoints[(near.segIndex + 1) % n];
+  const { s: s1, L } = projectOntoEdge(a, b, pDown);
+  if (L === 0) return null;
+  const { s: s2 } = projectOntoEdge(a, b, pUp);
+  return doorOnEdge(outlinePoints, a, b, s1, s2);
 }

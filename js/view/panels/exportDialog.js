@@ -7,6 +7,7 @@
 // Depends on: js/model/svgExport.js (exportExtrasSnippet, exportCommands, exportFileNames).
 
 import { exportExtrasSnippet, exportCommands, exportFileNames } from '../../model/svgExport.js';
+import { writeFinishedSvg } from '../../store/folderStore.js';
 
 function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
@@ -66,11 +67,13 @@ function escapeHtml(s) {
   }[c]));
 }
 
-export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, projectName }, { onBack }) {
+export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, projectName, folderApi }, { onBack }) {
   const host = document.getElementById('dialogs');
   const names = exportFileNames(meta);
+  const finishedName = `${meta.slug}.svg`;
   const snippet = exportExtrasSnippet(meta);
   const commands = exportCommands().split('\n').filter(Boolean);
+  const folderSupported = !!(folderApi && folderApi.supported);
 
   const el = document.createElement('div');
   el.id = 'export-step';
@@ -90,8 +93,20 @@ export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, project
         ${projectJson ? '<option value="project">Editable project (.floorplan.json)</option>' : ''}
       </select>
       <button type="button" id="export-download" class="btn-primary">Download</button>
+      <p class="export-status" id="export-status" hidden></p>
       <p class="export-note">Your file: <code>${escapeHtml(names.svg)}</code>. Hand this to whoever maintains the map.</p>
       <p class="export-note">Keep working later: pick <em>Editable project (.floorplan.json)</em> to save a copy you can re-open from the start screen with <em>Open .json project</em>.</p>
+      ${folderSupported ? `
+      <fieldset class="export-folder" id="export-folder">
+        <legend>Save straight into your project folder</legend>
+        <p class="export-note" id="export-folder-state"></p>
+        <div class="export-folder-actions">
+          <button type="button" id="export-connect-folder">Connect a folder&hellip;</button>
+          <button type="button" id="export-save-finished" class="btn-primary">Save SVG to Finished folder</button>
+        </div>
+        <label class="export-toggle"><input type="checkbox" id="export-dup-download" checked> Also download a copy to my Downloads folder (duplicate)</label>
+        <p class="export-note">Saves <code>Finished/${escapeHtml(finishedName)}</code> inside the folder you picked. Untick the box above to save <em>only</em> to the folder with no download.</p>
+      </fieldset>` : ''}
       <details id="export-maintainer">
         <summary>For the map maintainer</summary>
         <div class="section-title">Add this to data/source/building-extras.json, then run:</div>
@@ -109,10 +124,19 @@ export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, project
 
   const formatSel = el.querySelector('#export-format');
   const downloadBtn = el.querySelector('#export-download');
+  const statusEl = el.querySelector('#export-status');
+
+  function setStatus(msg, isError) {
+    statusEl.hidden = !msg;
+    statusEl.textContent = msg || '';
+    statusEl.classList.toggle('is-error', !!isError);
+  }
+  formatSel.addEventListener('change', () => setStatus(''));
 
   downloadBtn.addEventListener('click', async () => {
     const fmt = formatSel.value;
     downloadBtn.disabled = true;
+    setStatus('');
     try {
       if (fmt === 'svg') {
         downloadBlob(names.svg, new Blob([svgText], { type: 'image/svg+xml' }));
@@ -133,6 +157,65 @@ export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, project
       downloadBtn.disabled = false;
     }
   });
+
+  // --- Save straight into the project folder (with a duplicate-download toggle) ---
+  if (folderSupported) {
+    const folderStateEl = el.querySelector('#export-folder-state');
+    const connectBtn = el.querySelector('#export-connect-folder');
+    const saveFinishedBtn = el.querySelector('#export-save-finished');
+    const dupToggle = el.querySelector('#export-dup-download');
+
+    function renderFolderState() {
+      const handle = folderApi.getHandle();
+      if (handle) {
+        folderStateEl.textContent = `Connected folder: ${handle.name || 'your folder'}.`;
+        connectBtn.hidden = true;
+      } else {
+        folderStateEl.textContent = 'No folder connected yet. Connect one, or just press Save and you’ll be asked to pick it.';
+        connectBtn.hidden = false;
+      }
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      connectBtn.disabled = true;
+      setStatus('');
+      try { await folderApi.pick(); } catch { /* cancelled */ }
+      connectBtn.disabled = false;
+      renderFolderState();
+    });
+
+    saveFinishedBtn.addEventListener('click', async () => {
+      saveFinishedBtn.disabled = true;
+      setStatus('');
+      try {
+        let handle = folderApi.getHandle();
+        if (!handle) {
+          try { await folderApi.pick(); } catch { /* cancelled */ }
+          handle = folderApi.getHandle();
+          renderFolderState();
+        }
+        if (!handle) {
+          setStatus('No folder connected — pick a folder to save into.', true);
+          return;
+        }
+        const alsoDownload = dupToggle.checked;
+        let savedPath = '';
+        let saveError = null;
+        try { savedPath = await writeFinishedSvg(handle, meta.slug, svgText); }
+        catch (e) { saveError = e; }
+        if (alsoDownload) downloadBlob(finishedName, new Blob([svgText], { type: 'image/svg+xml' }));
+        if (saveError) {
+          setStatus(`Could not save to the Finished folder (${saveError.message}).${alsoDownload ? ' A copy was still downloaded to your Downloads folder.' : ''}`, true);
+        } else {
+          setStatus(`Saved ${savedPath} in your project folder.${alsoDownload ? ' A duplicate copy was also downloaded to your Downloads folder.' : ' No duplicate was downloaded.'}`);
+        }
+      } finally {
+        saveFinishedBtn.disabled = false;
+      }
+    });
+
+    renderFolderState();
+  }
 
   el.querySelector('#ed-copy-snippet').addEventListener('click', () => {
     navigator.clipboard && navigator.clipboard.writeText(snippet);

@@ -152,6 +152,22 @@ async function doWriteProject(handle, project, slug) {
   return finalHandle;
 }
 
+// Write the finished, legend-included SVG into a "Finished" subfolder of the
+// user's picked project folder, as <slug>.svg (e.g. jh-0.svg). Creates the
+// subfolder on first use. This is separate from the browser download in the
+// Export step: choosing "SVG -> Finished folder" saves here AND still triggers
+// the normal download, so a duplicate lands in the OS Downloads folder too.
+export async function writeFinishedSvg(handle, slug, svgText) {
+  if (!handle) throw new Error('No project folder is connected.');
+  if (!slug) throw new Error('Project is missing a slug.');
+  const dir = await handle.getDirectoryHandle('Finished', { create: true });
+  const fileHandle = await dir.getFileHandle(`${slug}.svg`, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(svgText);
+  await writable.close();
+  return `Finished/${slug}.svg`;
+}
+
 export async function listProjects(handle) {
   const results = [];
   for await (const [name, entry] of handle.entries()) {

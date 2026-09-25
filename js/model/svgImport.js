@@ -229,6 +229,22 @@ export function importSvg(svgText) {
       continue;
     }
 
+    // Hallways: <rect class="hall"> (see hallLines in svgExport.js). The
+    // "Hallway" <text class="hall-lbl"> that may follow is regenerated on
+    // export from the box, so it is skipped here (it falls through to the
+    // allowed-text check below and is ignored).
+    if (t.kind === 'selfclose' && t.name === 'rect' && t.attrs.class === 'hall') {
+      items.push({
+        id: newId(),
+        type: 'hall',
+        x: Number(t.attrs.x),
+        y: Number(t.attrs.y),
+        w: Number(t.attrs.width),
+        h: Number(t.attrs.height),
+      });
+      continue;
+    }
+
     if (t.kind === 'open' && t.name === 'text' && /^(lbl|lblS|name)$/.test(t.attrs.class || '')) {
       const fs = t.attrs['font-size'] ? Number(String(t.attrs['font-size']).replace('px', '')) : null;
       texts.push({ cls: t.attrs.class, text: decodeEntities((t.trailingText || '').trim()), x: Number(t.attrs.x), y: Number(t.attrs.y), fontSize: fs });

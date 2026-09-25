@@ -36,6 +36,8 @@ read these files. Do not deviate.
 .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
 .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
 .stair { stroke: #8f959c; stroke-width: 2; }
+.hall  { fill: #d7dbe0; stroke: none; }
+.hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
 .door  { stroke: #ffffff; stroke-width: 10; }
 .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }
 .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }
@@ -53,16 +55,18 @@ read these files. Do not deviate.
 | `<polygon class="floor" points="...">` | Exactly one. The walkable footprint. |
 | `<rect>` / `<polygon>` with class `room`, `big`, `ours`, `core`, `void` | Blocks routing. Corridors are empty floor. `void` has no label. |
 | `<g class="stair">` containing only `<line>` treads | Treads 18 units apart. Bounding-box center = arrival point on floors above 1. |
-| `<line class="door" x1 y1 x2 y2>` | Lies on the floor outline (outer wall). Midpoint is the entrance. 36 units long. |
+| `<rect class="hall">` (+ optional `<text class="hall-lbl">Hallway</text>`) | Grey corridor, drawn behind rooms. Purely visual: the room/entrance build tools ignore it; the studio reads it back so hallways survive an SVG round-trip. |
+| `<line class="door" x1 y1 x2 y2>` | Lies on the floor outline (outer wall). Midpoint is the entrance. Default 36 units long; the width is user-adjustable by dragging. Drawn *after* `floor-edge` so its white stroke cuts a visible opening in the wall line. |
 | `<text class="exit" x y>EXIT</text>` or `Door` | Within 100 units of a door midpoint. `Door` variant carries `fill="#5f6368"`. Label sits 55 units inside the wall. |
 | `<text class="lbl">` / `<text class="lblS">` | At the room centroid. Text ends in the room number matching `(?:^|\s)([A-Z]?\d{3}[A-Z]?)$`. Words before the number are the room name. `lblS` (19px) is picked automatically when the room's short side is under 70 units. Per-element `font-size="Npx"` override allowed. |
 | `<text class="name">` | Bold room name inside the same shape (optional). |
 | `<g class="compass" transform="translate(x,y) rotate(deg)">` | Optional, copied verbatim (see below). |
 | `<!-- SECTION -->` comments | e.g. `<!-- TOP ROW: 128 suite offices -->`. |
 
-Element order in the file: header comment, style, floor polygon, then rooms
-(grouped under section comments; each room shape followed immediately by its
-label texts), then stairs, then doors + exit labels, then compass.
+Element order in the file: header comment, style, floor polygon, then hallways,
+then rooms (grouped under section comments; each room shape followed immediately
+by its label texts), then stairs, then the stroke-only `floor-edge`, then doors
++ exit labels (after the edge so the opening cuts the wall), then compass.
 
 ## Layout (matches data/floors/hjlc-1.svg)
 

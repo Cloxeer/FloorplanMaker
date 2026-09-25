@@ -16,6 +16,8 @@ const STYLE_BLOCK = [
   '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
   '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
+  '    .hall  { fill: #d7dbe0; stroke: none; }',
+  '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
   '    .door  { stroke: #ffffff; stroke-width: 10; }',
   '    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }',
   '    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }',
@@ -123,6 +125,14 @@ test('fill="#5f6368" only on the Door text or an icon glyph', () => {
 test('section comments present', () => {
   assert.ok(svg.includes('<!-- TOP ROW -->'));
   assert.ok(svg.includes('<!-- SOUTH -->'));
+});
+
+test('door is drawn after the wall edge so its opening cuts the wall', () => {
+  const edgeIdx = svg.indexOf('<polygon class="floor-edge"');
+  const doorIdx = svg.indexOf('<line class="door"');
+  assert.ok(edgeIdx !== -1, 'expected a floor-edge polygon');
+  assert.ok(doorIdx !== -1, 'expected a door line');
+  assert.ok(edgeIdx < doorIdx, 'the door must come after the wall edge to cut it');
 });
 
 test('ordering: floor before rooms before stairs before doors before compass', () => {

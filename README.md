@@ -29,7 +29,7 @@ The top bar's step strip tracks four steps: **1 Photo &middot; 2 Trace &middot; 
 
 1. **Start blueprint.** Building name, Property number, floor number, file name (e.g. `hjlc-1`).
 2. **Flatten the photo.** Drop the photo, drag the four corners onto the map's corners, press *Flatten*. The photo becomes the onion-skin background (opacity slider, hold **H** to flash it).
-3. **Build.** Palette on the left (four guided steps: outline, doors and stairs, hallways, rooms — step 2 unlocks once the outline exists, step 3 once there is at least one door or stair, step 4 once there is at least one hallway, plus a collapsible *Legend* at the bottom), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are studio-only guides and are never exported.
+3. **Build.** Palette on the left (four guided steps: outline, doors and stairs, hallways, rooms — step 2 unlocks once the outline exists, step 3 once there is at least one door or stair, step 4 once there is at least one hallway, plus a collapsible *Legend* at the bottom), Fabric.js drawing stage in the middle, properties on the right, a one-line hint at the bottom. Hallways are drawn on the exported SVG as grey corridors (staff walls stay studio-only).
 4. **Preview.** Clicking *Export* (top bar or step 4) opens a full-screen Preview first: the exact SVG that will be exported, rendered on white next to a legend and the checklist. *Back to editing* returns to the plan with no changes; *Download files* runs the download.
 5. **Export.** Downloads `<slug>.svg` and `<slug>-posted.jpg` and shows the `building-extras.json` snippet plus the two commands to run.
 

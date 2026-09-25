@@ -14,6 +14,7 @@ import {
   labelClass,
   labelPos,
   doorFor,
+  doorSpanFor,
   stairTreads,
 } from '../js/model/document.js';
 
@@ -69,6 +70,24 @@ test('doorFor on each side of a square', () => {
   assert.ok(nearCorner.x1 >= 0 && nearCorner.x2 >= 0);
   assert.ok(nearCorner.x1 <= 100 && nearCorner.x2 <= 100);
   assert.equal(Math.hypot(nearCorner.x2 - nearCorner.x1, nearCorner.y2 - nearCorner.y1), 36);
+});
+
+test('doorSpanFor sizes the opening to the drag along one wall edge', () => {
+  const sq = [[0, 0], [100, 0], [100, 100], [0, 100]];
+
+  // Drag along the top edge from x=20 to x=80 -> a 60-wide opening on y=0.
+  const d = doorSpanFor(sq, { x: 20, y: 0 }, { x: 80, y: 2 });
+  assert.equal(d.y1, 0);
+  assert.equal(d.y2, 0);
+  assert.equal(Math.hypot(d.x2 - d.x1, d.y2 - d.y1), 60);
+  assert.equal(d.span, 60);
+  assert.ok(d.label.y > 0); // label sits inside the building
+
+  // The drag end is projected onto the SAME edge the drag started on, and the
+  // span is clamped to the edge length (can't run past the corner).
+  const clamped = doorSpanFor(sq, { x: 60, y: 0 }, { x: 500, y: 0 });
+  assert.ok(clamped.x1 <= 100 && clamped.x2 <= 100);
+  assert.ok(clamped.x1 >= 0 && clamped.x2 >= 0);
 });
 
 test('stairTreads spacing 18', () => {

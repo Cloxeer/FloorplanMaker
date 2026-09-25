@@ -18,8 +18,8 @@ export const STROKE = '#8f959c';
 
 // Back-to-front draw order.
 export const LAYER = {
-  grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5, door: 5,
-  compass: 6, floorEdge: 6.5, ghost: 7, guide: 8,
+  grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5,
+  compass: 6, floorEdge: 6.5, door: 6.7, ghost: 7, guide: 8,
 };
 
 const BASE = {
