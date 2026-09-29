@@ -52,43 +52,14 @@ function roomBox(item) {
   return bbox(item.points);
 }
 
-// A diagonal line clipped to [0,w] x [0,h], offset along the top/bottom edge
-// by `off`; `mirror` flips the slope so a pair of calls makes a criss-cross.
-function clippedDiag(off, w, h, mirror) {
-  const x0 = Math.max(0, off);
-  const x1 = Math.min(w, h + off);
-  if (x0 >= x1) return null;
-  const y0f = x0 - off;
-  const y1f = x1 - off;
-  const y0 = mirror ? h - y0f : y0f;
-  const y1 = mirror ? h - y1f : y1f;
-  return [x0, y0, x1, y1];
-}
-
-// Criss-cross hatch lines filling a w x h box (local coords), matching the
-// void fill drawn on the stage/palette (hatchLines in stageObjects.js), but
-// clipped to the box exactly (no id=/clipPath needed) since this is written
-// into the exported SVG itself.
-function voidHatchGroup(box, spacing = 18) {
-  const { x, y, w, h } = box;
-  const lines = [];
-  const step = Math.max(6, spacing);
-  for (let off = -h; off <= w; off += step) {
-    const a = clippedDiag(off, w, h, false);
-    if (a) lines.push(`<line x1="${r(x + a[0])}" y1="${r(y + a[1])}" x2="${r(x + a[2])}" y2="${r(y + a[3])}"/>`);
-    const b = clippedDiag(off, w, h, true);
-    if (b) lines.push(`<line x1="${r(x + b[0])}" y1="${r(y + b[1])}" x2="${r(x + b[2])}" y2="${r(y + b[3])}"/>`);
-  }
-  return `${IND}<g class="void-hatch">${lines.join('')}</g>`;
-}
-
-// Icon / void-hatch decoration for a room, a pure function of cls+name+box,
-// so it never needs to be stored — export always regenerates it. Uses
-// classes ("icon" / "void-hatch") outside the parser's known set (see
-// tools/build_rooms.py), so it is silently ignored there and by svgImport.
+// Icon decoration for a room, a pure function of cls+name+box, so it never
+// needs to be stored — export always regenerates it. Uses the "icon" class,
+// outside the parser's known set (see tools/build_rooms.py), so it is
+// silently ignored there and by svgImport. A void gets nothing: it's drawn
+// empty — white with a dashed outline (the .void style), like the legend.
 function roomExtraLine(item) {
+  if (item.cls === 'void') return null;
   const box = roomBox(item);
-  if (item.cls === 'void') return voidHatchGroup(box);
   const key = iconForRoom(item);
   if (!key) return null;
   return `${IND}${iconSvg(key, box.x, box.y, box.w, box.h, 0.5)}`;
@@ -210,6 +181,7 @@ export function exportSvg(doc) {
   lines.push('    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }');
+  lines.push('    .void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }');
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
   lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');

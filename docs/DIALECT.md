@@ -43,6 +43,7 @@ read these files. Do not deviate.
 .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }
 .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
 .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
+.void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }
 .stair { stroke: #8f959c; stroke-width: 2; }
 .hall  { fill: #d7dbe0; stroke: none; }
 .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }

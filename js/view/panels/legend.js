@@ -8,9 +8,9 @@
 // so the map-build parsers never read a swatch as a real room.
 // Depends on: nothing (pure markup string).
 
+// One "Room" row covers room and big room — they look the same on the plan.
 const ITEMS = [
   { label: 'Room', svg: '<rect class="lg-room" x="2" y="3" width="20" height="14"/>' },
-  { label: 'Big room', svg: '<rect class="lg-big" x="2" y="3" width="20" height="14"/>' },
   {
     label: 'Selected room',
     svg: '<rect class="lg-selected" x="2" y="3" width="20" height="14"/>',
@@ -50,10 +50,9 @@ const ITEMS = [
 
 const LEGEND_STYLE = `
   .lg-room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 1.5; }
-  .lg-big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 1.5; }
   .lg-selected { fill: #cfe0ff; stroke: #2f6feb; stroke-width: 1.5; }
   .lg-core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 1.5; }
-  .lg-void  { fill: none; stroke: #b7bbc1; stroke-width: 1.5; stroke-dasharray: 3 2; }
+  .lg-void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 1.5; stroke-dasharray: 3 2; }
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
   .lg-wall  { stroke: #3a3d42; stroke-width: 2.5; }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }
@@ -82,10 +81,9 @@ export function legendHtml(className = 'legend-list') {
 // the given viewBox {x,y,w,h}.
 const SWATCH_FILLS = {
   'lg-room': { fill: '#eef1f4', stroke: '#8f959c' },
-  'lg-big': { fill: '#e6ecf5', stroke: '#8f959c' },
   'lg-selected': { fill: '#cfe0ff', stroke: '#2f6feb' },
   'lg-core': { fill: '#dfe3e8', stroke: '#8f959c' },
-  'lg-void': { fill: 'none', stroke: '#b7bbc1' },
+  'lg-void': { fill: '#ffffff', stroke: '#b5bac0', dash: '3 2' },
   'lg-hall': { fill: '#d7dbe0', stroke: '#d7dbe0' },
   'lg-outline': { fill: '#ffffff', stroke: '#3a3d42' },
 };
@@ -113,7 +111,8 @@ function swatchFor(item) {
     return '<circle cx="10" cy="7" r="6" fill="#ffffff" stroke="#e6e6ea" stroke-width="1.5"/>'
       + '<path d="M10,2 L12,7 L8,7 Z" fill="#8C0B42"/>';
   }
-  return `<rect x="0" y="0" width="20" height="14" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.5"/>`;
+  const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : '';
+  return `<rect x="0" y="0" width="20" height="14" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.5"${dash}/>`;
 }
 const LEGEND_ROW_H = 24;
 const LEGEND_GROUP_W = 190;

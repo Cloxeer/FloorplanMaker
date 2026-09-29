@@ -15,6 +15,7 @@ const STYLE_BLOCK = [
   '    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }',
   '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
   '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
+  '    .void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }',
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
   '    .hall  { fill: #d7dbe0; stroke: none; }',
   '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
@@ -91,17 +92,26 @@ test('transform= only inside the compass or icon groups', () => {
   }
 });
 
-test('elevator/restroom core rooms get an icon group, void gets a hatch group', () => {
+test('elevator/restroom core rooms get an icon group', () => {
   assert.ok(svg.includes('<g class="icon"'), 'expected at least one icon group');
-  assert.ok(svg.includes('<g class="void-hatch">'), 'expected the void hatch group');
+});
+
+test('void is white with a dashed outline (styled), never an unstyled black box', () => {
+  // Every shape class the export writes must have a style rule — an SVG shape
+  // with no fill rule renders solid black.
+  const styled = new Set([...svg.matchAll(/^\s+\.([\w-]+)\s*\{/gm)].map((m) => m[1]));
+  const used = new Set([...svg.matchAll(/<(?:rect|polygon|line) class="([\w-]+)"/g)].map((m) => m[1]));
+  for (const cls of used) assert.ok(styled.has(cls), `class "${cls}" is drawn but has no style rule`);
+  assert.ok(/\.void\s*\{[^}]*fill: #ffffff;[^}]*stroke-dasharray/.test(svg), 'void rule: white fill + dashed outline');
+  assert.ok(!svg.includes('void-hatch'), 'void is empty, as in the legend');
 });
 
 test('void has no label', () => {
+  // A room's label is written on the same line as its shape.
   const voidIdx = svg.indexOf('<rect class="void"');
   assert.ok(voidIdx !== -1);
-  const nextLineEnd = svg.indexOf('\n', voidIdx);
-  const followingLine = svg.slice(nextLineEnd + 1, svg.indexOf('\n', nextLineEnd + 1));
-  assert.ok(!followingLine.includes('class="lbl'));
+  const voidLine = svg.slice(voidIdx, svg.indexOf('\n', voidIdx));
+  assert.ok(!voidLine.includes('<text'), voidLine);
 });
 
 test('lblS chosen for the small room', () => {
