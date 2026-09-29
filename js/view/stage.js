@@ -104,7 +104,8 @@ export function createStage(containerEl, app) {
     }
   }
 
-  function syncFloor(newDoc) {
+  // `prevFloor` is the outline before this change (read before prevDoc moves on).
+  function syncFloor(newDoc, prevFloor) {
     const pts = newDoc.floor && newDoc.floor.points;
     const existing = objects.get('floor');
     const existingEdge = objects.get('floor-edge');
@@ -123,7 +124,7 @@ export function createStage(containerEl, app) {
       canvas.add(edge);
       return;
     }
-    if (prevDoc && prevDoc.floor === newDoc.floor) return;
+    if (prevFloor === newDoc.floor) return;
     rebuildFloorPoints(existing, pts);
     if (existingEdge) rebuildFloorEdgePoints(existingEdge, pts);
   }
@@ -136,6 +137,7 @@ export function createStage(containerEl, app) {
 
   function applyDoc(newDoc) {
     const prevItems = prevDoc ? prevDoc.items : [];
+    const prevFloor = prevDoc ? prevDoc.floor : undefined;
     const bigChange = Math.abs(newDoc.items.length - prevItems.length) > 50;
     if (bigChange) {
       for (const id of [...objects.keys()]) if (id !== 'floor') dropItem(id);
@@ -154,7 +156,7 @@ export function createStage(containerEl, app) {
     doc = newDoc;
     prevDoc = newDoc;
     snapper.invalidate();
-    syncFloor(newDoc);
+    syncFloor(newDoc, prevFloor);
     refreshHallOverlaps(newDoc);
     refreshRoomOverlaps(newDoc);
     restack();

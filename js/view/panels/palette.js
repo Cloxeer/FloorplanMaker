@@ -6,7 +6,7 @@
 
 import { chipSvg, ghostSvg } from './paletteIcons.js';
 import { setFloor, removeItems } from '../../model/document.js';
-import { rectifyOutline } from '../rectify.js';
+import { straightenOutline } from '../rectify.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -105,8 +105,14 @@ export function mountPalette(el, app) {
   if (straightenBtn) {
     straightenBtn.addEventListener('click', () => {
       if (!hasFloor()) return;
-      const pts = rectifyOutline(app.doc.floor.points);
+      const { points: pts, tilt } = straightenOutline(app.doc.floor.points);
       app.commit(setFloor(app.doc, pts), 'Straighten lines');
+      if (tilt) {
+        const deg = Math.abs(tilt).toFixed(1);
+        app.toast(`The outline leans about ${deg}°, so walls were squared along that lean. If the photo itself is tilted, use Flatten in step 1.`);
+      } else {
+        app.toast('Walls straightened. Angled walls were kept (near-45° ones made exactly 45°).');
+      }
     });
   }
 

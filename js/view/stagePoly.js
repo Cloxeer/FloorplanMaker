@@ -31,6 +31,7 @@ export function setPolyPoints(poly, pts) {
   poly.points = pts.map(([x, y]) => new fabric.Point(x, y));
   poly.setBoundingBox(true);
   poly.setCoords();
+  poly.dirty = true; // cached shapes (the floor) must repaint with the new points
 }
 
 function renderDot(ctx, left, top, styleOverride, fabricObject) {
