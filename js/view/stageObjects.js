@@ -21,6 +21,37 @@ function roomStroke(cls) {
   return { stroke: look.stroke, strokeWidth: look.width, strokeDashArray: look.dash ? [...look.dash] : null };
 }
 
+// A void's fill: one repeating tile with both diagonals drawn — the same
+// grey, mesh color, line width and spacing (plan units) as the exported
+// SVG's clipped criss-cross lines (look.js hatchSegments), starting at the
+// shape's top-left, so Trace shows the very same "transparent" pattern.
+let voidPattern = null;
+function voidFill() {
+  if (voidPattern) return voidPattern;
+  const { fill, hatch } = ROOM_LOOK.void;
+  const k = 4; // draw the tile at 4x, then scale it back down: crisp lines
+  const s = hatch.spacing * k;
+  const tile = document.createElement('canvas');
+  tile.width = s;
+  tile.height = s;
+  const g = tile.getContext('2d');
+  g.fillStyle = fill;
+  g.fillRect(0, 0, s, s);
+  g.strokeStyle = hatch.stroke;
+  g.lineWidth = hatch.width * k;
+  g.beginPath();
+  for (let i = -1; i <= 1; i += 1) { // neighbours too, so lines meet across tile edges
+    g.moveTo(i * s, 0); g.lineTo((i + 1) * s, s);
+    g.moveTo((i + 1) * s, 0); g.lineTo(i * s, s);
+  }
+  g.stroke();
+  voidPattern = new fabric.Pattern({ source: tile, repeat: 'repeat', patternTransform: [1 / k, 0, 0, 1 / k, 0, 0] });
+  return voidPattern;
+}
+function roomFill(cls) {
+  return cls === 'void' ? voidFill() : (FILLS[cls] || FILLS.room);
+}
+
 // Back-to-front draw order.
 export const LAYER = {
   grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5,
@@ -144,11 +175,11 @@ function roomContentKids(item) {
 function buildRoomRect(item) {
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
-    fill: FILLS[item.cls] || FILLS.room, ...roomStroke(item.cls),
+    fill: roomFill(item.cls), ...roomStroke(item.cls),
     strokeUniform: true, objectCaching: false,
   });
   if (item.cls === 'void') {
-    // A void is empty (white, thick dashes) and has no label. Fabric's
+    // A void shows the criss-cross pattern and has no label. Fabric's
     // single-child Group recomputes its own bounding box/layout on move in a
     // way that corrupts width/height, so the rect is paired with an invisible
     // one in a multi-child Group (safe) rather than a single-child one.
@@ -194,7 +225,7 @@ function iconGlyph(key, cx, cy, size) {
 
 function buildRoomPoly(item, grid) {
   const poly = new fabric.Polygon(item.points.map(([x, y]) => ({ x, y })), {
-    ...BASE, fill: FILLS[item.cls] || FILLS.room, ...roomStroke(item.cls),
+    ...BASE, fill: roomFill(item.cls), ...roomStroke(item.cls),
     lockRotation: true, lockScalingX: true, lockScalingY: true,
   });
   attachPolyControls(poly, grid);

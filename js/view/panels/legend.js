@@ -10,7 +10,20 @@
 // js/model/look.js — the same values the exported SVG's style rules use.
 // Depends on: js/model/look.js.
 
-import { SWATCH_LOOK, cssDecl, svgAttrs } from '../../model/look.js';
+import {
+  SWATCH_LOOK, cssDecl, svgAttrs, hatchLinesSvg, rectPoints,
+} from '../../model/look.js';
+
+const VOID_MESH = SWATCH_LOOK.void.hatch;
+// The void swatch: box + the same criss-cross mesh as on the plan.
+function voidSwatch(x, y, w, h, attrs) {
+  const g = attrs
+    ? `<g stroke="${VOID_MESH.stroke}" stroke-width="${VOID_MESH.width}">`
+    : '<g class="lg-void-hatch">';
+  const box = attrs ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${svgAttrs(SWATCH_LOOK.void)}/>`
+    : `<rect class="lg-void" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+  return box + g + hatchLinesSvg(rectPoints(x, y, w, h), VOID_MESH) + '</g>';
+}
 
 // One "Room" row: a big room is just a room, drawn the same.
 const ITEMS = [
@@ -20,7 +33,7 @@ const ITEMS = [
     svg: '<rect class="lg-selected" x="2" y="3" width="20" height="14"/>',
   },
   { label: 'Core', svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>' },
-  { label: 'Void', svg: '<rect class="lg-void" x="2" y="3" width="20" height="14"/>' },
+  { label: 'Void', svg: voidSwatch(2, 3, 20, 14, false) },
   {
     label: 'Stairs',
     svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>'
@@ -57,6 +70,7 @@ const LEGEND_STYLE = `
   .lg-selected { fill: #cfe0ff; stroke: #2f6feb; stroke-width: 1.5; }
   .lg-core  { ${cssDecl(SWATCH_LOOK.core)} }
   .lg-void  { ${cssDecl(SWATCH_LOOK.void)} }
+  .lg-void-hatch { stroke: ${VOID_MESH.stroke}; stroke-width: ${VOID_MESH.width}; }
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
   .lg-wall  { stroke: #3a3d42; stroke-width: 2.5; }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }
@@ -111,6 +125,7 @@ function swatchFor(item) {
       + '<path d="M8,7 V5 A2,2 0 0 1 12,5 V7" fill="none" stroke="#7c3aed" stroke-width="1.2"/>'
       + '<rect x="7" y="7" width="6" height="5" rx="1" fill="#ffffff" stroke="#7c3aed" stroke-width="1.2"/>';
   }
+  if (item.label === 'Void') return voidSwatch(0, 0, 20, 14, true);
   if (item.label === 'Compass') {
     return '<circle cx="10" cy="7" r="6" fill="#ffffff" stroke="#e6e6ea" stroke-width="1.5"/>'
       + '<path d="M10,2 L12,7 L8,7 Z" fill="#8C0B42"/>';

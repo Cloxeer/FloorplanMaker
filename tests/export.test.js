@@ -16,7 +16,8 @@ const STYLE_BLOCK = [
   '    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }',
   '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
   '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
-  '    .void  { fill: #ffffff; stroke: #8f959c; stroke-width: 5; stroke-dasharray: 16 10; }',
+  '    .void  { fill: #eceef1; stroke: #b9bec6; stroke-width: 2; }',
+  '    .void-hatch { stroke: #b9bec6; stroke-width: 1.5; }',
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
   '    .hall  { fill: #d7dbe0; stroke: none; }',
   '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
@@ -97,14 +98,33 @@ test('elevator/restroom core rooms get an icon group', () => {
   assert.ok(svg.includes('<g class="icon"'), 'expected at least one icon group');
 });
 
-test('void is white with a dashed outline (styled), never an unstyled black box', () => {
+test('void shows the criss-cross pattern (styled), never an unstyled black box', () => {
   // Every shape class the export writes must have a style rule — an SVG shape
-  // with no fill rule renders solid black.
+  // with no fill rule renders solid black, a line with no stroke is invisible.
   const styled = new Set([...svg.matchAll(/^\s+\.([\w-]+)\s*\{/gm)].map((m) => m[1]));
-  const used = new Set([...svg.matchAll(/<(?:rect|polygon|line) class="([\w-]+)"/g)].map((m) => m[1]));
-  for (const cls of used) assert.ok(styled.has(cls), `class "${cls}" is drawn but has no style rule`);
-  assert.ok(/\.void\s*\{[^}]*fill: #ffffff;[^}]*stroke-dasharray/.test(svg), 'void rule: white fill + dashed outline');
-  assert.ok(!svg.includes('void-hatch'), 'void is empty, as in the legend');
+  const used = new Set([...svg.matchAll(/<(?:rect|polygon|line|g) class="([\w-]+)"/g)].map((m) => m[1]));
+  for (const cls of ['room', 'core', 'void', 'void-hatch']) assert.ok(used.has(cls), `sample should draw "${cls}"`);
+  for (const cls of ['room', 'core', 'void', 'void-hatch', 'hall', 'door', 'floor', 'floor-edge']) {
+    if (used.has(cls)) assert.ok(styled.has(cls), `class "${cls}" is drawn but has no style rule`);
+  }
+  const mesh = svg.match(/<g class="void-hatch">(.*?)<\/g>/)[1];
+  assert.ok((mesh.match(/<line /g) || []).length >= 6, 'void has a real mesh of lines');
+  assert.ok(!/stroke-dasharray/.test(svg.match(/\.void\s*\{[^}]*\}/)[0]), 'no thick dashed outline');
+});
+
+test('void mesh on an odd-shaped (polygon) void stays inside its outline', () => {
+  const d = makeSampleDoc();
+  const tri = [[100, 100], [400, 100], [100, 400]];
+  d.items.push({ id: 'tv', type: 'room', cls: 'void', shape: 'poly', points: tri, number: '', name: '', label: { pinned: false, x: null, y: null, fontSize: null }, showName: false });
+  const out = exportSvg(d);
+  const group = out.match(/<polygon class="void" points="100,100 400,100 100,400"\/>\n\s*<g class="void-hatch">(.*?)<\/g>/);
+  assert.ok(group, 'polygon void has its mesh');
+  for (const m of group[1].matchAll(/x1="(-?\d+)" y1="(-?\d+)" x2="(-?\d+)" y2="(-?\d+)"/g)) {
+    const [x1, y1, x2, y2] = m.slice(1).map(Number);
+    for (const [x, y] of [[x1, y1], [x2, y2]]) {
+      assert.ok(x >= 99 && y >= 99 && x + y <= 501, `mesh point ${x},${y} is outside the triangle`);
+    }
+  }
 });
 
 test('void has no label', () => {
@@ -150,7 +170,11 @@ test('legend and exported SVG draw room, core and void the same way', () => {
     assert.ok(htmlRule.includes(`fill: ${fill}`) && htmlRule.includes(`stroke: ${stroke}`), `panel legend ${cls} ≠ SVG`);
     assert.ok(placed.includes(`fill="${fill}" stroke="${stroke}"`), `placed legend ${cls} ≠ SVG`);
     if (cls === 'void') {
-      assert.ok(/stroke-dasharray/.test(rule) && /stroke-dasharray/.test(htmlRule), 'void is dashed in both');
+      // Same mesh color in the SVG, the panel legend and the placed legend.
+      const meshColor = svg.match(/\.void-hatch\s*\{\s*stroke: (#[0-9a-f]{6})/)[1];
+      assert.ok(new RegExp(`\\.lg-void-hatch\\s*\\{\\s*stroke: ${meshColor}`).test(html), 'panel legend mesh color');
+      assert.ok(placed.includes(`<g stroke="${meshColor}"`), 'placed legend mesh color');
+      assert.ok(/lg-void-hatch">(<line [^>]+\/>){4,}/.test(html), 'panel legend shows the mesh');
     }
   }
 });

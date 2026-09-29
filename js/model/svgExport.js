@@ -6,7 +6,9 @@
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
 import { iconForRoom, iconSvg } from '../view/icons.js';
-import { ROOM_LOOK, cssDecl, exportClass } from './look.js';
+import {
+  ROOM_LOOK, cssDecl, exportClass, hatchLinesSvg, rectPoints,
+} from './look.js';
 
 const IND = '  ';
 
@@ -54,13 +56,17 @@ function roomBox(item) {
   return bbox(item.points);
 }
 
-// Icon decoration for a room, a pure function of cls+name+box, so it never
-// needs to be stored — export always regenerates it. Uses the "icon" class,
-// outside the parser's known set (see tools/build_rooms.py), so it is
-// silently ignored there and by svgImport. A void gets nothing: it's drawn
-// empty — white with a dashed outline (the .void style), like the legend.
+// Icon / void-mesh decoration for a room, a pure function of cls+name+shape,
+// so it never needs to be stored — export always regenerates it. Uses
+// classes ("icon" / "void-hatch") outside the parser's known set (see
+// tools/build_rooms.py), so it is silently ignored there and by svgImport.
+// A void gets the "transparent" criss-cross mesh from look.js, clipped to
+// its exact outline — the same pattern Trace and the legend draw.
 function roomExtraLine(item) {
-  if (item.cls === 'void') return null;
+  if (item.cls === 'void') {
+    const pts = item.shape === 'rect' ? rectPoints(item.x, item.y, item.w, item.h) : item.points;
+    return `${IND}<g class="void-hatch">${hatchLinesSvg(pts, ROOM_LOOK.void.hatch, r)}</g>`;
+  }
   const box = roomBox(item);
   const key = iconForRoom(item);
   if (!key) return null;
@@ -183,6 +189,8 @@ export function exportSvg(doc) {
   for (const cls of ['room', 'ours', 'core', 'void']) {
     lines.push(`    .${cls.padEnd(5)} { ${cssDecl(ROOM_LOOK[cls])} }`);
   }
+  const mesh = ROOM_LOOK.void.hatch;
+  lines.push(`    .void-hatch { stroke: ${mesh.stroke}; stroke-width: ${mesh.width}; }`);
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
   lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');
