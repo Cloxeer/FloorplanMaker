@@ -67,7 +67,9 @@ function escapeHtml(s) {
   }[c]));
 }
 
-export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, projectName, folderApi }, { onBack }) {
+export function showExportStep({
+  svgText, jpgDataUrl, meta, projectJson, projectName, folderApi, pageLabel = 'Fit to SVG',
+}, { onBack }) {
   const host = document.getElementById('dialogs');
   const names = exportFileNames(meta);
   const finishedName = `${meta.slug}.svg`;
@@ -85,6 +87,7 @@ export function showExportStep({ svgText, jpgDataUrl, meta, projectJson, project
       <p>Choose what to download.</p>
     </header>
     <div class="export-body">
+      <p class="export-page" id="export-page">Page size: <strong>${escapeHtml(pageLabel)}</strong> <span class="export-page-hint">(change it on the Preview)</span></p>
       <label class="export-format-label" for="export-format">Format</label>
       <select id="export-format">
         <option value="svg" selected>SVG (plan)</option>

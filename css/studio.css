@@ -444,6 +444,24 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
   background: #ffffff; display: flex; align-items: center; justify-content: center; overflow: auto;
 }
 .preview-svg-wrap svg { max-width: 100%; max-height: 100%; }
+/* The SVG is shown as a white sheet on a grey desk: its edges are exactly the
+   downloaded file's edges (Fit to SVG) or the printed page's (Letter/A4). */
+#preview-svg-wrap { background: #e8eaed; overflow: hidden; }
+#preview-svg-wrap svg.preview-sheet {
+  flex: none; background: #ffffff; outline: 1px solid #c7cad0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 8px 24px rgba(0,0,0,0.10);
+}
+#preview-svg-wrap.is-paper svg.preview-sheet { outline-color: #9aa0a8; }
+.page-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 6px; }
+.page-controls-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg[hidden] { display: none; }
+.seg button { border: none; border-radius: 0; background: #fff; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.page-note { margin: 0 0 10px !important; font-size: 12px !important; }
+.export-page { margin: 0 0 6px; font-size: 13px; }
+.export-page-hint { color: var(--muted); font-size: 12px; }
 .preview-side { width: 260px; flex: none; overflow-y: auto; }
 .preview-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; }
 .preview-download-group { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 420px; }

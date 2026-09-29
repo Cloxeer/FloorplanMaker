@@ -10,7 +10,12 @@ read these files. Do not deviate.
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="minX minY width height" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif">
 ```
 
-* Plan units are the straightened photo's pixels. viewBox comes from the photo.
+* Plan units are the straightened photo's pixels.
+* The downloaded viewBox is chosen on the Preview (`js/model/pageFit.js`):
+  *Fit to SVG* (default) hugs everything drawn — plan, labels, doors, compass,
+  legend — with a small margin; *Letter* / *A4* centers it on a page of that
+  shape (portrait or landscape) and adds `width`/`height` in `in`/`mm` so it
+  prints at paper size. Either way nothing is cut off. Use Fit for the map.
 * All coordinates are integers.
 * No `transform` on anything except the compass group.
 * No `<defs>`, `<image>`, `id` attributes, or inline `style` attributes.

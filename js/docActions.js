@@ -12,6 +12,9 @@ import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
 import { exportProjectJson } from './store/autosave.js';
 import { legendSvgGroupAt, legendGroupSize } from './view/panels/legend.js';
+import {
+  PAGES, contentBounds, pageFrame, applyFrame,
+} from './model/pageFit.js';
 
 function boxOfItem(item) {
   if (item.shape === 'poly') return bbox(item.points);
@@ -113,24 +116,34 @@ export function createActions(app, deps) {
     const halls = doc.items.filter((it) => it.type === 'hall');
     const rooms = doc.items.filter((it) => it.type === 'room');
     let legendPos = (app.project && app.project.view && app.project.view.legendPos) || null;
+    // Every export starts on "Fit to SVG" (the file the map app shows); a
+    // paper size picked in the Preview only lasts for this export.
+    let page = 'fit';
+    let orientation = 'auto';
     const projectJson = app.project ? exportProjectJson(app.project) : null;
     const projectName = app.project ? `${app.project.slug}.floorplan.json` : 'plan.floorplan.json';
 
-    // Splice the legend group in and grow the root viewBox so it isn't clipped.
+    // The frame (viewBox, and paper size when printing) for a legend position
+    // and page choice. The Preview shows exactly this; the download uses it.
+    function frameFor(pos, pg, orient) {
+      return pageFrame(contentBounds(doc, pos, legendGroupSize()), pg, orient);
+    }
     function withLegend(text, pos) {
-      const g = legendGroupSize();
       const sc = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
-      let out = text.replace('</svg>', `${legendSvgGroupAt(pos.x, pos.y, sc)}</svg>`);
-      out = out.replace(/viewBox="(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)"/,
-        (m, x, y, w, h) => {
-          const vx = Number(x); const vy = Number(y); const vw = Number(w); const vh = Number(h);
-          const minX = Math.min(vx, pos.x - 20);
-          const minY = Math.min(vy, pos.y - 20);
-          const maxX = Math.max(vx + vw, pos.x + g.w * sc + 20);
-          const maxY = Math.max(vy + vh, pos.y + g.h * sc + 20);
-          return `viewBox="${Math.round(minX)} ${Math.round(minY)} ${Math.round(maxX - minX)} ${Math.round(maxY - minY)}"`;
-        });
-      return out;
+      return text.replace('</svg>', `${legendSvgGroupAt(pos.x, pos.y, sc)}</svg>`);
+    }
+    function finalSvgText() {
+      const base = legendPos ? withLegend(svgText, legendPos) : svgText;
+      return applyFrame(base, frameFor(legendPos, page, orientation));
+    }
+    function pageLabel() {
+      if (page === 'fit') return PAGES.fit.label;
+      return `${PAGES[page].label} · ${frameFor(legendPos, page, orientation).orientation}`;
+    }
+    function rememberLegend() {
+      if (!app.project) return;
+      app.project.view = { ...(app.project.view || {}), legendPos };
+      if (app.saveView) app.saveView();
     }
 
     function closePreview() { if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; } }
@@ -141,6 +154,7 @@ export function createActions(app, deps) {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
       app._previewHandle = showPreviewStep({
         svgText, validation: results, halls, rooms, initialLegendPos: legendPos,
+        page, orientation, frameFor,
       }, {
         onBack: () => {
           app._previewHandle = null;
@@ -148,11 +162,11 @@ export function createActions(app, deps) {
         },
         onSaveLegend: (pos) => {
           legendPos = pos;
-          if (app.project) {
-            app.project.view = app.project.view || {};
-            app.project.view.legendPos = pos;
-            if (app.saveView) app.saveView();
-          }
+          rememberLegend();
+        },
+        onPageChange: (pg, orient) => {
+          page = pg;
+          orientation = orient;
         },
         onExport: (pos) => {
           legendPos = pos != null ? pos : legendPos;
@@ -164,7 +178,7 @@ export function createActions(app, deps) {
     }
     function openExport() {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/export`);
-      const finalSvg = legendPos ? withLegend(svgText, legendPos) : svgText;
+      const finalSvg = finalSvgText();
       const folderApi = {
         supported: !!(app.isFolderSupported && app.isFolderSupported()),
         getHandle: () => ((app.folder && app.folder.state === 'granted' && app.folder.handle) ? app.folder.handle : null),
@@ -173,7 +187,9 @@ export function createActions(app, deps) {
           return (app.folder && app.folder.handle) ? app.folder.handle : null;
         },
       };
-      app._exportHandle = showExportStep({ svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName, folderApi }, {
+      app._exportHandle = showExportStep({
+        svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName, folderApi, pageLabel: pageLabel(),
+      }, {
         onBack: () => {
           app._exportHandle = null;
           openPreview();

@@ -59,9 +59,25 @@ function rectIntersectsPolygon(rect, poly) {
   return false;
 }
 
+const PAGE_BUTTONS = [
+  ['fit', 'Fit to SVG'],
+  ['letter', 'Letter 8.5 × 11'],
+  ['a4', 'A4'],
+];
+const ORIENT_BUTTONS = [['auto', 'Auto'], ['portrait', 'Portrait'], ['landscape', 'Landscape']];
+
+function pageNote(page, frame) {
+  if (page === 'fit') {
+    return 'The SVG is sized to hold everything — plan, compass and legend — with nothing cut off. Use this for the map.';
+  }
+  const paper = page === 'a4' ? 'A4 (210 × 297 mm)' : 'Letter (8.5 × 11 in)';
+  return `The white sheet is the whole printed page: ${paper}, ${frame.orientation}. The download prints at this size.`;
+}
+
 export function showPreviewStep({
   svgText, validation, halls, rooms, initialLegendPos,
-}, { onBack, onExport, onSaveLegend }) {
+  page: initialPage = 'fit', orientation: initialOrientation = 'auto', frameFor,
+}, { onBack, onExport, onSaveLegend, onPageChange }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
   el.id = 'preview';
@@ -71,6 +87,16 @@ export function showPreviewStep({
       <button type="button" id="preview-back-top">&larr; Back to editing</button>
       <h2>Preview</h2>
       <p>This is exactly what will be exported, hallways included.</p>
+      <div class="page-controls">
+        <span class="page-controls-label">Page size</span>
+        <div class="seg" id="preview-page" role="group" aria-label="Page size">
+          ${PAGE_BUTTONS.map(([k, t]) => `<button type="button" data-page="${k}">${t}</button>`).join('')}
+        </div>
+        <div class="seg" id="preview-orient" role="group" aria-label="Orientation">
+          ${ORIENT_BUTTONS.map(([k, t]) => `<button type="button" data-orient="${k}">${t}</button>`).join('')}
+        </div>
+      </div>
+      <p class="page-note" id="preview-page-note"></p>
     </header>
     <div class="preview-body">
       <div class="preview-svg-wrap" id="preview-svg-wrap"></div>
@@ -103,63 +129,78 @@ export function showPreviewStep({
   const svgEl = el.querySelector('#preview-svg-wrap svg');
   let planBBox = null;
   const floorPoly = floorPolygonPoints(svgEl);
+  const wrapEl = el.querySelector('#preview-svg-wrap');
   if (svgEl) {
     svgEl.removeAttribute('width');
     svgEl.removeAttribute('height');
-    svgEl.style.width = '100%';
-    svgEl.style.height = '100%';
-    svgEl.style.background = '#ffffff';
+    svgEl.classList.add('preview-sheet');
 
     // Snapshot of the plan's own footprint (rooms/floor/doors/etc, before
-    // any preview-only overlays are appended) — used to place the legend
-    // in blank margin, never over the plan.
+    // the legend is appended) — used to place the legend in blank margin,
+    // never over the plan.
     try { planBBox = svgEl.getBBox(); } catch { planBBox = null; }
 
     // Hallways, staff walls, icons and void hatches are all part of svgText
-    // itself now, so the preview draws nothing extra over the plan: what you
-    // see here is exactly what gets downloaded.
+    // itself, so the preview draws nothing extra over the plan.
     void halls;
     void rooms;
-    const ns = 'http://www.w3.org/2000/svg';
-
-    // Paper-frame preview aid: a thin grey Letter-ratio rectangle centered
-    // on the plan bbox with ~6% margin, so the user sees how it fits a
-    // printed sheet. Preview only — never written into svgText.
-    const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
-    if (vb.length === 4 && vb.every((n) => Number.isFinite(n))) {
-      const [vx, vy, vw, vh] = vb;
-      const cx = vx + vw / 2;
-      const cy = vy + vh / 2;
-      const margin = 0.06;
-      const targetW = vw * (1 + margin * 2);
-      const targetH = vh * (1 + margin * 2);
-      const letterRatio = vw >= vh ? 11 / 8.5 : 8.5 / 11;
-      let frameW;
-      let frameH;
-      if (targetW / targetH > letterRatio) { frameW = targetW; frameH = targetW / letterRatio; }
-      else { frameH = targetH; frameW = frameH * letterRatio; }
-      const fx = cx - frameW / 2;
-      const fy = cy - frameH / 2;
-      const frame = document.createElementNS(ns, 'rect');
-      frame.setAttribute('x', fx);
-      frame.setAttribute('y', fy);
-      frame.setAttribute('width', frameW);
-      frame.setAttribute('height', frameH);
-      frame.setAttribute('fill', 'none');
-      frame.setAttribute('stroke', '#9aa0a8');
-      frame.setAttribute('stroke-width', Math.max(1, vw / 500));
-      frame.setAttribute('stroke-dasharray', `${Math.max(2, vw / 200)} ${Math.max(2, vw / 200)}`);
-      svgEl.appendChild(frame);
-      const label = document.createElementNS(ns, 'text');
-      label.setAttribute('x', fx + frameW * 0.02);
-      label.setAttribute('y', fy + frameH * 0.03 + (vw / 60));
-      label.setAttribute('fill', '#9aa0a8');
-      label.setAttribute('font-size', Math.max(10, vw / 60));
-      label.setAttribute('font-family', 'sans-serif');
-      label.textContent = 'Letter sheet';
-      svgEl.appendChild(label);
-    }
   }
+
+  // The <svg> is shown as a white sheet whose edges ARE the file's edges (its
+  // viewBox), sized to the largest box of that shape that fits the panel.
+  function sizeSheet() {
+    if (!svgEl || !wrapEl) return;
+    const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+    if (vb.length !== 4 || !(vb[2] > 0) || !(vb[3] > 0)) return;
+    const pad = 24;
+    const availW = Math.max(40, wrapEl.clientWidth - pad * 2);
+    const availH = Math.max(40, wrapEl.clientHeight - pad * 2);
+    const ratio = vb[2] / vb[3];
+    let w = availW;
+    let h = w / ratio;
+    if (h > availH) { h = availH; w = h * ratio; }
+    svgEl.style.width = `${Math.floor(w)}px`;
+    svgEl.style.height = `${Math.floor(h)}px`;
+  }
+  if (svgEl) new MutationObserver(sizeSheet).observe(svgEl, { attributes: true, attributeFilter: ['viewBox'] });
+  const resizeObs = typeof ResizeObserver === 'function' ? new ResizeObserver(sizeSheet) : null;
+  if (resizeObs && wrapEl) resizeObs.observe(wrapEl);
+
+  // --- Page size: Fit to SVG (default) or a paper sheet --------------------
+  let page = initialPage;
+  let orientation = initialOrientation;
+  const pageSeg = el.querySelector('#preview-page');
+  const orientSeg = el.querySelector('#preview-orient');
+  const pageNoteEl = el.querySelector('#preview-page-note');
+  function currentFrame() {
+    return frameFor ? frameFor(savedLegendPos, page, orientation) : null;
+  }
+  // Show exactly the frame the download will use (not while placing the
+  // legend, which temporarily widens the view so there's room to drag).
+  function applyPage() {
+    const frame = currentFrame();
+    for (const b of pageSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.page === page));
+    for (const b of orientSeg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.orient === orientation));
+    orientSeg.hidden = page === 'fit';
+    if (wrapEl) wrapEl.classList.toggle('is-paper', page !== 'fit');
+    if (frame) pageNoteEl.textContent = pageNote(page, frame);
+    if (svgEl && frame && !placementMode) svgEl.setAttribute('viewBox', `${frame.x} ${frame.y} ${frame.w} ${frame.h}`);
+    sizeSheet();
+  }
+  pageSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-page]');
+    if (!b) return;
+    page = b.dataset.page;
+    if (onPageChange) onPageChange(page, orientation);
+    applyPage();
+  });
+  orientSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-orient]');
+    if (!b) return;
+    orientation = b.dataset.orient;
+    if (onPageChange) onPageChange(page, orientation);
+    applyPage();
+  });
 
   // --- Draggable legend placement --------------------------------------
   const placeBtn = el.querySelector('#preview-place-legend');
@@ -169,8 +210,9 @@ export function showPreviewStep({
   const NS = 'http://www.w3.org/2000/svg';
   const MARGIN = 20;
   let baseVB = null;
+  // The plan on its own, fitted (no legend) — what legend placement grows from.
   function ensureBaseVB() {
-    if (!baseVB) baseVB = getViewBox();
+    if (!baseVB) baseVB = frameFor ? frameFor(null, 'fit', 'auto') : getViewBox();
     return baseVB;
   }
   // Grow the preview's viewBox so a legend placed beside/below the plan is
@@ -330,7 +372,8 @@ export function showPreviewStep({
     svgEl.appendChild(legendGroupEl);
     legendGroupEl.style.cursor = 'grab';
     legendGroupEl.addEventListener('pointerdown', onLegendPointerDown);
-    fitViewBox(pos);
+    if (placementMode) fitViewBox(pos);
+    else applyPage();
     syncSelectionUI();
   }
 
@@ -576,9 +619,11 @@ export function showPreviewStep({
     removeBtn.hidden = true;
     removeSelectionUI();
     hidePanPad();
+    applyPage();
   }
 
   if (savedLegendPos) renderLegendAt(savedLegendPos);
+  applyPage();
 
   placeBtn.addEventListener('click', enterPlacement);
   saveBtn.addEventListener('click', () => {
@@ -600,6 +645,7 @@ export function showPreviewStep({
 
   function close() {
     document.removeEventListener('keydown', onKeyDown);
+    if (resizeObs) resizeObs.disconnect();
     el.remove();
   }
   function onKeyDown(e) {
