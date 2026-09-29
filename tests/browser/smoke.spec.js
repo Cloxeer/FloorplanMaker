@@ -9,6 +9,7 @@
 // Requires a static server at http://localhost:8080 (playwright.config.js
 // starts one via `npx serve` if none is already running).
 
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
 async function startProject(page) {
@@ -111,7 +112,7 @@ test.describe('Floor Plan Studio smoke test', () => {
     await page.mouse.click(doorAt[0], doorAt[1]);
     await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'door').length).toBe(1);
 
-    // ---- 5. Draw a hallway (studio-only guide) ----
+    // ---- 5. Draw a hallway ----
     await page.click('#btn-tool-hall');
     const h1 = await toClient(page, 260, 430);
     const h2 = await toClient(page, 700, 500);
@@ -218,7 +219,7 @@ test.describe('Floor Plan Studio smoke test', () => {
     await expect.poll(async () => (await doc(page)).items.length).toBe(itemsBefore);
 
     // ---- 13. Export opens the Preview first; "Export ->" moves to the
-    // Export screen, where "Download" downloads the SVG (hallways excluded)
+    // Export screen, where "Download" downloads the SVG — hallway included
     // ----
     await page.click('#btn-export');
     await expect(page.locator('#preview')).toBeVisible();
@@ -229,6 +230,8 @@ test.describe('Floor Plan Studio smoke test', () => {
       page.click('#export-download'),
     ]);
     expect(download.suggestedFilename()).toMatch(/\.svg$/);
+    const svgOut = readFileSync(await download.path(), 'utf8');
+    expect(svgOut).toContain('class="hall"');
     await page.click('#export-maintainer summary');
     await expect(page.locator('#ed-snippet')).toBeVisible();
 

@@ -294,6 +294,18 @@ export function importSvg(svgText) {
       continue;
     }
 
+    if (t.kind === 'selfclose' && t.name === 'line' && t.attrs.class === 'authwall') {
+      items.push({
+        id: newId(),
+        type: 'authwall',
+        x1: Number(t.attrs.x1),
+        y1: Number(t.attrs.y1),
+        x2: Number(t.attrs.x2),
+        y2: Number(t.attrs.y2),
+      });
+      continue;
+    }
+
     if (t.kind === 'selfclose' && t.name === 'line' && t.attrs.class === 'door') {
       const x1 = Number(t.attrs.x1), y1 = Number(t.attrs.y1);
       const x2 = Number(t.attrs.x2), y2 = Number(t.attrs.y2);

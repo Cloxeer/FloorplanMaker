@@ -18,6 +18,7 @@ const STYLE_BLOCK = [
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
   '    .hall  { fill: #d7dbe0; stroke: none; }',
   '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
+  '    .authwall { stroke: #7c3aed; stroke-width: 6; stroke-dasharray: 10 8; }',
   '    .door  { stroke: #ffffff; stroke-width: 10; }',
   '    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }',
   '    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }',

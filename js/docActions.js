@@ -98,13 +98,9 @@ export function createActions(app, deps) {
     }, 400);
   }
   function exportAll() {
-    // Staff walls (authwall) are studio-only guides: saved in the .json project
-    // but never drawn in the exported SVG. Hallways ARE drawn in the SVG (grey
-    // corridors, as they appear in trace); the parsers ignore the "hall" class.
-    const doc = {
-      ...app.doc,
-      items: app.doc.items.filter((it) => it.type !== 'authwall'),
-    };
+    // Everything drawn in trace goes into the SVG — nothing is filtered out.
+    // Hallways and staff walls use classes the map-build parsers ignore.
+    const doc = app.doc;
     const results = validate(doc);
     app.validation = results;
     app.emit({ type: 'validation' });
@@ -114,7 +110,7 @@ export function createActions(app, deps) {
     }
     const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    const halls = app.doc.items.filter((it) => it.type === 'hall');
+    const halls = doc.items.filter((it) => it.type === 'hall');
     const rooms = doc.items.filter((it) => it.type === 'room');
     let legendPos = (app.project && app.project.view && app.project.view.legendPos) || null;
     const projectJson = app.project ? exportProjectJson(app.project) : null;

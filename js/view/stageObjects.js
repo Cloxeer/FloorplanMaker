@@ -299,10 +299,9 @@ function buildDoor(item) {
 
 // ---------------------------------------------------------- staff wall ----
 // A "wall of authority": a thick dashed purple line with a small lock glyph
-// at its midpoint. Studio-only (filtered out of exportSvg in docActions.js,
-// same as halls) and never routed/validated (route.js/validate.js only look
-// at type === 'room' / 'door' / 'stair', so an 'authwall' item is inert to
-// both without any change there).
+// at its midpoint. Exported as a dashed <line class="authwall"> and never
+// routed/validated (route.js/validate.js only look at type === 'room' /
+// 'door' / 'stair', so an 'authwall' item is inert to both).
 function lockGlyph(cx, cy, size) {
   const bodyW = size * 0.7, bodyH = size * 0.55;
   const shackleR = size * 0.28;

@@ -184,6 +184,7 @@ export function exportSvg(doc) {
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
   lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');
+  lines.push('    .authwall { stroke: #7c3aed; stroke-width: 6; stroke-dasharray: 10 8; }');
   lines.push('    .door  { stroke: #ffffff; stroke-width: 10; }');
   lines.push('    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }');
   lines.push('    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }');
@@ -238,6 +239,13 @@ export function exportSvg(doc) {
   const stairs = doc.items.filter((it) => it.type === 'stair');
   for (const stair of stairs) {
     for (const l of stairLines(stair)) lines.push(l);
+  }
+
+  // Staff-only walls: dashed purple lines inside hallways, as drawn in trace.
+  // The "authwall" class is outside the map-build parsers' known set.
+  const authwalls = doc.items.filter((it) => it.type === 'authwall');
+  for (const w of authwalls) {
+    lines.push(`${IND}<line class="authwall" x1="${r(w.x1)}" y1="${r(w.y1)}" x2="${r(w.x2)}" y2="${r(w.y2)}"/>`);
   }
 
   // Redraw the outer wall as a stroke-only line so rooms/halls flush to it

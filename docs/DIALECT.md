@@ -38,6 +38,7 @@ read these files. Do not deviate.
 .stair { stroke: #8f959c; stroke-width: 2; }
 .hall  { fill: #d7dbe0; stroke: none; }
 .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
+.authwall { stroke: #7c3aed; stroke-width: 6; stroke-dasharray: 10 8; }
 .door  { stroke: #ffffff; stroke-width: 10; }
 .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }
 .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }
@@ -56,6 +57,7 @@ read these files. Do not deviate.
 | `<rect>` / `<polygon>` with class `room`, `big`, `ours`, `core`, `void` | Blocks routing. Corridors are empty floor. `void` has no label. |
 | `<g class="stair">` containing only `<line>` treads | Treads 18 units apart. Bounding-box center = arrival point on floors above 1. |
 | `<rect class="hall">` (+ optional `<text class="hall-lbl">Hallway</text>`) | Grey corridor, drawn behind rooms. Purely visual: the room/entrance build tools ignore it; the studio reads it back so hallways survive an SVG round-trip. |
+| `<line class="authwall" x1 y1 x2 y2>` | Staff-only wall inside a hallway, dashed purple. Visual only, ignored by the build tools; read back by the studio. |
 | `<line class="door" x1 y1 x2 y2>` | Lies on the floor outline (outer wall). Midpoint is the entrance. Default 36 units long; the width is user-adjustable by dragging. Drawn *after* `floor-edge` so its white stroke cuts a visible opening in the wall line. |
 | `<text class="exit" x y>EXIT</text>` or `Door` | Within 100 units of a door midpoint. `Door` variant carries `fill="#5f6368"`. Label sits 55 units inside the wall. |
 | `<text class="lbl">` / `<text class="lblS">` | At the room centroid. Text ends in the room number matching `(?:^|\s)([A-Z]?\d{3}[A-Z]?)$`. Words before the number are the room name. `lblS` (19px) is picked automatically when the room's short side is under 70 units. Per-element `font-size="Npx"` override allowed. |

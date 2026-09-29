@@ -1,7 +1,7 @@
 // previewStep.js
 // Full-screen "Preview" step shown when the user clicks Export (top bar or
 // step 4). Renders the exact exported SVG (already built by docActions.js'
-// exportAll, halls filtered out) scaled to fit, beside a legend and the
+// exportAll, with every traced item in it) scaled to fit, beside a legend and the
 // current checklist state. "Back to editing" closes the panel with no side
 // effects; "Download files" runs the existing export dialog (download +
 // building-extras.json snippet).
@@ -12,18 +12,6 @@ import {
 } from './legend.js';
 import { checklistHtml } from './validation.js';
 import { pointInPolygon, segmentsIntersect } from '../../model/geometry.js';
-
-function hallIntersection(a, b) {
-  const axisA = a.w > a.h ? 'h' : 'v';
-  const axisB = b.w > b.h ? 'h' : 'v';
-  if (axisA !== axisB) return null;
-  const x1 = Math.max(a.x, b.x);
-  const y1 = Math.max(a.y, b.y);
-  const x2 = Math.min(a.x + a.w, b.x + b.w);
-  const y2 = Math.min(a.y + a.h, b.y + b.h);
-  if (x2 <= x1 || y2 <= y1) return null;
-  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
-}
 
 // Reads the building outline's own points straight out of the preview SVG
 // (the <polygon class="floor"> the export writes), so the red/blue legend
@@ -82,7 +70,7 @@ export function showPreviewStep({
     <header class="preview-header">
       <button type="button" id="preview-back-top">&larr; Back to editing</button>
       <h2>Preview</h2>
-      <p>This is exactly what will be exported. Hallway guides are left out.</p>
+      <p>This is exactly what will be exported, hallways included.</p>
     </header>
     <div class="preview-body">
       <div class="preview-svg-wrap" id="preview-svg-wrap"></div>
@@ -127,43 +115,12 @@ export function showPreviewStep({
     // in blank margin, never over the plan.
     try { planBBox = svgEl.getBBox(); } catch { planBBox = null; }
 
-    // Hallways are studio-only guides, left out of the exported SVG text.
-    // Overlay them here (and their overlaps) into the inline preview SVG
-    // only — never mutate svgText itself.
-    const ns = 'http://www.w3.org/2000/svg';
-    const halls_ = halls || [];
-    for (const h of halls_) {
-      const r = document.createElementNS(ns, 'rect');
-      r.setAttribute('x', h.x);
-      r.setAttribute('y', h.y);
-      r.setAttribute('width', h.w);
-      r.setAttribute('height', h.h);
-      r.setAttribute('fill', '#d7dbe0');
-      svgEl.appendChild(r);
-    }
-    for (let i = 0; i < halls_.length; i += 1) {
-      for (let j = i + 1; j < halls_.length; j += 1) {
-        const rect = hallIntersection(halls_[i], halls_[j]);
-        if (rect) {
-          const r = document.createElementNS(ns, 'rect');
-          r.setAttribute('x', rect.x);
-          r.setAttribute('y', rect.y);
-          r.setAttribute('width', rect.w);
-          r.setAttribute('height', rect.h);
-          r.setAttribute('fill', '#e5484d');
-          r.setAttribute('fill-opacity', '0.35');
-          r.setAttribute('stroke', 'none');
-          svgEl.appendChild(r);
-        }
-      }
-    }
-
-    // Elevator/restroom icons and the void criss-cross hatch are now part of
-    // svgText itself (see roomExtraLine in js/model/svgExport.js), so the
-    // preview no longer needs to draw them separately — it already matches
-    // the download byte-for-byte on this front. `rooms` is only kept for
-    // the hall overlay above.
+    // Hallways, staff walls, icons and void hatches are all part of svgText
+    // itself now, so the preview draws nothing extra over the plan: what you
+    // see here is exactly what gets downloaded.
+    void halls;
     void rooms;
+    const ns = 'http://www.w3.org/2000/svg';
 
     // Paper-frame preview aid: a thin grey Letter-ratio rectangle centered
     // on the plan bbox with ~6% margin, so the user sees how it fits a

@@ -58,9 +58,8 @@ checklist walks all four in order, matching `walkthrough.spec.js`.
 13. Click an unnumbered room, type `101` in the **Number** field.
     - Expected: the room's label updates immediately.
 14. Click **Hallway (A)**, drag a guide box across a corridor.
-    - Expected: a translucent hallway guide appears. It will **not** appear
-      in the exported SVG (hallways are a studio-only guide) — confirm this
-      in step 16.
+    - Expected: a grey hallway appears. It **will** appear in the exported
+      SVG as a grey corridor — confirm this in step 16.
 15. Press `C`, then click to place the compass; select it and click
     **Rotate +15°** in Properties.
     - Expected: the compass rotates 15° clockwise.
@@ -72,7 +71,7 @@ checklist walks all four in order, matching `walkthrough.spec.js`.
       and a dialog shows the `building-extras.json` snippet plus two
       commands to run, each with a Copy button. Open the `.svg`: it should
       contain one floor polygon, all the kept room rects, exactly 2 `EXIT`
-      texts, a `rotate(15)` on the compass, no hallway shapes, and no empty
+      texts, a `rotate(15)` on the compass, a `<rect class="hall">`, and no empty
       `<text>` elements.
 17. Close the dialog.
 

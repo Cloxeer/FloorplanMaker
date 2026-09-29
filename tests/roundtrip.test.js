@@ -40,6 +40,28 @@ test('hallways survive export -> import (and stay idempotent)', () => {
   assert.equal(exportSvg(doc2), svg1, 're-export with halls is not idempotent');
 });
 
+test('every traced component of an existing project reaches the SVG and round-trips', () => {
+  // Items shaped exactly as older versions saved them in .floorplan.json.
+  const doc = makeSampleDoc();
+  doc.items.push({ id: 'h1', type: 'hall', x: 100, y: 100, w: 300, h: 60 });
+  doc.items.push({ id: 'w1', type: 'authwall', x1: 150, y1: 100, x2: 150, y2: 160 });
+  const svg = exportSvg(doc);
+  const expectTag = {
+    room: 'class="room"', hall: 'class="hall"', stair: 'class="stair"',
+    door: 'class="door"', compass: 'class="compass"', authwall: 'class="authwall"',
+  };
+  for (const type of new Set(doc.items.map((i) => i.type))) {
+    assert.ok(expectTag[type], `no export expectation for item type "${type}"`);
+    assert.ok(svg.includes(expectTag[type]), `item type "${type}" is missing from the SVG`);
+  }
+  const { doc: back, problems } = importSvg(svg);
+  assert.deepEqual(problems.filter((p) => p.code !== 'label-orphan'), []);
+  const walls = back.items.filter((i) => i.type === 'authwall');
+  assert.deepEqual(walls.map(({ x1, y1, x2, y2 }) => ({ x1, y1, x2, y2 })), [{ x1: 150, y1: 100, x2: 150, y2: 160 }]);
+  assert.equal(back.items.filter((i) => i.type === 'hall').length, 1);
+  assert.equal(exportSvg(back), svg);
+});
+
 test('fixtures were found', () => {
   assert.ok(fixtureNames.length > 0, 'expected at least one fixture .svg file');
 });
