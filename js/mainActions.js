@@ -77,8 +77,8 @@ export function createStudio(app, deps) {
   function scheduleSaveView() {
     if (!app.project) return;
     const v = app.canvas.getView();
-    const legendPos = app.project.view && app.project.view.legendPos;
-    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity, legendPos };
+    const { legendPos, print } = app.project.view || {}; // set by the Preview step
+    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity, legendPos, print };
     saveProject(app.project);
     persistToFolder(app.project);
     app.emit({ type: 'view' });

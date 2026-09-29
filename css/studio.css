@@ -460,6 +460,18 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 .seg button + button { border-left: 1px solid var(--border); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .page-note { margin: 0 0 10px !important; font-size: 12px !important; }
+.size-controls[hidden] { display: none; }
+.size-controls input[type="range"] { width: 180px; accent-color: var(--accent); }
+.size-controls output { min-width: 40px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.size-step { width: 28px; height: 28px; padding: 0; border-radius: 6px; font-size: 16px; line-height: 1; }
+/* The "invisible square" around the drawing on a paper page (preview only). */
+.layout-box-rect { fill: rgba(0,0,0,0); pointer-events: all; cursor: move; stroke: #1a73e8; }
+.layout-box-handle { fill: #ffffff; stroke: #1a73e8; pointer-events: all; }
+.layout-box-nw, .layout-box-se { cursor: nwse-resize; }
+.layout-box-ne, .layout-box-sw { cursor: nesw-resize; }
+.layout-box-hint { fill: #1a73e8; font-family: sans-serif; pointer-events: none; }
+.layout-box.is-dragging .layout-box-rect { fill: rgba(26,115,232,0.04); }
+.layout-box.is-dragging .layout-box-hint { display: none; }
 .export-page { margin: 0 0 6px; font-size: 13px; }
 .export-page-hint { color: var(--muted); font-size: 12px; }
 .preview-side { width: 260px; flex: none; overflow-y: auto; }

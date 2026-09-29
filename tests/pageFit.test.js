@@ -80,6 +80,47 @@ test('paper frames have the paper shape and orientation', () => {
   assert.ok(contains(forced, wide));
 });
 
+test('paper layout: resizing is uniform and the drawing can never leave the sheet', () => {
+  const b = contentBounds(planDoc(1600, 500));
+  const base = pageFrame(b, 'letter', 'landscape');
+  assert.equal(base.scale, 1);
+  assert.ok(base.maxScale > 1, 'can grow past the print margin up to the sheet edge');
+
+  // Half size: the page covers twice as many plan units, same paper shape.
+  const half = pageFrame(b, 'letter', 'landscape', { scale: 0.5 });
+  assert.ok(Math.abs(half.w / base.w - 2) < 0.01 && Math.abs(half.h / base.h - 2) < 0.01);
+  assert.ok(Math.abs(half.w / half.h - 11 / 8.5) < 0.01, 'paper proportions unchanged');
+
+  // Way too big / dragged off the corner: clamped so it still fits.
+  for (const layout of [{ scale: 50 }, { scale: 0.5, fx: -3, fy: 9 }, { scale: 1.05, fx: 1, fy: 0 }]) {
+    const f = pageFrame(b, 'letter', 'landscape', layout);
+    assert.ok(contains(f, b), `layout ${JSON.stringify(layout)} pushed content off the page`);
+    assert.ok(f.scale <= f.maxScale + 1e-9 && f.scale >= 0.2);
+    // ...and stays out of the 1/4 in edge band printers can't print.
+    const safe = 0.25 * (f.w / 11); // plan units in 1/4 in (landscape sheet is 11 in wide)
+    const gaps = [b.x - f.x, b.y - f.y, f.x + f.w - (b.x + b.w), f.y + f.h - (b.y + b.h)];
+    assert.ok(gaps.every((gap) => gap >= safe - 2), `inside the unprintable edge: ${gaps.map(Math.round)}`);
+  }
+
+  // Moving to the left edge really moves it there.
+  const left = pageFrame(b, 'letter', 'landscape', { scale: 0.5, fx: 0 });
+  assert.ok(left.content.x - left.x < (half.content.x - half.x), 'drawing moved left on the sheet');
+});
+
+test('paper SVG tells the printer its size and orientation (@page)', () => {
+  const doc = planDoc(1600, 500);
+  const svg = exportSvg(doc);
+  const land = applyFrame(svg, pageFrame(contentBounds(doc), 'letter', 'landscape'));
+  assert.ok(land.includes('@page { size: 11in 8.5in; margin: 0; }'));
+  const a4p = applyFrame(land, pageFrame(contentBounds(doc), 'a4', 'portrait'));
+  assert.equal((a4p.match(/@page/g) || []).length, 1, 'rule replaced, not duplicated');
+  assert.ok(a4p.includes('size: 210mm 297mm'));
+  const fit = applyFrame(a4p, pageFrame(contentBounds(doc), 'fit'));
+  assert.ok(!fit.includes('@page'), 'Fit to SVG has no print rule');
+  const { problems } = importSvg(a4p);
+  assert.deepEqual(problems.filter((p) => p.code !== 'label-orphan'), []);
+});
+
 test('applyFrame rewrites the root tag and the result still imports', () => {
   const doc = planDoc(1600, 500);
   const svg = exportSvg(doc);

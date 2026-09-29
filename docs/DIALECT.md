@@ -13,9 +13,12 @@ read these files. Do not deviate.
 * Plan units are the straightened photo's pixels.
 * The downloaded viewBox is chosen on the Preview (`js/model/pageFit.js`):
   *Fit to SVG* (default) hugs everything drawn — plan, labels, doors, compass,
-  legend — with a small margin; *Letter* / *A4* centers it on a page of that
-  shape (portrait or landscape) and adds `width`/`height` in `in`/`mm` so it
-  prints at paper size. Either way nothing is cut off. Use Fit for the map.
+  legend — with a small margin; *Letter* / *A4* places it on a page of that
+  shape (portrait or landscape; centered, or where the user dragged/resized it
+  in the Preview) and adds `width`/`height` in `in`/`mm` plus a
+  `<style class="page">@page { size: …; margin: 0; }</style>` so it prints at
+  paper size in the right orientation. Either way nothing is cut off. Use Fit
+  for the map.
 * All coordinates are integers.
 * No `transform` on anything except the compass group.
 * No `<defs>`, `<image>`, `id` attributes, or inline `style` attributes.

@@ -115,18 +115,24 @@ export function createActions(app, deps) {
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
     const halls = doc.items.filter((it) => it.type === 'hall');
     const rooms = doc.items.filter((it) => it.type === 'room');
-    let legendPos = (app.project && app.project.view && app.project.view.legendPos) || null;
-    // Every export starts on "Fit to SVG" (the file the map app shows); a
-    // paper size picked in the Preview only lasts for this export.
+    const view = (app.project && app.project.view) || {};
+    let legendPos = view.legendPos || null;
+    // Every export starts on "Fit to SVG" (the file the map app shows). How the
+    // drawing sits on each paper size (orientation, size, position) is
+    // remembered per project, so a print layout survives coming back later.
     let page = 'fit';
-    let orientation = 'auto';
+    const print = {
+      letter: { orientation: 'auto', ...(view.print && view.print.letter) },
+      a4: { orientation: 'auto', ...(view.print && view.print.a4) },
+    };
     const projectJson = app.project ? exportProjectJson(app.project) : null;
     const projectName = app.project ? `${app.project.slug}.floorplan.json` : 'plan.floorplan.json';
 
-    // The frame (viewBox, and paper size when printing) for a legend position
-    // and page choice. The Preview shows exactly this; the download uses it.
-    function frameFor(pos, pg, orient) {
-      return pageFrame(contentBounds(doc, pos, legendGroupSize()), pg, orient);
+    // The frame (viewBox, and paper size when printing) for a legend position,
+    // page and paper layout. The Preview shows exactly this; the download uses it.
+    function frameFor(pos, pg, layout = print[pg]) {
+      const l = layout || {};
+      return pageFrame(contentBounds(doc, pos, legendGroupSize()), pg, l.orientation || 'auto', l);
     }
     function withLegend(text, pos) {
       const sc = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
@@ -134,15 +140,16 @@ export function createActions(app, deps) {
     }
     function finalSvgText() {
       const base = legendPos ? withLegend(svgText, legendPos) : svgText;
-      return applyFrame(base, frameFor(legendPos, page, orientation));
+      return applyFrame(base, frameFor(legendPos, page));
     }
     function pageLabel() {
       if (page === 'fit') return PAGES.fit.label;
-      return `${PAGES[page].label} · ${frameFor(legendPos, page, orientation).orientation}`;
+      const f = frameFor(legendPos, page);
+      return `${PAGES[page].label} · ${f.orientation} · ${Math.round(f.scale * 100)}% size`;
     }
-    function rememberLegend() {
+    function rememberView() {
       if (!app.project) return;
-      app.project.view = { ...(app.project.view || {}), legendPos };
+      app.project.view = { ...(app.project.view || {}), legendPos, print };
       if (app.saveView) app.saveView();
     }
 
@@ -154,7 +161,7 @@ export function createActions(app, deps) {
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
       app._previewHandle = showPreviewStep({
         svgText, validation: results, halls, rooms, initialLegendPos: legendPos,
-        page, orientation, frameFor,
+        page, print, frameFor,
       }, {
         onBack: () => {
           app._previewHandle = null;
@@ -162,11 +169,12 @@ export function createActions(app, deps) {
         },
         onSaveLegend: (pos) => {
           legendPos = pos;
-          rememberLegend();
+          rememberView();
         },
-        onPageChange: (pg, orient) => {
-          page = pg;
-          orientation = orient;
+        onPageChange: (pg) => { page = pg; },
+        onLayoutChange: (pg, layout) => {
+          print[pg] = layout;
+          rememberView();
         },
         onExport: (pos) => {
           legendPos = pos != null ? pos : legendPos;

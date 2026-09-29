@@ -5,10 +5,12 @@
 //   fit    : the viewBox hugs everything drawn (plan, labels, doors, compass,
 //            legend) with a small margin. Nothing is cut off, whether the
 //            building is tall or wide. This is the file the map app shows.
-//   letter : an 8.5 x 11 in sheet; a4 : a 210 x 297 mm sheet. The content is
-//            centered on the page inside a print margin, portrait or
-//            landscape, and the SVG gets width/height in in/mm so it prints
-//            at that size.
+//   letter : US printer paper, 8.5 x 11 in; a4 : 210 x 297 mm (printer paper
+//            outside the US). The drawing starts centered inside a print
+//            margin ("Auto" picks portrait/landscape by its shape); the user
+//            can then move it and resize it (uniformly — its proportions never
+//            change) anywhere on the sheet. The SVG gets width/height in in/mm
+//            and an @page rule, so it prints at that size and orientation.
 //
 // Depends on: ./document.js (labelPos, labelText, labelClass, STD).
 
@@ -16,9 +18,13 @@ import { labelPos, labelText, labelClass, STD } from './document.js';
 
 export const PAGES = {
   fit: { label: 'Fit to SVG' },
-  letter: { label: 'Letter 8.5 × 11 in', w: 8.5, h: 11, unit: 'in', margin: 0.4 },
-  a4: { label: 'A4 210 × 297 mm', w: 210, h: 297, unit: 'mm', margin: 10 },
+  // margin: where "Auto" fits the drawing. safe: the edge band most printers
+  // can't print, so the drawing is never moved or enlarged into it.
+  letter: { label: 'Letter 8.5 × 11 in', w: 8.5, h: 11, unit: 'in', margin: 0.4, safe: 0.25 },
+  a4: { label: 'A4 210 × 297 mm', w: 210, h: 297, unit: 'mm', margin: 10, safe: 6 },
 };
+
+export const MIN_SCALE = 0.2; // smallest size on paper, relative to "fits the margins"
 
 export const ORIENTATIONS = ['auto', 'portrait', 'landscape'];
 
@@ -87,33 +93,56 @@ export function contentBounds(doc, legend = null, legendSize = null) {
   return { x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY };
 }
 
-// The frame to export: { x, y, w, h } (integer viewBox), and for paper also
-// { width, height } attribute strings and the orientation actually used.
-export function pageFrame(bounds, page = 'fit', orientation = 'auto') {
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+// The frame to export: { x, y, w, h } (integer viewBox) and `content` (the
+// drawing's box). For paper also { width, height } attribute strings, the
+// orientation used, and the placement actually applied after clamping:
+// { scale, fx, fy, maxScale } — scale 1 = fits inside the print margin,
+// (fx, fy) = where the drawing's center sits on the sheet (0..1).
+// `layout` = { scale, fx, fy } from the user (missing = centered, scale 1).
+export function pageFrame(bounds, page = 'fit', orientation = 'auto', layout = null) {
   const spec = PAGES[page] || PAGES.fit;
   const bw = Math.max(1, bounds.w);
   const bh = Math.max(1, bounds.h);
+  const content = { x: bounds.x, y: bounds.y, w: bw, h: bh };
 
   if (!spec.unit) {
     const pad = Math.max(16, Math.round(Math.max(bw, bh) * 0.03));
-    return intFrame(bounds.x - pad, bounds.y - pad, bw + pad * 2, bh + pad * 2);
+    return { ...intFrame(bounds.x - pad, bounds.y - pad, bw + pad * 2, bh + pad * 2), content };
   }
 
   const landscape = orientation === 'landscape' || (orientation !== 'portrait' && bw > bh);
   const paperW = landscape ? spec.h : spec.w;
   const paperH = landscape ? spec.w : spec.h;
-  const availW = paperW - spec.margin * 2;
-  const availH = paperH - spec.margin * 2;
-  const perUnit = Math.max(bw / availW, bh / availH); // plan units per inch/mm
+  // Plan units per inch/mm when the drawing just fits inside the margins.
+  const fitPerUnit = Math.max(bw / (paperW - spec.margin * 2), bh / (paperH - spec.margin * 2));
+  // Largest size that still keeps the whole drawing inside the printable area.
+  const maxScale = Math.min(((paperW - spec.safe * 2) * fitPerUnit) / bw, ((paperH - spec.safe * 2) * fitPerUnit) / bh);
+  const scale = clamp(layout && Number.isFinite(layout.scale) ? layout.scale : 1, MIN_SCALE, maxScale);
+  const perUnit = fitPerUnit / scale;
   const w = paperW * perUnit;
   const h = paperH * perUnit;
+  // Keep the drawing's box inside the printable area: its center can only go
+  // so near an edge.
+  const halfW = bw / w / 2 + spec.safe / paperW;
+  const halfH = bh / h / 2 + spec.safe / paperH;
+  const fx = clamp(layout && Number.isFinite(layout.fx) ? layout.fx : 0.5, halfW, 1 - halfW);
+  const fy = clamp(layout && Number.isFinite(layout.fy) ? layout.fy : 0.5, halfH, 1 - halfH);
   const cx = bounds.x + bw / 2;
   const cy = bounds.y + bh / 2;
   return {
-    ...intFrame(cx - w / 2, cy - h / 2, w, h),
+    ...intFrame(cx - fx * w, cy - fy * h, w, h),
+    content,
     width: `${paperW}${spec.unit}`,
     height: `${paperH}${spec.unit}`,
     orientation: landscape ? 'landscape' : 'portrait',
+    scale,
+    fx,
+    fy,
+    maxScale,
   };
 }
 
@@ -124,15 +153,21 @@ function intFrame(x, y, w, h) {
   return { x: x0, y: y0, w: Math.ceil(x + w) - x0, h: Math.ceil(y + h) - y0 };
 }
 
-// Rewrite the root <svg> tag of an exported SVG to use `frame`.
+const PAGE_RULE_RE = /\n?\s*<style class="page">[\s\S]*?<\/style>/;
+
+// Rewrite the root <svg> tag of an exported SVG to use `frame`. For paper, an
+// @page rule tells the printer the sheet size and orientation — without it a
+// browser prints a landscape SVG shrunk onto a portrait page.
 export function applyFrame(svgText, frame) {
-  return svgText.replace(/<svg\b[^>]*>/, (tag) => {
-    let out = tag
+  const out = svgText.replace(PAGE_RULE_RE, '').replace(/<svg\b[^>]*>/, (tag) => {
+    let root = tag
       .replace(/\s(width|height)="[^"]*"/g, '')
       .replace(/viewBox="[^"]*"/, `viewBox="${frame.x} ${frame.y} ${frame.w} ${frame.h}"`);
     if (frame.width && frame.height) {
-      out = out.replace(/^<svg\b/, `<svg width="${frame.width}" height="${frame.height}"`);
+      root = root.replace(/^<svg\b/, `<svg width="${frame.width}" height="${frame.height}"`);
+      root += `\n  <style class="page">@page { size: ${frame.width} ${frame.height}; margin: 0; }</style>`;
     }
-    return out;
+    return root;
   });
+  return out;
 }
