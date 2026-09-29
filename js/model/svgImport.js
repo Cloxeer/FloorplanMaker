@@ -196,7 +196,7 @@ export function importSvg(svgText) {
       const item = {
         id: newId(),
         type: 'room',
-        cls: t.attrs.class,
+        cls: t.attrs.class === 'big' ? 'room' : t.attrs.class, // older files: a big room is a room
         shape: 'rect',
         x: Number(t.attrs.x),
         y: Number(t.attrs.y),
@@ -216,7 +216,7 @@ export function importSvg(svgText) {
       const item = {
         id: newId(),
         type: 'room',
-        cls: t.attrs.class,
+        cls: t.attrs.class === 'big' ? 'room' : t.attrs.class,
         shape: 'poly',
         points: parsePoints(t.attrs.points || ''),
         number: '',

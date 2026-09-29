@@ -34,6 +34,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //    tests/fixtures/hjlc-2.svg, whose treads are traced ~16 apart).
 // Neither is a model bug; compare with a tolerance instead of strict
 // equality.
+// The studio writes old "big" rooms back as "room". The map's tools treat the
+// two identically (build_rooms.py ROOM_CLASSES, indoor_routes.py
+// BLOCKING_CLASSES), so compare them as the same class.
+export function asRooms(read) {
+  return { ...read, rooms: read.rooms.map((r) => (r.cls === 'big' ? { ...r, cls: 'room' } : r)) };
+}
+
 export function almostEqual(a, b, tol = 6) {
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) <= tol;
   if (Array.isArray(a) && Array.isArray(b)) {
@@ -106,7 +113,7 @@ function runChecks({ log = true } = {}) {
     const jsOriginal = jsRead(original);
     const jsReexported = jsRead(reexported);
     try {
-      assertAlmostEqual(jsReexported, jsOriginal);
+      assertAlmostEqual(jsReexported, asRooms(jsOriginal));
       row.jsRoundtrip = 'ok';
     } catch (e) {
       row.jsRoundtrip = 'FAIL';

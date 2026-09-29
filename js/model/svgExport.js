@@ -6,6 +6,7 @@
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
 import { iconForRoom, iconSvg } from '../view/icons.js';
+import { ROOM_LOOK, cssDecl, exportClass } from './look.js';
 
 const IND = '  ';
 
@@ -26,10 +27,11 @@ function pointsAttr(pts) {
 }
 
 function roomShapeLine(item) {
+  const cls = exportClass(item.cls); // a big room is written as a room
   if (item.shape === 'rect') {
-    return `${IND}<rect class="${item.cls}" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`;
+    return `${IND}<rect class="${cls}" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`;
   }
-  return `${IND}<polygon class="${item.cls}" points="${pointsAttr(item.points)}"/>`;
+  return `${IND}<polygon class="${cls}" points="${pointsAttr(item.points)}"/>`;
 }
 
 function roomLabelLines(item) {
@@ -177,11 +179,10 @@ export function exportSvg(doc) {
 
   lines.push('  <style>');
   lines.push('    .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }');
-  lines.push('    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }');
-  lines.push('    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }');
-  lines.push('    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }');
-  lines.push('    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }');
-  lines.push('    .void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }');
+  // Room kinds come from look.js — the same values the legend draws with.
+  for (const cls of ['room', 'ours', 'core', 'void']) {
+    lines.push(`    .${cls.padEnd(5)} { ${cssDecl(ROOM_LOOK[cls])} }`);
+  }
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
   lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');

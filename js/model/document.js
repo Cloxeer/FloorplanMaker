@@ -38,6 +38,13 @@ export const NUMBER_RE = /^[A-Z]?\d{3}[A-Z]?$/;
 // Classes whose label must be a room number. Cores may carry free text ("Elev", "ST1") or nothing.
 export const NUMBERED_CLASSES = new Set(['room', 'big', 'ours']);
 
+// A big room is just a room: older projects saved some rooms as 'big'; turn
+// them into plain rooms (same doc back when there are none).
+export function mergeBigRooms(doc) {
+  if (!doc || !doc.items || !doc.items.some((it) => it.type === 'room' && it.cls === 'big')) return doc;
+  return { ...doc, items: doc.items.map((it) => (it.type === 'room' && it.cls === 'big' ? { ...it, cls: 'room' } : it)) };
+}
+
 let idCounter = 0;
 
 export function newId() {

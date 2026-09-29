@@ -40,10 +40,9 @@ read these files. Do not deviate.
 <style>
 .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }
 .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }
-.big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }
 .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
 .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
-.void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }
+.void  { fill: #ffffff; stroke: #8f959c; stroke-width: 5; stroke-dasharray: 16 10; }
 .stair { stroke: #8f959c; stroke-width: 2; }
 .hall  { fill: #d7dbe0; stroke: none; }
 .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
@@ -63,7 +62,7 @@ read these files. Do not deviate.
 | Element | Rule |
 |---|---|
 | `<polygon class="floor" points="...">` | Exactly one. The walkable footprint. |
-| `<rect>` / `<polygon>` with class `room`, `big`, `ours`, `core`, `void` | Blocks routing. Corridors are empty floor. `void` has no label. |
+| `<rect>` / `<polygon>` with class `room`, `ours`, `core`, `void` | Blocks routing. Corridors are empty floor. `void` is empty space (white, thick dashes) with no label. The studio writes old `big` rooms as `room` (the map tools treat them the same) and still reads `big`. Looks come from `js/model/look.js`, shared with the legend. |
 | `<g class="stair">` containing only `<line>` treads | Treads 18 units apart. Bounding-box center = arrival point on floors above 1. |
 | `<rect class="hall">` (+ optional `<text class="hall-lbl">Hallway</text>`) | Grey corridor, drawn behind rooms. Purely visual: the room/entrance build tools ignore it; the studio reads it back so hallways survive an SVG round-trip. |
 | `<line class="authwall" x1 y1 x2 y2>` | Staff-only wall inside a hallway, dashed purple. Visual only, ignored by the build tools; read back by the studio. |

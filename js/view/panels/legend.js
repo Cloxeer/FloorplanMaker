@@ -6,9 +6,13 @@
 // left palette). "Place legend" also writes it into the exported SVG, but via
 // legendSvgGroupAt() with plain attributes only (no room/door/floor classes),
 // so the map-build parsers never read a swatch as a real room.
-// Depends on: nothing (pure markup string).
+// Room, core and void swatches take their colors and dashes from
+// js/model/look.js — the same values the exported SVG's style rules use.
+// Depends on: js/model/look.js.
 
-// One "Room" row covers room and big room — they look the same on the plan.
+import { SWATCH_LOOK, cssDecl, svgAttrs } from '../../model/look.js';
+
+// One "Room" row: a big room is just a room, drawn the same.
 const ITEMS = [
   { label: 'Room', svg: '<rect class="lg-room" x="2" y="3" width="20" height="14"/>' },
   {
@@ -49,10 +53,10 @@ const ITEMS = [
 ];
 
 const LEGEND_STYLE = `
-  .lg-room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 1.5; }
+  .lg-room  { ${cssDecl(SWATCH_LOOK.room)} }
   .lg-selected { fill: #cfe0ff; stroke: #2f6feb; stroke-width: 1.5; }
-  .lg-core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 1.5; }
-  .lg-void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 1.5; stroke-dasharray: 3 2; }
+  .lg-core  { ${cssDecl(SWATCH_LOOK.core)} }
+  .lg-void  { ${cssDecl(SWATCH_LOOK.void)} }
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
   .lg-wall  { stroke: #3a3d42; stroke-width: 2.5; }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }
@@ -80,19 +84,19 @@ export function legendHtml(className = 'legend-list') {
 // mistakes it for real geometry. Positioned in the bottom-right margin of
 // the given viewBox {x,y,w,h}.
 const SWATCH_FILLS = {
-  'lg-room': { fill: '#eef1f4', stroke: '#8f959c' },
-  'lg-selected': { fill: '#cfe0ff', stroke: '#2f6feb' },
-  'lg-core': { fill: '#dfe3e8', stroke: '#8f959c' },
-  'lg-void': { fill: '#ffffff', stroke: '#b5bac0', dash: '3 2' },
-  'lg-hall': { fill: '#d7dbe0', stroke: '#d7dbe0' },
-  'lg-outline': { fill: '#ffffff', stroke: '#3a3d42' },
+  'lg-room': SWATCH_LOOK.room,
+  'lg-selected': { fill: '#cfe0ff', stroke: '#2f6feb', width: 1.5 },
+  'lg-core': SWATCH_LOOK.core,
+  'lg-void': SWATCH_LOOK.void,
+  'lg-hall': { fill: '#d7dbe0', stroke: '#d7dbe0', width: 1.5 },
+  'lg-outline': { fill: '#ffffff', stroke: '#3a3d42', width: 1.5 },
 };
 function swatchFor(item) {
   const m = item.svg.match(/class="(lg-[a-z]+)"/);
   const key = m ? m[1] : 'lg-room';
-  const style = SWATCH_FILLS[key] || { fill: '#eef1f4', stroke: '#8f959c' };
+  const style = SWATCH_FILLS[key] || SWATCH_LOOK.room;
   if (item.label === 'Stairs') {
-    return `<rect x="0" y="0" width="20" height="14" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.5"/>`
+    return `<rect x="0" y="0" width="20" height="14" ${svgAttrs(style)}/>`
       + '<line x1="3" y1="4" x2="17" y2="4" stroke="#8f959c" stroke-width="1.5"/>'
       + '<line x1="3" y1="7" x2="17" y2="7" stroke="#8f959c" stroke-width="1.5"/>'
       + '<line x1="3" y1="10" x2="17" y2="10" stroke="#8f959c" stroke-width="1.5"/>';
@@ -111,8 +115,7 @@ function swatchFor(item) {
     return '<circle cx="10" cy="7" r="6" fill="#ffffff" stroke="#e6e6ea" stroke-width="1.5"/>'
       + '<path d="M10,2 L12,7 L8,7 Z" fill="#8C0B42"/>';
   }
-  const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : '';
-  return `<rect x="0" y="0" width="20" height="14" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.5"${dash}/>`;
+  return `<rect x="0" y="0" width="20" height="14" ${svgAttrs(style)}/>`;
 }
 const LEGEND_ROW_H = 24;
 const LEGEND_GROUP_W = 190;

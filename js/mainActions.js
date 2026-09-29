@@ -6,7 +6,7 @@
 // and startup, and re-exports createActions from js/docActions.js.
 // Depends on: js/model/*, js/store/autosave.js, js/view/stage.js, js/view/panels/*.js.
 
-import { createDoc } from './model/document.js';
+import { createDoc, mergeBigRooms } from './model/document.js';
 import { importSvg } from './model/svgImport.js';
 import {
   loadProject, listProjects, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
@@ -318,6 +318,7 @@ export function createStudio(app, deps) {
   }
   function enterStudio(project, opts = {}) {
     app.project = project;
+    project.doc = mergeBigRooms(project.doc); // older projects: a big room is a room
     app.doc = project.doc;
     app.selection = new Set();
     app.magnet = true;

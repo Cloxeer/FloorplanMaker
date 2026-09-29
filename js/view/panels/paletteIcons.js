@@ -1,16 +1,21 @@
 // paletteIcons.js
 // Builds small inline-SVG markup for palette chips/ghosts, reusing the same
-// dialect classes (room/big/ours/core/void/door/stair/compass) as the real
+// dialect looks (room/ours/core/void from js/model/look.js; door/stair/compass) as the real
 // canvas rendering (see js/view/stageObjects.js) so chips look like the
 // real thing. Pure string templates, no DOM dependency.
 
 import { iconSvg } from '../icons.js';
+import { SWATCH_LOOK, svgAttrs } from '../../model/look.js';
+
+// A room-kind box drawn with the shared look (js/model/look.js).
+function box(w, h, cls) {
+  return `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" ${svgAttrs(SWATCH_LOOK[cls] || SWATCH_LOOK.room)}/>`;
+}
 
 // Each entry: { w, h } = plan-unit footprint used for the drag ghost's scale.
 export const PIECE_SIZE = {
   room: { w: 120, h: 100 },
   small: { w: 70, h: 60 },
-  big: { w: 180, h: 140 },
   ours: { w: 120, h: 100 },
   restroom: { w: 100, h: 90 },
   elevator: { w: 90, h: 90 },
@@ -58,31 +63,18 @@ function fitLabelSvg(text, cx, cy, boxW, boxH, opts = {}) {
 function roomChip(cls, label, vb) {
   const [w, h] = vb;
   const text = label ? fitLabelSvg(label, w / 2, h / 2, w, h, {}) : '';
-  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="${cls}"/>${text}`);
+  return svgWrap(vb, `${box(w, h, cls)}${text}`);
 }
 
 function closetChip(vb) {
   const [w, h] = vb;
-  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>${fitLabelSvg('Utility', w / 2, h / 2, w, h, {})}`);
+  return svgWrap(vb, `${box(w, h, 'core')}${fitLabelSvg('Utility', w / 2, h / 2, w, h, {})}`);
 }
 
-export function hatchLinesSvg(w, h, spacing = 8) {
-  const lines = [];
-  const step = Math.max(4, spacing);
-  for (let d = -h; d < w; d += step) {
-    lines.push(`<line x1="${d}" y1="0" x2="${d + h}" y2="${h}" stroke="#b9bec6" stroke-width="1"/>`);
-    lines.push(`<line x1="${d + h}" y1="0" x2="${d}" y2="${h}" stroke="#b9bec6" stroke-width="1"/>`);
-  }
-  return lines.join('');
-}
-
+// Empty space: white with thick dashes, exactly like the legend and the SVG.
 function voidChip(vb) {
   const [w, h] = vb;
-  return svgWrap(vb, `
-    <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="void"/>
-    <clipPath id="void-clip"><rect x="2" y="2" width="${w - 4}" height="${h - 4}"/></clipPath>
-    <g clip-path="url(#void-clip)">${hatchLinesSvg(w, h)}</g>
-  `);
+  return svgWrap(vb, box(w, h, 'void'));
 }
 
 // Elevator and restroom chips draw the exact user-supplied icons from
@@ -92,7 +84,7 @@ function voidChip(vb) {
 function elevatorChip(vb) {
   const [w, h] = vb;
   return svgWrap(vb, `
-    <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
+    ${box(w, h, 'core')}
     ${iconSvg('elevator', 2, 2, w - 4, h - 4, 0.55)}
   `);
 }
@@ -100,7 +92,7 @@ function elevatorChip(vb) {
 function restroomChip(vb) {
   const [w, h] = vb;
   return svgWrap(vb, `
-    <rect x="2" y="2" width="${w - 4}" height="${h - 4}" class="core"/>
+    ${box(w, h, 'core')}
     ${iconSvg('restroom', 2, 2, w - 4, h - 4, 0.65)}
   `);
 }
@@ -158,7 +150,6 @@ export function chipSvg(key) {
   switch (key) {
     case 'room': return roomChip('room', '101', vb);
     case 'small': return roomChip('room', '1', vb);
-    case 'big': return roomChip('big', 'Classroom', vb);
     case 'ours': return roomChip('ours', '101', vb);
     case 'restroom': return restroomChip(vb);
     case 'elevator': return elevatorChip(vb);
@@ -183,7 +174,6 @@ export function ghostSvg(key, zoom) {
   switch (key) {
     case 'room': inner = roomChip('room', '101', vb); break;
     case 'small': inner = roomChip('room', '1', vb); break;
-    case 'big': inner = roomChip('big', 'Classroom', vb); break;
     case 'ours': inner = roomChip('ours', '101', vb); break;
     case 'restroom': inner = restroomChip(vb); break;
     case 'elevator': inner = elevatorChip(vb); break;

@@ -5,7 +5,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getCases, hasPython, pythonRead, almostEqual } from './compat/run.js';
+import {
+  getCases, hasPython, pythonRead, almostEqual, asRooms,
+} from './compat/run.js';
 import { exportSvg } from '../js/model/svgExport.js';
 import { importSvg } from '../js/model/svgImport.js';
 import { readRooms, readEntrances, readStairs, readFloor } from './compat/parsers.js';
@@ -24,7 +26,7 @@ for (const { name, text: original } of getCases()) {
     const { doc } = importSvg(original);
     const reexported = exportSvg(doc);
     assert.ok(
-      almostEqual(jsRead(reexported), jsRead(original)),
+      almostEqual(jsRead(reexported), asRooms(jsRead(original))),
       'JS reader output differs by more than the 1-unit label rounding tolerance'
     );
   });

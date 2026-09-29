@@ -8,7 +8,6 @@ import { rectToPoints, dist } from '../../model/geometry.js';
 
 const CLASS_OPTIONS = [
   { key: 'room', cls: 'room', label: 'Room' },
-  { key: 'big', cls: 'big', label: 'Big room' },
   { key: 'restroom', cls: 'core', name: 'Restrooms', label: 'Restroom' },
   { key: 'elevator', cls: 'core', name: 'Elevator', label: 'Elevator' },
   { key: 'void', cls: 'void', label: 'Void' },
@@ -24,6 +23,7 @@ function coreOptionName(item) {
 function classOptionKey(item) {
   if (item.cls === 'core') return coreOptionName(item) === 'Elevator' ? 'elevator' : 'restroom';
   if (item.cls === 'ours') return 'ours';
+  if (item.cls === 'big') return 'room'; // a big room is a room
   return item.cls;
 }
 

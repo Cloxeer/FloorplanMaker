@@ -10,7 +10,6 @@ import { rectifyOutline } from '../rectify.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
-  { key: 'big', label: 'Big room' },
   { key: 'ours', label: 'Our room' },
   { key: 'restroom', label: 'Restroom' },
   { key: 'elevator', label: 'Elevator' },

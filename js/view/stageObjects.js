@@ -9,12 +9,17 @@ import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.mi
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
 import { ICONS, iconForRoom } from './icons.js';
+import { ROOM_LOOK, roomLook } from '../model/look.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
-export const FILLS = {
-  room: '#eef1f4', big: '#e6ecf5', ours: '#f5e3ea', core: '#dfe3e8', void: '#d9dce1',
-};
-export const STROKE = '#8f959c';
+// Room looks come from js/model/look.js — the same values the exported SVG
+// and the legend use (a big room is drawn as a room).
+export const FILLS = Object.fromEntries(['room', 'big', 'ours', 'core', 'void'].map((c) => [c, roomLook(c).fill]));
+export const STROKE = ROOM_LOOK.room.stroke;
+function roomStroke(cls) {
+  const look = roomLook(cls);
+  return { stroke: look.stroke, strokeWidth: look.width, strokeDashArray: look.dash ? [...look.dash] : null };
+}
 
 // Back-to-front draw order.
 export const LAYER = {
@@ -124,22 +129,6 @@ function tag(obj, item, type) {
 }
 
 // ---------------------------------------------------------------- rooms ----
-// Diagonal criss-cross hatch lines filling a w x h box (local coords, top-left
-// at 0,0), spaced ~18px apart, for the void fill and the void palette chip.
-export function hatchLines(w, h, spacing = 18, opts = {}) {
-  const lines = [];
-  const stroke = opts.stroke || '#b9bec6';
-  const strokeWidth = opts.strokeWidth || 1;
-  const step = Math.max(6, spacing);
-  for (let d = -h; d < w; d += step) {
-    lines.push([d, 0, d + h, h]);
-    lines.push([d + h, 0, d, h]);
-  }
-  return lines.map(([x1, y1, x2, y2]) => new fabric.Line([x1, y1, x2, y2], {
-    stroke, strokeWidth, selectable: false, evented: false, objectCaching: false,
-  }));
-}
-
 // Non-fill contents of a room rect: for core rooms whose name matches a known
 // icon (Elevator, Restroom), icon + label are stacked and fit together so
 // neither spills outside the box; otherwise just the (fitted) label.
@@ -155,20 +144,19 @@ function roomContentKids(item) {
 function buildRoomRect(item) {
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
-    fill: FILLS[item.cls] || FILLS.room, stroke: STROKE, strokeWidth: 2,
-    strokeDashArray: item.cls === 'void' ? [6, 4] : null,
+    fill: FILLS[item.cls] || FILLS.room, ...roomStroke(item.cls),
     strokeUniform: true, objectCaching: false,
   });
   if (item.cls === 'void') {
-    // A void has no label, so a plain Rect used to be enough — but Fabric's
+    // A void is empty (white, thick dashes) and has no label. Fabric's
     // single-child Group recomputes its own bounding box/layout on move in a
-    // way that corrupts width/height, so the hatch overlay is wrapped with
-    // the rect in a multi-child Group (safe) rather than a single-child one.
-    const hatch = hatchLines(item.w, item.h).map((ln) => {
-      ln.set({ left: item.x, top: item.y });
-      return ln;
+    // way that corrupts width/height, so the rect is paired with an invisible
+    // one in a multi-child Group (safe) rather than a single-child one.
+    const spacer = new fabric.Rect({
+      left: item.x, top: item.y, width: item.w, height: item.h,
+      fill: 'rgba(0,0,0,0)', strokeWidth: 0, selectable: false, evented: false, objectCaching: false,
     });
-    const g = new fabric.Group([rect, ...hatch], {
+    const g = new fabric.Group([rect, spacer], {
       ...BASE, subTargetCheck: false, perPixelTargetFind: false,
       lockRotation: true, lockSkewingX: true, lockSkewingY: true,
     });
@@ -206,8 +194,7 @@ function iconGlyph(key, cx, cy, size) {
 
 function buildRoomPoly(item, grid) {
   const poly = new fabric.Polygon(item.points.map(([x, y]) => ({ x, y })), {
-    ...BASE, fill: FILLS[item.cls] || FILLS.room, stroke: STROKE, strokeWidth: 2,
-    strokeDashArray: item.cls === 'void' ? [6, 4] : null,
+    ...BASE, fill: FILLS[item.cls] || FILLS.room, ...roomStroke(item.cls),
     lockRotation: true, lockScalingX: true, lockScalingY: true,
   });
   attachPolyControls(poly, grid);

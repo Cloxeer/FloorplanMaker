@@ -271,11 +271,8 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 
 /* ---------- dialect classes (studio preview, matches exported SVG) ---------- */
 .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }
-.room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }
-.big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }
-.ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
-.core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
-.void  { fill: #d9dce1; stroke: #8f959c; stroke-dasharray: 4 3; }
+/* Room / core / void looks are NOT here: they live in js/model/look.js, used
+   by the export's own style block, the legend, the palette chips and Trace. */
 .stair line { stroke: #8f959c; stroke-width: 2; }
 .door  { stroke: #ffffff; stroke-width: 10; }
 .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }

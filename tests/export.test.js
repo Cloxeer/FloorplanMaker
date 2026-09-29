@@ -7,15 +7,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { exportSvg } from '../js/model/svgExport.js';
 import { makeSampleDoc } from './helpers.js';
+import { legendHtml, legendSvgGroupAt } from '../js/view/panels/legend.js';
+import { mergeBigRooms } from '../js/model/document.js';
 
 const STYLE_BLOCK = [
   '  <style>',
   '    .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }',
   '    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }',
-  '    .big   { fill: #e6ecf5; stroke: #8f959c; stroke-width: 2; }',
   '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
   '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
-  '    .void  { fill: #ffffff; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }',
+  '    .void  { fill: #ffffff; stroke: #8f959c; stroke-width: 5; stroke-dasharray: 16 10; }',
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
   '    .hall  { fill: #d7dbe0; stroke: none; }',
   '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
@@ -136,6 +137,32 @@ test('fill="#5f6368" only on the Door text or an icon glyph', () => {
 test('section comments present', () => {
   assert.ok(svg.includes('<!-- TOP ROW -->'));
   assert.ok(svg.includes('<!-- SOUTH -->'));
+});
+
+test('legend and exported SVG draw room, core and void the same way', () => {
+  const html = legendHtml();
+  const placed = legendSvgGroupAt(0, 0);
+  for (const cls of ['room', 'core', 'void']) {
+    const rule = svg.match(new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`))[1];
+    const fill = rule.match(/fill: (#[0-9a-f]{6})/)[1];
+    const stroke = rule.match(/stroke: (#[0-9a-f]{6})/)[1];
+    const htmlRule = html.match(new RegExp(`\\.lg-${cls}\\s*\\{([^}]*)\\}`))[1];
+    assert.ok(htmlRule.includes(`fill: ${fill}`) && htmlRule.includes(`stroke: ${stroke}`), `panel legend ${cls} ≠ SVG`);
+    assert.ok(placed.includes(`fill="${fill}" stroke="${stroke}"`), `placed legend ${cls} ≠ SVG`);
+    if (cls === 'void') {
+      assert.ok(/stroke-dasharray/.test(rule) && /stroke-dasharray/.test(htmlRule), 'void is dashed in both');
+    }
+  }
+});
+
+test('a big room is exported as a plain room (one look, one name)', () => {
+  const d = makeSampleDoc();
+  const out = exportSvg(d);
+  assert.ok(d.items.some((i) => i.cls === 'big'), 'sample has a big room');
+  assert.ok(!out.includes('class="big"') && !/\.big\s*\{/.test(out), 'no "big" class or style in the file');
+  const merged = mergeBigRooms(d);
+  assert.ok(!merged.items.some((i) => i.cls === 'big'), 'old projects are converted on open');
+  assert.equal(exportSvg(merged), out, 'converting changes nothing in the file');
 });
 
 test('staff wall: padlock at its middle, and the Hallway label steps aside', () => {
