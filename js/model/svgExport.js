@@ -106,14 +106,43 @@ function roomBlock(item) {
 // stageObjects.js so the SVG looks like the trace view. Drawn behind rooms.
 // The "hall" class is outside the parser's known set, so build_rooms.py and
 // svgImport.js both ignore these on read-back (halls live in the .json project).
-function hallLines(item) {
+// Where the "Hallway" label goes: the hall's center, unless a staff wall's
+// padlock sits there — then the middle of the longer stretch beside the wall.
+function hallLabelPos(item, walls) {
+  const cx = item.x + item.w / 2;
+  const cy = item.y + item.h / 2;
+  const across = item.w >= item.h; // label runs along the hall's long side
+  for (const w of walls) {
+    const mx = (w.x1 + w.x2) / 2;
+    const my = (w.y1 + w.y2) / 2;
+    if (mx < item.x || mx > item.x + item.w || my < item.y || my > item.y + item.h) continue;
+    if (across && Math.abs(mx - cx) < 60) {
+      return mx - item.x > item.x + item.w - mx ? { x: (item.x + mx) / 2, y: cy } : { x: (mx + item.x + item.w) / 2, y: cy };
+    }
+    if (!across && Math.abs(my - cy) < 20) {
+      return my - item.y > item.y + item.h - my ? { x: cx, y: (item.y + my) / 2 } : { x: cx, y: (my + item.y + item.h) / 2 };
+    }
+  }
+  return { x: cx, y: cy };
+}
+
+function hallLines(item, walls = []) {
   const lines = [];
   lines.push(`${IND}<rect class="hall" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`);
   // Skip the label on very thin/short segments so it never overflows the box.
   if (item.w >= 80 && item.h >= 28) {
-    lines.push(`${IND}<text class="hall-lbl" x="${r(item.x + item.w / 2)}" y="${r(item.y + item.h / 2)}">Hallway</text>`);
+    const p = hallLabelPos(item, walls);
+    lines.push(`${IND}<text class="hall-lbl" x="${r(p.x)}" y="${r(p.y)}">Hallway</text>`);
   }
   return lines;
+}
+
+// Padlock glyph centered on (cx, cy), the same shape as lockGlyph() on the
+// stage (stageObjects.js): a purple shackle over a white body.
+function authwallLock(cx, cy) {
+  return `<g class="authwall-lock" fill="#ffffff" stroke="#7c3aed" stroke-width="2">`
+    + `<path d="M${cx - 5},${cy - 3} V${cy - 6} A5,5 0 0 1 ${cx + 5},${cy - 6} V${cy - 3}" fill="none"/>`
+    + `<rect x="${cx - 7}" y="${cy - 3}" width="14" height="11" rx="2"/></g>`;
 }
 
 function stairLines(item) {
@@ -205,7 +234,8 @@ export function exportSvg(doc) {
   const halls = doc.items.filter((it) => it.type === 'hall');
   if (halls.length) {
     lines.push(`${IND}<!-- HALLWAYS -->`);
-    for (const hall of halls) lines.push(...hallLines(hall));
+    const walls = doc.items.filter((it) => it.type === 'authwall');
+    for (const hall of halls) lines.push(...hallLines(hall, walls));
     lines.push('');
   }
 
@@ -241,11 +271,14 @@ export function exportSvg(doc) {
     for (const l of stairLines(stair)) lines.push(l);
   }
 
-  // Staff-only walls: dashed purple lines inside hallways, as drawn in trace.
-  // The "authwall" class is outside the map-build parsers' known set.
+  // Staff-only walls: dashed purple lines inside hallways with a small padlock
+  // at the middle, as drawn in trace (and shown in the legend). The
+  // "authwall" / "authwall-lock" classes are outside the map-build parsers'
+  // known set.
   const authwalls = doc.items.filter((it) => it.type === 'authwall');
   for (const w of authwalls) {
     lines.push(`${IND}<line class="authwall" x1="${r(w.x1)}" y1="${r(w.y1)}" x2="${r(w.x2)}" y2="${r(w.y2)}"/>`);
+    lines.push(`${IND}${authwallLock(r((w.x1 + w.x2) / 2), r((w.y1 + w.y2) / 2))}`);
   }
 
   // Redraw the outer wall as a stroke-only line so rooms/halls flush to it

@@ -128,6 +128,17 @@ test('section comments present', () => {
   assert.ok(svg.includes('<!-- SOUTH -->'));
 });
 
+test('staff wall: padlock at its middle, and the Hallway label steps aside', () => {
+  const d = makeSampleDoc();
+  d.items.push({ id: 'h', type: 'hall', x: 100, y: 300, w: 600, h: 100 });
+  d.items.push({ id: 'w', type: 'authwall', x1: 400, y1: 300, x2: 400, y2: 400 }); // right at the hall's center
+  const out = exportSvg(d);
+  assert.ok(out.includes('<g class="authwall-lock"'), 'padlock drawn');
+  const lbl = out.match(/<text class="hall-lbl" x="(\d+)" y="(\d+)">Hallway<\/text>/);
+  assert.ok(lbl, 'hall label present');
+  assert.ok(Math.abs(Number(lbl[1]) - 400) > 100, `label at x=${lbl[1]} still sits on the padlock`);
+});
+
 test('door is drawn after the wall edge so its opening cuts the wall', () => {
   const edgeIdx = svg.indexOf('<polygon class="floor-edge"');
   const doorIdx = svg.indexOf('<line class="door"');

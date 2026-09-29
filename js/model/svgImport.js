@@ -341,7 +341,8 @@ export function importSvg(svgText) {
     // pure function of cls+name+box, never stored on the item, so the
     // importer just skips these groups (and everything inside them) rather
     // than re-deriving anything from them.
-    if (t.kind === 'open' && t.name === 'g' && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch')) {
+    if (t.kind === 'open' && t.name === 'g'
+      && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch' || t.attrs.class === 'authwall-lock')) {
       let j = i + 1;
       while (j < tokens.length && !(tokens[j].kind === 'close' && tokens[j].name === 'g')) j++;
       i = j;

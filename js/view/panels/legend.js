@@ -3,8 +3,9 @@
 // class names as the exported SVG dialect (js/model/svgExport.js), so the
 // legend always looks like the real thing. Used by previewStep.js (beside
 // the preview) and palette.js (collapsible section at the bottom of the
-// left palette). Never written into an exported SVG file — the parser would
-// read a legend swatch as a real room.
+// left palette). "Place legend" also writes it into the exported SVG, but via
+// legendSvgGroupAt() with plain attributes only (no room/door/floor classes),
+// so the map-build parsers never read a swatch as a real room.
 // Depends on: nothing (pure markup string).
 
 const ITEMS = [
@@ -22,12 +23,22 @@ const ITEMS = [
       + '<g class="lg-stair"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="4" y1="13" x2="20" y2="13"/></g>',
   },
   {
+    // A door is a gap cut in the outside wall, labelled EXIT.
     label: 'Doors',
-    svg: '<line class="lg-door" x1="2" y1="9" x2="22" y2="9"/><text class="lg-exit" x="12" y="18">EXIT</text>',
+    svg: '<line class="lg-wall" x1="1" y1="7" x2="8" y2="7"/><line class="lg-wall" x1="16" y1="7" x2="23" y2="7"/>'
+      + '<text class="lg-exit" x="12" y="17">EXIT</text>',
   },
   {
     label: 'Hallway',
     svg: '<rect class="lg-hall" x="2" y="3" width="20" height="14"/>',
+  },
+  {
+    // Dashed purple line with a padlock — a staff-only wall inside a hallway.
+    label: 'Staff only',
+    caption: 'no public access',
+    svg: '<line class="lg-staff" x1="1" y1="11" x2="23" y2="11"/>'
+      + '<path class="lg-lock" d="M10,10 V8 A2,2 0 0 1 14,8 V10" fill="none"/>'
+      + '<rect class="lg-lock" x="9" y="10" width="6" height="5" rx="1"/>',
   },
   {
     label: 'Compass',
@@ -44,9 +55,11 @@ const LEGEND_STYLE = `
   .lg-core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 1.5; }
   .lg-void  { fill: none; stroke: #b7bbc1; stroke-width: 1.5; stroke-dasharray: 3 2; }
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
-  .lg-door  { stroke: #ffffff; stroke-width: 4; filter: drop-shadow(0 0 0 #cfd3d8); }
+  .lg-wall  { stroke: #3a3d42; stroke-width: 2.5; }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }
   .lg-hall  { fill: #d7dbe0; }
+  .lg-staff { stroke: #7c3aed; stroke-width: 2.5; stroke-dasharray: 4 3; }
+  .lg-lock  { fill: #ffffff; stroke: #7c3aed; stroke-width: 1.2; }
   .lg-outline { fill: #ffffff; stroke: #3a3d42; stroke-width: 2; }
 `;
 
@@ -87,8 +100,14 @@ function swatchFor(item) {
       + '<line x1="3" y1="10" x2="17" y2="10" stroke="#8f959c" stroke-width="1.5"/>';
   }
   if (item.label === 'Doors') {
-    return '<line x1="0" y1="6" x2="20" y2="6" stroke="#ffffff" stroke-width="4"/>'
-      + '<text x="10" y="14" fill="#1a7f37" font-size="7" font-weight="700" text-anchor="middle">EXIT</text>';
+    return '<line x1="0" y1="4" x2="7" y2="4" stroke="#3a3d42" stroke-width="2.5"/>'
+      + '<line x1="13" y1="4" x2="20" y2="4" stroke="#3a3d42" stroke-width="2.5"/>'
+      + '<text x="10" y="13" fill="#1a7f37" font-size="7" font-weight="700" text-anchor="middle">EXIT</text>';
+  }
+  if (item.label === 'Staff only') {
+    return '<line x1="0" y1="8" x2="20" y2="8" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="4 3"/>'
+      + '<path d="M8,7 V5 A2,2 0 0 1 12,5 V7" fill="none" stroke="#7c3aed" stroke-width="1.2"/>'
+      + '<rect x="7" y="7" width="6" height="5" rx="1" fill="#ffffff" stroke="#7c3aed" stroke-width="1.2"/>';
   }
   if (item.label === 'Compass') {
     return '<circle cx="10" cy="7" r="6" fill="#ffffff" stroke="#e6e6ea" stroke-width="1.5"/>'
@@ -133,4 +152,4 @@ export function legendSvgGroup(viewBox) {
   return legendSvgGroupAt(gx, gy);
 }
 
-export const LEGEND_NOTE = 'This legend is for preview only — it is never written into the exported SVG.';
+export const LEGEND_NOTE = 'What each mark on the plan means. Click “Place legend” to put this key on the downloaded SVG.';

@@ -11,6 +11,7 @@ import { exportSvg } from '../js/model/svgExport.js';
 import { importSvg } from '../js/model/svgImport.js';
 import { validate } from '../js/model/validate.js';
 import { makeSampleDoc, loadFixture } from './helpers.js';
+import { legendHtml, legendSvgGroupAt } from '../js/view/panels/legend.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureNames = readdirSync(path.join(__dirname, 'fixtures')).filter((f) => f.endsWith('.svg'));
@@ -53,6 +54,13 @@ test('every traced component of an existing project reaches the SVG and round-tr
   for (const type of new Set(doc.items.map((i) => i.type))) {
     assert.ok(expectTag[type], `no export expectation for item type "${type}"`);
     assert.ok(svg.includes(expectTag[type]), `item type "${type}" is missing from the SVG`);
+  }
+  assert.ok(svg.includes('class="authwall-lock"'), 'staff wall keeps its padlock, as in trace and the legend');
+  // Every kind of thing drawn has a legend row, in the panel and in the SVG legend.
+  const panel = legendHtml();
+  const inSvg = legendSvgGroupAt(0, 0);
+  for (const label of ['Room', 'Hallway', 'Doors', 'Stairs', 'Compass', 'Staff only']) {
+    assert.ok(panel.includes(label) && inSvg.includes(label), `legend is missing "${label}"`);
   }
   const { doc: back, problems } = importSvg(svg);
   assert.deepEqual(problems.filter((p) => p.code !== 'label-orphan'), []);

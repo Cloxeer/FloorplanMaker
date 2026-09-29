@@ -75,7 +75,8 @@ export function contentBounds(doc, legend = null, legendSize = null) {
       growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 5);
       if (it.label) growBox(b, it.label.x - EXIT_HALF_W, it.label.y - EXIT_HALF_H, EXIT_HALF_W * 2, EXIT_HALF_H * 2);
     } else if (it.type === 'authwall') {
-      growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 3);
+      // 12 covers the padlock drawn at the wall's middle.
+      growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 12);
     } else if (it.type === 'compass') {
       growBox(b, it.x - COMPASS_REACH, it.y - COMPASS_REACH, COMPASS_REACH * 2, COMPASS_REACH * 2);
     }
