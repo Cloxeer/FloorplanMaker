@@ -8,7 +8,7 @@ import { bbox } from './geometry.js';
 import { iconForRoom, iconSvg } from '../view/icons.js';
 import { legendSvgGroupAt } from '../view/panels/legend.js';
 import {
-  ROOM_LOOK, cssDecl, exportClass, hatchLinesSvg, rectPoints,
+  ROOM_LOOK, VOID_TEXT, cssDecl, exportClass, voidLabelLines,
 } from './look.js';
 
 const IND = '  ';
@@ -39,7 +39,14 @@ function roomShapeLine(item) {
 
 function roomLabelLines(item) {
   const lines = [];
-  if (item.cls === 'void') return lines;
+  if (item.cls === 'void') {
+    // "Open to below" in grey, centred — the original plans' .dim text.
+    const box = roomBox(item);
+    for (const t of voidLabelLines(box)) {
+      lines.push(`${IND}<text class="dim" x="${r(t.x)}" y="${r(t.y)}" font-size="${Math.round(t.size)}">${esc(t.text)}</text>`);
+    }
+    return lines.length ? [lines.map((l) => l.trim()).join('')] : lines;
+  }
   const pos = labelPos(item);
   const cls = labelClass(item);
   const text = item.showName && item.name ? (item.number || '') : labelText(item);
@@ -57,17 +64,12 @@ function roomBox(item) {
   return bbox(item.points);
 }
 
-// Icon / void-mesh decoration for a room, a pure function of cls+name+shape,
-// so it never needs to be stored — export always regenerates it. Uses
-// classes ("icon" / "void-hatch") outside the parser's known set (see
-// tools/build_rooms.py), so it is silently ignored there and by svgImport.
-// A void gets the "transparent" criss-cross mesh from look.js, clipped to
-// its exact outline — the same pattern Trace and the legend draw.
+// Icon decoration for a room, a pure function of cls+name+box, so it never
+// needs to be stored — export always regenerates it. Uses the "icon" class,
+// outside the parser's known set (see tools/build_rooms.py), so it is
+// silently ignored there and by svgImport.
 function roomExtraLine(item) {
-  if (item.cls === 'void') {
-    const pts = item.shape === 'rect' ? rectPoints(item.x, item.y, item.w, item.h) : item.points;
-    return `${IND}<g class="void-hatch">${hatchLinesSvg(pts, ROOM_LOOK.void.hatch, r)}</g>`;
-  }
+  if (item.cls === 'void') return null; // its words are on the shape's own line
   const box = roomBox(item);
   const key = iconForRoom(item);
   if (!key) return null;
@@ -190,8 +192,9 @@ export function exportSvg(doc) {
   for (const cls of ['room', 'ours', 'core', 'void']) {
     lines.push(`    .${cls.padEnd(5)} { ${cssDecl(ROOM_LOOK[cls])} }`);
   }
-  const mesh = ROOM_LOOK.void.hatch;
-  lines.push(`    .void-hatch { stroke: ${mesh.stroke}; stroke-width: ${mesh.width}; }`);
+  // No font-size here: a style rule would override each line's own size, so
+  // two-line "Open to" / "below" in a narrow void would still draw full size.
+  lines.push(`    .dim   { fill: ${VOID_TEXT.fill}; text-anchor: middle; dominant-baseline: middle; }`);
   lines.push('    .stair { stroke: #8f959c; stroke-width: 2; }');
   lines.push('    .hall  { fill: #d7dbe0; stroke: none; }');
   lines.push('    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }');

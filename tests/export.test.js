@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { exportSvg } from '../js/model/svgExport.js';
 import { makeSampleDoc } from './helpers.js';
 import { legendHtml, legendSvgGroupAt } from '../js/view/panels/legend.js';
-import { mergeBigRooms } from '../js/model/document.js';
+import { mergeBigRooms, makeRoom } from '../js/model/document.js';
 
 const STYLE_BLOCK = [
   '  <style>',
@@ -16,8 +16,8 @@ const STYLE_BLOCK = [
   '    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }',
   '    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }',
   '    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }',
-  '    .void  { fill: #eceef1; stroke: #b9bec6; stroke-width: 2; }',
-  '    .void-hatch { stroke: #b9bec6; stroke-width: 1.5; }',
+  '    .void  { fill: #f7f7f8; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }',
+  '    .dim   { fill: #8a8f96; text-anchor: middle; dominant-baseline: middle; }',
   '    .stair { stroke: #8f959c; stroke-width: 2; }',
   '    .hall  { fill: #d7dbe0; stroke: none; }',
   '    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }',
@@ -98,41 +98,41 @@ test('elevator/restroom core rooms get an icon group', () => {
   assert.ok(svg.includes('<g class="icon"'), 'expected at least one icon group');
 });
 
-test('void shows the criss-cross pattern (styled), never an unstyled black box', () => {
+test('void is a dashed box saying "Open to below" (styled), never black, no pattern', () => {
   // Every shape class the export writes must have a style rule — an SVG shape
-  // with no fill rule renders solid black, a line with no stroke is invisible.
+  // with no fill rule renders solid black.
   const styled = new Set([...svg.matchAll(/^\s+\.([\w-]+)\s*\{/gm)].map((m) => m[1]));
-  const used = new Set([...svg.matchAll(/<(?:rect|polygon|line|g) class="([\w-]+)"/g)].map((m) => m[1]));
-  for (const cls of ['room', 'core', 'void', 'void-hatch']) assert.ok(used.has(cls), `sample should draw "${cls}"`);
-  for (const cls of ['room', 'core', 'void', 'void-hatch', 'hall', 'door', 'floor', 'floor-edge']) {
+  const used = new Set([...svg.matchAll(/<(?:rect|polygon|line|g|text) class="([\w-]+)"/g)].map((m) => m[1]));
+  for (const cls of ['room', 'core', 'void', 'dim']) assert.ok(used.has(cls), `sample should draw "${cls}"`);
+  for (const cls of ['room', 'core', 'void', 'dim', 'hall', 'door', 'floor', 'floor-edge']) {
     if (used.has(cls)) assert.ok(styled.has(cls), `class "${cls}" is drawn but has no style rule`);
   }
-  const mesh = svg.match(/<g class="void-hatch">(.*?)<\/g>/)[1];
-  assert.ok((mesh.match(/<line /g) || []).length >= 6, 'void has a real mesh of lines');
-  assert.ok(!/stroke-dasharray/.test(svg.match(/\.void\s*\{[^}]*\}/)[0]), 'no thick dashed outline');
+  // Same styles as the original hand-drawn plans (tests/fixtures/hjlc-2.svg).
+  assert.ok(svg.includes('.void  { fill: #f7f7f8; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }'));
+  assert.ok(!svg.includes('void-hatch'), 'no lattice pattern');
 });
 
-test('void mesh on an odd-shaped (polygon) void stays inside its outline', () => {
+test('"Open to below" fits the void: one line, or two smaller lines when narrow', () => {
   const d = makeSampleDoc();
-  const tri = [[100, 100], [400, 100], [100, 400]];
-  d.items.push({ id: 'tv', type: 'room', cls: 'void', shape: 'poly', points: tri, number: '', name: '', label: { pinned: false, x: null, y: null, fontSize: null }, showName: false });
+  d.items = d.items.filter((i) => i.cls !== 'void');
+  d.items.push(makeRoom('void', 680, 445, 278, 265, ''), makeRoom('void', 607, 100, 58, 82, ''));
+  d.items.push({ id: 'pv', type: 'room', cls: 'void', shape: 'poly', points: [[100, 600], [400, 600], [400, 800], [100, 800]], number: '', name: '', label: { pinned: false, x: null, y: null, fontSize: null }, showName: false });
   const out = exportSvg(d);
-  const group = out.match(/<polygon class="void" points="100,100 400,100 100,400"\/>\n\s*<g class="void-hatch">(.*?)<\/g>/);
-  assert.ok(group, 'polygon void has its mesh');
-  for (const m of group[1].matchAll(/x1="(-?\d+)" y1="(-?\d+)" x2="(-?\d+)" y2="(-?\d+)"/g)) {
-    const [x1, y1, x2, y2] = m.slice(1).map(Number);
-    for (const [x, y] of [[x1, y1], [x2, y2]]) {
-      assert.ok(x >= 99 && y >= 99 && x + y <= 501, `mesh point ${x},${y} is outside the triangle`);
-    }
-  }
+  // Wide void: one line at the centre, on the shape's own line (like the originals).
+  assert.ok(out.includes('<rect class="void" x="680" y="445" width="278" height="265"/><text class="dim" x="819" y="578" font-size="19">Open to below</text>'), out.match(/<rect class="void" x="680".*/)[0]);
+  // Narrow void: "Open to" / "below", smaller.
+  const narrow = out.match(/<rect class="void" x="607".*/)[0];
+  assert.ok(/<text class="dim" x="636" y="\d+" font-size="1[0-5]">Open to<\/text><text class="dim" x="636" y="\d+" font-size="1[0-5]">below<\/text>/.test(narrow), narrow);
+  // Odd-shaped (polygon) voids get the words too.
+  assert.ok(/<polygon class="void"[^>]*\/><text class="dim"[^>]*>Open to below<\/text>/.test(out));
 });
 
-test('void has no label', () => {
-  // A room's label is written on the same line as its shape.
+test('void has no room label, only "Open to below"', () => {
   const voidIdx = svg.indexOf('<rect class="void"');
   assert.ok(voidIdx !== -1);
   const voidLine = svg.slice(voidIdx, svg.indexOf('\n', voidIdx));
-  assert.ok(!voidLine.includes('<text'), voidLine);
+  assert.ok(!/class="lbl/.test(voidLine), voidLine);
+  assert.ok(voidLine.includes('Open to below') || voidLine.includes('>Open to<'), voidLine);
 });
 
 test('lblS chosen for the small room', () => {
@@ -170,11 +170,8 @@ test('legend and exported SVG draw room, core and void the same way', () => {
     assert.ok(htmlRule.includes(`fill: ${fill}`) && htmlRule.includes(`stroke: ${stroke}`), `panel legend ${cls} ≠ SVG`);
     assert.ok(placed.includes(`fill="${fill}" stroke="${stroke}"`), `placed legend ${cls} ≠ SVG`);
     if (cls === 'void') {
-      // Same mesh color in the SVG, the panel legend and the placed legend.
-      const meshColor = svg.match(/\.void-hatch\s*\{\s*stroke: (#[0-9a-f]{6})/)[1];
-      assert.ok(new RegExp(`\\.lg-void-hatch\\s*\\{\\s*stroke: ${meshColor}`).test(html), 'panel legend mesh color');
-      assert.ok(placed.includes(`<g stroke="${meshColor}"`), 'placed legend mesh color');
-      assert.ok(/lg-void-hatch">(<line [^>]+\/>){4,}/.test(html), 'panel legend shows the mesh');
+      assert.ok(/stroke-dasharray/.test(rule) && /stroke-dasharray/.test(htmlRule), 'void is dashed in the SVG and the legend');
+      assert.ok(/stroke-dasharray="[^"]+"/.test(placed.slice(placed.indexOf('Void') - 400, placed.indexOf('Void'))), 'placed legend void is dashed');
     }
   }
 });

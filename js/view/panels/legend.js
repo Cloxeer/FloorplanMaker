@@ -11,19 +11,13 @@
 // js/model/look.js — the same values the exported SVG's style rules use.
 // Depends on: js/model/look.js.
 
-import {
-  SWATCH_LOOK, cssDecl, svgAttrs, hatchLinesSvg, rectPoints,
-} from '../../model/look.js';
+import { SWATCH_LOOK, cssDecl, svgAttrs } from '../../model/look.js';
 
-const VOID_MESH = SWATCH_LOOK.void.hatch;
-// The void swatch: box + the same criss-cross mesh as on the plan.
+// The void swatch: the same dashed box as on the plan.
 function voidSwatch(x, y, w, h, attrs) {
-  const g = attrs
-    ? `<g stroke="${VOID_MESH.stroke}" stroke-width="${VOID_MESH.width}">`
-    : '<g class="lg-void-hatch">';
-  const box = attrs ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${svgAttrs(SWATCH_LOOK.void)}/>`
+  return attrs
+    ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${svgAttrs(SWATCH_LOOK.void)}/>`
     : `<rect class="lg-void" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
-  return box + g + hatchLinesSvg(rectPoints(x, y, w, h), VOID_MESH) + '</g>';
 }
 
 // One "Room" row: a big room is just a room, drawn the same.
@@ -34,7 +28,7 @@ const ITEMS = [
     svg: '<rect class="lg-selected" x="2" y="3" width="20" height="14"/>',
   },
   { label: 'Core', svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>' },
-  { label: 'Void', svg: voidSwatch(2, 3, 20, 14, false) },
+  { label: 'Void', caption: 'open to below', svg: voidSwatch(2, 3, 20, 14, false) },
   {
     label: 'Stairs',
     svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>'
@@ -71,7 +65,6 @@ const LEGEND_STYLE = `
   .lg-selected { fill: #cfe0ff; stroke: #2f6feb; stroke-width: 1.5; }
   .lg-core  { ${cssDecl(SWATCH_LOOK.core)} }
   .lg-void  { ${cssDecl(SWATCH_LOOK.void)} }
-  .lg-void-hatch { stroke: ${VOID_MESH.stroke}; stroke-width: ${VOID_MESH.width}; }
   .lg-stair { stroke: #8f959c; stroke-width: 1.5; }
   .lg-wall  { stroke: #3a3d42; stroke-width: 2.5; }
   .lg-exit  { fill: #1a7f37; font-size: 7px; font-weight: 700; text-anchor: middle; }

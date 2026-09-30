@@ -9,8 +9,9 @@ import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.mi
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
 import { ICONS, iconForRoom } from './icons.js';
-import { ROOM_LOOK, roomLook } from '../model/look.js';
+import { ROOM_LOOK, VOID_TEXT, roomLook, voidLabelLines } from '../model/look.js';
 import { legendSvgGroupAt, legendGroupSize } from './panels/legend.js';
+import { bbox } from '../model/geometry.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 // Room looks come from js/model/look.js — the same values the exported SVG
@@ -19,38 +20,24 @@ export const FILLS = Object.fromEntries(['room', 'big', 'ours', 'core', 'void'].
 export const STROKE = ROOM_LOOK.room.stroke;
 function roomStroke(cls) {
   const look = roomLook(cls);
-  return { stroke: look.stroke, strokeWidth: look.width, strokeDashArray: look.dash ? [...look.dash] : null };
-}
-
-// A void's fill: one repeating tile with both diagonals drawn — the same
-// grey, mesh color, line width and spacing (plan units) as the exported
-// SVG's clipped criss-cross lines (look.js hatchSegments), starting at the
-// shape's top-left, so Trace shows the very same "transparent" pattern.
-let voidPattern = null;
-function voidFill() {
-  if (voidPattern) return voidPattern;
-  const { fill, hatch } = ROOM_LOOK.void;
-  const k = 4; // draw the tile at 4x, then scale it back down: crisp lines
-  const s = hatch.spacing * k;
-  const tile = document.createElement('canvas');
-  tile.width = s;
-  tile.height = s;
-  const g = tile.getContext('2d');
-  g.fillStyle = fill;
-  g.fillRect(0, 0, s, s);
-  g.strokeStyle = hatch.stroke;
-  g.lineWidth = hatch.width * k;
-  g.beginPath();
-  for (let i = -1; i <= 1; i += 1) { // neighbours too, so lines meet across tile edges
-    g.moveTo(i * s, 0); g.lineTo((i + 1) * s, s);
-    g.moveTo((i + 1) * s, 0); g.lineTo(i * s, s);
-  }
-  g.stroke();
-  voidPattern = new fabric.Pattern({ source: tile, repeat: 'repeat', patternTransform: [1 / k, 0, 0, 1 / k, 0, 0] });
-  return voidPattern;
+  return {
+    stroke: look.stroke,
+    strokeWidth: look.width,
+    strokeDashArray: look.dash ? [...look.dash] : null,
+    // A void's dashes are sized in plan units, like the exported SVG, so they
+    // look the same at every zoom; other outlines stay a fixed screen width.
+    strokeUniform: cls !== 'void',
+  };
 }
 function roomFill(cls) {
-  return cls === 'void' ? voidFill() : (FILLS[cls] || FILLS.room);
+  return FILLS[cls] || FILLS.room;
+}
+// "Open to below" for a void, placed exactly as the export places it.
+function voidTexts(box) {
+  return voidLabelLines(box).map((t) => new fabric.FabricText(t.text, {
+    left: t.x, top: t.y, originX: 'center', originY: 'center', fontSize: Math.round(t.size),
+    fill: VOID_TEXT.fill, fontFamily: FONT, selectable: false, evented: false, objectCaching: false,
+  }));
 }
 
 // Back-to-front draw order.
@@ -176,19 +163,18 @@ function roomContentKids(item) {
 function buildRoomRect(item) {
   const rect = new fabric.Rect({
     left: item.x, top: item.y, width: item.w, height: item.h,
-    fill: roomFill(item.cls), ...roomStroke(item.cls),
-    strokeUniform: true, objectCaching: false,
+    strokeUniform: true, fill: roomFill(item.cls), ...roomStroke(item.cls), objectCaching: false,
   });
   if (item.cls === 'void') {
-    // A void shows the criss-cross pattern and has no label. Fabric's
-    // single-child Group recomputes its own bounding box/layout on move in a
-    // way that corrupts width/height, so the rect is paired with an invisible
-    // one in a multi-child Group (safe) rather than a single-child one.
+    // A void: dashed box with "Open to below". Fabric's single-child Group
+    // recomputes its own bounding box/layout on move in a way that corrupts
+    // width/height, so an invisible rect keeps it multi-child even when the
+    // void is too small for the words.
     const spacer = new fabric.Rect({
       left: item.x, top: item.y, width: item.w, height: item.h,
       fill: 'rgba(0,0,0,0)', strokeWidth: 0, selectable: false, evented: false, objectCaching: false,
     });
-    const g = new fabric.Group([rect, spacer], {
+    const g = new fabric.Group([rect, spacer, ...voidTexts({ x: item.x, y: item.y, w: item.w, h: item.h })], {
       ...BASE, subTargetCheck: false, perPixelTargetFind: false,
       lockRotation: true, lockSkewingX: true, lockSkewingY: true,
     });
@@ -237,7 +223,17 @@ function buildRoomPoly(item, grid) {
 // Poly rooms carry their number in a separate, non-interactive text object so
 // the polygon itself stays a plain Fabric.Polygon (point editing needs that).
 function buildPolyLabel(item) {
-  if (item.cls === 'void' || !mainLabelText(item)) return null;
+  if (item.cls === 'void') {
+    const texts = voidTexts(bbox(item.points));
+    if (!texts.length) return null;
+    const g = new fabric.Group(texts, { selectable: false, evented: false, objectCaching: false });
+    g.itemId = `${item.id}:lbl`;
+    g.itemType = 'roomlabel';
+    g.labelOwner = item.id;
+    g.zLayer = LAYER.room;
+    return g;
+  }
+  if (!mainLabelText(item)) return null;
   const p = labelPos(item);
   const t = new fabric.FabricText(mainLabelText(item), {
     left: p.x, top: p.y, originX: 'center', originY: 'center',

@@ -6,9 +6,7 @@
 
 import { iconSvg } from '../icons.js';
 import { legendSvgGroupAt, legendGroupSize } from './legend.js';
-import {
-  SWATCH_LOOK, CHIP_LOOK, svgAttrs, hatchLinesSvg, rectPoints,
-} from '../../model/look.js';
+import { SWATCH_LOOK, CHIP_LOOK, svgAttrs } from '../../model/look.js';
 
 // A room-kind box drawn with the shared look (js/model/look.js).
 function box(w, h, cls) {
@@ -75,14 +73,10 @@ function closetChip(vb) {
   return svgWrap(vb, `${box(w, h, 'core')}${fitLabelSvg('Utility', w / 2, h / 2, w, h, {})}`);
 }
 
-// Empty space: the "transparent" criss-cross pattern, like the legend, Trace
-// and the SVG.
+// Empty space: a dashed box, like the legend, Trace and the SVG.
 function voidChip(vb) {
   const [w, h] = vb;
-  const look = CHIP_LOOK.void;
-  const mesh = `<g stroke="${look.hatch.stroke}" stroke-width="${look.hatch.width}">`
-    + `${hatchLinesSvg(rectPoints(2, 2, w - 4, h - 4), look.hatch)}</g>`;
-  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" ${svgAttrs(look)}/>${mesh}`);
+  return svgWrap(vb, `<rect x="2" y="2" width="${w - 4}" height="${h - 4}" ${svgAttrs(CHIP_LOOK.void)}/>`);
 }
 
 // Elevator and restroom chips draw the exact user-supplied icons from
