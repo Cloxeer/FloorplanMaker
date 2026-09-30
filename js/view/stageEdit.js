@@ -7,7 +7,7 @@
 // js/view/stagePoly.js, js/view/stageSnap.js.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { updateItem, removeItems, setFloor, STD } from '../model/document.js';
+import { updateItem, removeItems, setFloor, STD, compassBearing } from '../model/document.js';
 import { snapToGrid } from '../model/geometry.js';
 import { polyPoints, insertVertex, nearestEdge } from './stagePoly.js';
 import { absBox } from './stageSnap.js';
@@ -28,9 +28,19 @@ export function attachEditing(ctx) {
   const selectColors = new Map(); // fabric object -> its true fill/stroke, while blue-selected
 
   // -------------------------------------------------------- drag highlight --
+  // Which parts of an object take the highlight colour. The compass only
+  // tints its outer ring, so the needle and N/E/S/W letters keep their
+  // colours and you can still see which way it points; the legend (a
+  // picture) just shows its selection box.
+  function paintParts(obj) {
+    const kids = obj.getObjects ? obj.getObjects() : [obj];
+    if (obj.itemType === 'compass') return kids.filter((k) => k.compassRing);
+    if (obj.itemType === 'legend') return [];
+    return kids;
+  }
   function paintWith(map, obj, fill, stroke) {
     if (!obj || map.has(obj)) return;
-    const kids = obj.getObjects ? obj.getObjects() : [obj];
+    const kids = paintParts(obj);
     const saved = kids.map((o) => ({ o, fill: o.fill, stroke: o.stroke }));
     map.set(obj, saved);
     for (const { o } of saved) {
@@ -135,6 +145,13 @@ export function attachEditing(ctx) {
     if (target.getObjects) for (const o of target.getObjects()) if (o.itemId) ids.add(o.itemId);
     return ids;
   }
+
+  // Say which way the compass points while it's being turned.
+  canvas.on('object:rotating', (opt) => {
+    const t = opt.target;
+    if (!t || t.itemType !== 'compass' || !app.setHint) return;
+    app.setHint(`Compass: north points ${compassBearing(t.angle)} — let go to set it.`);
+  });
 
   canvas.on('object:moving', (opt) => {
     const t = opt.target;

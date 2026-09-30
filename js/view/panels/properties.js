@@ -3,7 +3,7 @@
 // single room/door/stair/compass/floor, plus alignment tools for multi-selection.
 // Depends on: js/model/document.js (getItem, updateItem, removeItems, STD, NUMBER_RE).
 
-import { getItem, updateItem, removeItems, NUMBER_RE } from '../../model/document.js';
+import { getItem, updateItem, removeItems, NUMBER_RE, compassBearing } from '../../model/document.js';
 import { rectToPoints, dist } from '../../model/geometry.js';
 
 const CLASS_OPTIONS = [
@@ -260,13 +260,33 @@ export function mountProperties(el, app) {
     wireDelete(item);
   }
 
+  // The compass: a little dial drawn at its real rotation, the angle in
+  // words, an exact-angle box, and ±15° buttons.
   function renderCompass(item) {
+    const deg = (((Math.round(item.deg || 0)) % 360) + 360) % 360;
     el.innerHTML = `
       <div class="section-title">Compass</div>
-      <div class="form-row-inline">
-        <button type="button" id="p-rotate-ccw">Rotate &minus;15&deg;</button>
-        <button type="button" id="p-rotate-cw">Rotate +15&deg;</button>
+      <div class="compass-readout">
+        <svg class="compass-dial" viewBox="-40 -40 80 80" width="72" height="72" aria-hidden="true">
+          <circle r="36" fill="#ffffff" stroke="#1d1f23" stroke-width="2"/>
+          <g transform="rotate(${deg})">
+            <path d="M0,-27 L6,0 L-6,0 Z" fill="#8C0B42"/>
+            <path d="M0,27 L6,0 L-6,0 Z" fill="#c7c7cc"/>
+            <text x="0" y="-29" font-size="9" font-weight="700" fill="#8C0B42" text-anchor="middle">N</text>
+          </g>
+          <circle r="2.5" fill="#ffffff" stroke="#8a8690" stroke-width="1"/>
+        </svg>
+        <div>
+          <div class="compass-readout-label">North points</div>
+          <div class="compass-readout-value" id="p-compass-bearing">${compassBearing(deg)}</div>
+        </div>
       </div>
+      <div class="form-row-inline">
+        <button type="button" id="p-rotate-ccw">&minus;15&deg;</button>
+        <label class="compass-deg"><input type="number" id="p-compass-deg" min="0" max="359" step="1" value="${deg}">&deg;</label>
+        <button type="button" id="p-rotate-cw">+15&deg;</button>
+      </div>
+      <p class="hint">Or drag the round handle above the compass on the plan.</p>
       ${deleteButtonHtml()}
     `;
     el.querySelector('#p-rotate-ccw').addEventListener('click', () => {
@@ -274,6 +294,11 @@ export function mountProperties(el, app) {
     });
     el.querySelector('#p-rotate-cw').addEventListener('click', () => {
       commitField(item.id, { deg: (item.deg || 0) + 15 }, 'Rotate compass');
+    });
+    const degInput = el.querySelector('#p-compass-deg');
+    degInput.addEventListener('change', () => {
+      const v = Number(degInput.value);
+      if (Number.isFinite(v)) commitField(item.id, { deg: (((Math.round(v)) % 360) + 360) % 360 }, 'Rotate compass');
     });
     wireDelete(item);
   }

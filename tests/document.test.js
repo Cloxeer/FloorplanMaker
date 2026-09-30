@@ -128,3 +128,12 @@ test('immutability of addItem/updateItem/removeItems', () => {
   assert.equal(doc4.items.length, 0);
   assert.notEqual(doc3, doc4);
 });
+
+test('compassBearing says where the N arrow points on the page', async () => {
+  const { compassBearing } = await import('../js/model/document.js');
+  assert.equal(compassBearing(0), '0° (straight up)');
+  assert.equal(compassBearing(35), '35° (up-right)');
+  assert.equal(compassBearing(90), '90° (right)');
+  assert.equal(compassBearing(-15), '345° (up)');
+  assert.equal(compassBearing(720 + 180), '180° (down)');
+});

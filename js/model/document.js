@@ -45,6 +45,16 @@ export function mergeBigRooms(doc) {
   return { ...doc, items: doc.items.map((it) => (it.type === 'room' && it.cls === 'big' ? { ...it, cls: 'room' } : it)) };
 }
 
+// A compass rotation (degrees, clockwise from straight up) as words — where
+// the N arrow points on the page: "35° (up-right)". Shared by Trace's hint
+// and the properties panel.
+export function compassBearing(deg) {
+  const d = (((Math.round(deg || 0)) % 360) + 360) % 360;
+  const names = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
+  const name = d === 0 ? 'straight up' : names[Math.round(d / 45) % 8];
+  return `${d}° (${name})`;
+}
+
 // The legend is a plan item like the compass — { type: 'legend', x, y, scale }
 // (top-left corner, uniform size) — placed and sized in Trace. One per plan.
 export function findLegend(doc) {
