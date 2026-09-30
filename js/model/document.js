@@ -45,6 +45,20 @@ export function mergeBigRooms(doc) {
   return { ...doc, items: doc.items.map((it) => (it.type === 'room' && it.cls === 'big' ? { ...it, cls: 'room' } : it)) };
 }
 
+// The legend is a plan item like the compass — { type: 'legend', x, y, scale }
+// (top-left corner, uniform size) — placed and sized in Trace. One per plan.
+export function findLegend(doc) {
+  return (doc && doc.items && doc.items.find((it) => it.type === 'legend')) || null;
+}
+// Older projects placed the legend in the Preview and kept it in
+// project.view.legendPos; turn that into a legend item (same doc if none).
+export function legendFromView(doc, view) {
+  const p = view && view.legendPos;
+  if (!doc || !p || findLegend(doc)) return doc;
+  const scale = p.scale && Number.isFinite(p.scale) ? p.scale : 1;
+  return { ...doc, items: [...doc.items, { id: newId(), type: 'legend', x: Math.round(p.x), y: Math.round(p.y), scale }] };
+}
+
 let idCounter = 0;
 
 export function newId() {

@@ -473,10 +473,6 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 .export-page-hint { color: var(--muted); font-size: 12px; }
 .preview-side { width: 260px; flex: none; overflow-y: auto; }
 .preview-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; }
-.preview-download-group { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 420px; }
-.preview-download-note { margin: 0; color: var(--muted); font-size: 11px; text-align: right; line-height: 1.4; }
-.preview-legend-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
-.preview-legend-controls { display: flex; gap: 8px; }
 #preview-export:disabled { opacity: 0.5; cursor: not-allowed; }
 .chip.disabled { opacity: 0.45; pointer-events: none; }
 
@@ -525,18 +521,4 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
   #start, #photo-step, #studio, #dialogs { display: none !important; }
 }
 
-/* Preview pan arrows — only during legend placement */
 #preview-svg-wrap { position: relative; }
-#preview-pan-pad[hidden] { display: none; }
-#preview-pan-pad .pan-arrow {
-  position: absolute; z-index: 5; width: 40px; height: 40px;
-  border: 1px solid #c7cad0; border-radius: 8px; background: rgba(255,255,255,0.95);
-  color: #1a73e8; font-size: 18px; line-height: 1; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; padding: 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-}
-#preview-pan-pad .pan-arrow:hover { background: #eef4ff; }
-#preview-pan-pad .pan-up    { top: 8px; left: 50%; transform: translateX(-50%); }
-#preview-pan-pad .pan-down  { bottom: 8px; left: 50%; transform: translateX(-50%); }
-#preview-pan-pad .pan-left  { left: 8px; top: 50%; transform: translateY(-50%); }
-#preview-pan-pad .pan-right { right: 8px; top: 50%; transform: translateY(-50%); }

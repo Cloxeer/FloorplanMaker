@@ -349,6 +349,27 @@ export function importSvg(svgText) {
       continue;
     }
 
+    // The legend group (see legendSvgGroupAt): read back as a legend item,
+    // skipping its contents (swatches and labels, which hold nested groups).
+    if ((t.kind === 'open' || t.kind === 'selfclose') && t.name === 'g' && t.attrs.class === 'legend') {
+      const transform = t.attrs.transform || '';
+      const tm = /translate\(([-\d.]+)[,\s]+([-\d.]+)\)/.exec(transform);
+      const sm = /scale\(([-\d.]+)\)/.exec(transform);
+      if (!items.some((it) => it.type === 'legend')) {
+        items.push({ id: newId(), type: 'legend', x: tm ? Number(tm[1]) : 0, y: tm ? Number(tm[2]) : 0, scale: sm ? Number(sm[1]) : 1 });
+      }
+      if (t.kind === 'open') {
+        let depth = 1;
+        let j = i + 1;
+        for (; j < tokens.length && depth > 0; j++) {
+          if (tokens[j].name === 'g' && tokens[j].kind === 'open') depth++;
+          if (tokens[j].name === 'g' && tokens[j].kind === 'close') depth--;
+        }
+        i = j - 1;
+      }
+      continue;
+    }
+
     if ((t.kind === 'open' || t.kind === 'selfclose') && t.name === 'g' && t.attrs.class === 'compass') {
       const transform = t.attrs.transform || '';
       const tm = /translate\(([-\d.]+)[,\s]+([-\d.]+)\)/.exec(transform);

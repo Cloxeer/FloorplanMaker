@@ -72,6 +72,7 @@ read these files. Do not deviate.
 | `<text class="lbl">` / `<text class="lblS">` | At the room centroid. Text ends in the room number matching `(?:^|\s)([A-Z]?\d{3}[A-Z]?)$`. Words before the number are the room name. `lblS` (19px) is picked automatically when the room's short side is under 70 units. Per-element `font-size="Npx"` override allowed. |
 | `<text class="name">` | Bold room name inside the same shape (optional). |
 | `<g class="compass" transform="translate(x,y) rotate(deg)">` | Optional, copied verbatim (see below). |
+| `<g class="legend" transform="translate(x,y) scale(s)">` | Optional, at most one, drawn last. The key placed in Trace (a `legend` item). Plain attributes inside only, so the build tools ignore it; the studio reads it back as the legend item. |
 | `<!-- SECTION -->` comments | e.g. `<!-- TOP ROW: 128 suite offices -->`. |
 
 Element order in the file: header comment, style, floor polygon, then hallways,

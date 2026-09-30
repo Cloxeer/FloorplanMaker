@@ -10,6 +10,7 @@ import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/docu
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
 import { ICONS, iconForRoom } from './icons.js';
 import { ROOM_LOOK, roomLook } from '../model/look.js';
+import { legendSvgGroupAt, legendGroupSize } from './panels/legend.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 // Room looks come from js/model/look.js — the same values the exported SVG
@@ -55,7 +56,7 @@ function roomFill(cls) {
 // Back-to-front draw order.
 export const LAYER = {
   grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5,
-  compass: 6, floorEdge: 6.5, door: 6.7, ghost: 7, guide: 8,
+  compass: 6, floorEdge: 6.5, door: 6.7, legend: 6.8, ghost: 7, guide: 8,
 };
 
 const BASE = {
@@ -380,6 +381,41 @@ function buildCompass(item) {
   return tag(g, item, 'compass');
 }
 
+// --------------------------------------------------------------- legend ----
+// The legend exactly as the export draws it (legendSvgGroupAt), as a picture.
+// Drawn 4x larger than its plan size so it stays crisp when zoomed in; the
+// object's scale is item.scale / 4. Only the corner handles show, and they
+// resize it evenly (stageEdit keeps scaleX === scaleY).
+export const LEGEND_PX = 4;
+let legendImg = null;
+const legendWaiting = new Set();
+function legendImage() {
+  if (legendImg) return legendImg;
+  const { w, h } = legendGroupSize();
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w * LEGEND_PX}" height="${h * LEGEND_PX}" viewBox="0 0 ${w} ${h}">${legendSvgGroupAt(0, 0, 1)}</svg>`;
+  legendImg = new Image();
+  legendImg.onload = () => {
+    for (const o of legendWaiting) { o.dirty = true; if (o.canvas) o.canvas.requestRenderAll(); }
+    legendWaiting.clear();
+  };
+  legendImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  return legendImg;
+}
+function buildLegend(item) {
+  const { w, h } = legendGroupSize();
+  const img = legendImage();
+  const s = (item.scale && Number.isFinite(item.scale) ? item.scale : 1) / LEGEND_PX;
+  const obj = new fabric.FabricImage(img, {
+    ...BASE, left: item.x, top: item.y, width: w * LEGEND_PX, height: h * LEGEND_PX,
+    scaleX: s, scaleY: s, lockRotation: true, lockSkewingX: true, lockSkewingY: true,
+    lockScalingFlip: true, objectCaching: false,
+  });
+  for (const c of ['ml', 'mr', 'mt', 'mb', 'mtr']) obj.setControlVisible(c, false);
+  if (!img.complete) legendWaiting.add(obj);
+  obj.setCoords();
+  return tag(obj, item, 'legend');
+}
+
 // ---------------------------------------------------------------- floor ----
 export function buildFloor(points, grid) {
   const poly = new fabric.Polygon(points.map(([x, y]) => ({ x, y })), {
@@ -434,6 +470,7 @@ export function buildItem(item, grid) {
   if (item.type === 'door') return [buildDoor(item)];
   if (item.type === 'compass') return [buildCompass(item)];
   if (item.type === 'authwall') return [buildAuthwall(item)];
+  if (item.type === 'legend') return [buildLegend(item)];
   return [];
 }
 

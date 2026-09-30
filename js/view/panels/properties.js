@@ -61,6 +61,7 @@ export function mountProperties(el, app) {
     if (item.type === 'door') return renderDoor(item);
     if (item.type === 'stair') return renderStair(item);
     if (item.type === 'compass') return renderCompass(item);
+    if (item.type === 'legend') return renderLegend(item);
     el.innerHTML = '<p>Unsupported selection.</p>';
   }
 
@@ -274,6 +275,28 @@ export function mountProperties(el, app) {
     el.querySelector('#p-rotate-cw').addEventListener('click', () => {
       commitField(item.id, { deg: (item.deg || 0) + 15 }, 'Rotate compass');
     });
+    wireDelete(item);
+  }
+
+  // The legend: drag it to move, pull a corner to resize (or use − / +).
+  function renderLegend(item) {
+    const pct = Math.round((item.scale || 1) * 100);
+    el.innerHTML = `
+      <div class="section-title">Legend</div>
+      <p class="hint">Drag it to move it. Pull a corner to make it bigger or smaller.</p>
+      <div class="form-row-inline">
+        <button type="button" id="p-legend-smaller" aria-label="Smaller">&minus;</button>
+        <span>Size ${pct}%</span>
+        <button type="button" id="p-legend-bigger" aria-label="Bigger">+</button>
+      </div>
+      ${deleteButtonHtml()}
+    `;
+    const resize = (f) => {
+      const scale = Math.max(0.1, Math.round((item.scale || 1) * f * 100) / 100);
+      commitField(item.id, { scale }, 'Resize legend');
+    };
+    el.querySelector('#p-legend-smaller').addEventListener('click', () => resize(1 / 1.15));
+    el.querySelector('#p-legend-bigger').addEventListener('click', () => resize(1.15));
     wireDelete(item);
   }
 

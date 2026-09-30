@@ -107,3 +107,27 @@ for (const name of fixtureNames) {
     assert.ok(stairs.length > 0, `${name}: expected stairs > 0`);
   });
 }
+
+test('the legend is a plan item: exported once, read back, and counted in the frame', async () => {
+  const { contentBounds, pageFrame } = await import('../js/model/pageFit.js');
+  const { legendFromView, findLegend } = await import('../js/model/document.js');
+  const doc = makeSampleDoc();
+  doc.items.push({ id: 'lg', type: 'legend', x: 1200, y: 100, scale: 1.5 });
+  const svg = exportSvg(doc);
+  assert.equal((svg.match(/<g class="legend"/g) || []).length, 1, 'one legend in the file');
+  assert.ok(svg.includes('translate(1200,100) scale(1.5)'));
+  const { doc: back, problems } = importSvg(svg);
+  assert.deepEqual(problems.filter((p) => p.code !== 'label-orphan'), [], 'legend group imports cleanly');
+  const lg = back.items.filter((i) => i.type === 'legend');
+  assert.equal(lg.length, 1);
+  assert.deepEqual({ x: lg[0].x, y: lg[0].y, scale: lg[0].scale }, { x: 1200, y: 100, scale: 1.5 });
+  assert.equal(exportSvg(back), svg, 'round-trip is exact');
+  // Fit to SVG includes the whole legend.
+  const f = pageFrame(contentBounds(doc), 'fit');
+  assert.ok(f.x + f.w >= 1200 + 190 * 1.5, 'frame reaches the legend\'s right edge');
+  // Older projects: the Preview's legendPos becomes the legend item, once.
+  const old = makeSampleDoc();
+  const migrated = legendFromView(old, { legendPos: { x: 10, y: 20, scale: 2 } });
+  assert.deepEqual((({ x, y, scale }) => ({ x, y, scale }))(findLegend(migrated)), { x: 10, y: 20, scale: 2 });
+  assert.equal(legendFromView(migrated, { legendPos: { x: 99, y: 99 } }), migrated, 'never a second legend');
+});

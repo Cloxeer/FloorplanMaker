@@ -5,6 +5,7 @@
 // real thing. Pure string templates, no DOM dependency.
 
 import { iconSvg } from '../icons.js';
+import { legendSvgGroupAt, legendGroupSize } from './legend.js';
 import {
   SWATCH_LOOK, CHIP_LOOK, svgAttrs, hatchLinesSvg, rectPoints,
 } from '../../model/look.js';
@@ -27,6 +28,7 @@ export const PIECE_SIZE = {
   compass: { w: 60, h: 60 },
   closet: { w: 70, h: 60 },
   authwall: { w: 120, h: 16 },
+  legend: legendGroupSize(),
 };
 
 function svgWrap(vb, inner) {
@@ -148,6 +150,17 @@ function compassChip(vb) {
   `);
 }
 
+// A tiny legend card: three swatch-and-line rows.
+function legendChip(vb) {
+  const [w, h] = vb;
+  const rows = [0, 1, 2].map((i) => {
+    const y = 7 + i * 8;
+    return `<rect x="8" y="${y}" width="6" height="5" fill="#eef1f4" stroke="#8f959c" stroke-width="0.8"/>`
+      + `<line x1="17" y1="${y + 2.5}" x2="${w - 8}" y2="${y + 2.5}" stroke="#8a8690" stroke-width="1.5"/>`;
+  }).join('');
+  return svgWrap(vb, `<rect x="4" y="3" width="${w - 8}" height="${h - 6}" rx="2" fill="#ffffff" stroke="#8a8690" stroke-width="1"/>${rows}`);
+}
+
 // key -> viewBox (chip preview size, small)
 const CHIP_VB = { w: 44, h: 34 };
 
@@ -165,6 +178,7 @@ export function chipSvg(key) {
     case 'compass': return compassChip(vb);
     case 'closet': return closetChip(vb);
     case 'authwall': return authwallChip(vb);
+    case 'legend': return legendChip(vb);
     default: return svgWrap(vb, '');
   }
 }
@@ -189,6 +203,7 @@ export function ghostSvg(key, zoom) {
     case 'compass': inner = compassChip(vb); break;
     case 'closet': inner = closetChip(vb); break;
     case 'authwall': inner = authwallChip(vb); break;
+    case 'legend': inner = svgWrap(vb, legendSvgGroupAt(0, 0, 1)); break;
     default: inner = svgWrap(vb, '');
   }
   return { svg: inner, w, h };

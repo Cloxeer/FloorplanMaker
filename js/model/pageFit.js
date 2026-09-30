@@ -12,9 +12,11 @@
 //            change) anywhere on the sheet. The SVG gets width/height in in/mm
 //            and an @page rule, so it prints at that size and orientation.
 //
-// Depends on: ./document.js (labelPos, labelText, labelClass, STD).
+// Depends on: ./document.js (labelPos, labelText, labelClass, STD),
+// ../view/panels/legend.js (legendGroupSize).
 
 import { labelPos, labelText, labelClass, STD } from './document.js';
+import { legendGroupSize } from '../view/panels/legend.js';
 
 export const PAGES = {
   fit: { label: 'Fit to SVG' },
@@ -52,8 +54,8 @@ function growText(b, cx, cy, text, fontSize) {
   growBox(b, cx - hw, cy - fontSize * 0.6, hw * 2, fontSize * 1.2);
 }
 
-// The box around everything the export draws, in plan units. `legend` is
-// { x, y, scale } (or null) and `legendSize` its unscaled { w, h }.
+// The box around everything the export draws, in plan units — including a
+// legend item. (`legend` / `legendSize` add an extra legend box, e.g. in tests.)
 export function contentBounds(doc, legend = null, legendSize = null) {
   const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const floor = doc.floor && doc.floor.points;
@@ -79,6 +81,10 @@ export function contentBounds(doc, legend = null, legendSize = null) {
       growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 12);
     } else if (it.type === 'compass') {
       growBox(b, it.x - COMPASS_REACH, it.y - COMPASS_REACH, COMPASS_REACH * 2, COMPASS_REACH * 2);
+    } else if (it.type === 'legend') {
+      const size = legendGroupSize();
+      const s = it.scale && Number.isFinite(it.scale) ? it.scale : 1;
+      growBox(b, it.x, it.y, size.w * s, size.h * s);
     }
   }
 

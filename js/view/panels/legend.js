@@ -3,8 +3,9 @@
 // class names as the exported SVG dialect (js/model/svgExport.js), so the
 // legend always looks like the real thing. Used by previewStep.js (beside
 // the preview) and palette.js (collapsible section at the bottom of the
-// left palette). "Place legend" also writes it into the exported SVG, but via
-// legendSvgGroupAt() with plain attributes only (no room/door/floor classes),
+// left palette). The Legend piece in Trace places it on the plan (one legend
+// item); the export draws it via legendSvgGroupAt() with plain attributes only
+// (no room/door/floor classes),
 // so the map-build parsers never read a swatch as a real room.
 // Room, core and void swatches take their colors and dashes from
 // js/model/look.js — the same values the exported SVG's style rules use.
@@ -169,4 +170,4 @@ export function legendSvgGroup(viewBox) {
   return legendSvgGroupAt(gx, gy);
 }
 
-export const LEGEND_NOTE = 'What each mark on the plan means. Click “Place legend” to put this key on the downloaded SVG.';
+export const LEGEND_NOTE = 'What each mark on the plan means. To put this key on the plan, drag the Legend piece (under Compass) onto it in Trace.';

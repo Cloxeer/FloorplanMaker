@@ -11,7 +11,6 @@ import { exportSvg } from './model/svgExport.js';
 import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
 import { exportProjectJson } from './store/autosave.js';
-import { legendSvgGroupAt, legendGroupSize } from './view/panels/legend.js';
 import {
   PAGES, contentBounds, pageFrame, applyFrame,
 } from './model/pageFit.js';
@@ -113,10 +112,7 @@ export function createActions(app, deps) {
     }
     const svgText = exportSvg(doc);
     const jpgDataUrl = app.project && app.project.photo ? app.project.photo.dataUrl : null;
-    const halls = doc.items.filter((it) => it.type === 'hall');
-    const rooms = doc.items.filter((it) => it.type === 'room');
     const view = (app.project && app.project.view) || {};
-    let legendPos = view.legendPos || null;
     // Every export starts on "Fit to SVG" (the file the map app shows). How the
     // drawing sits on each paper size (orientation, size, position) is
     // remembered per project, so a print layout survives coming back later.
@@ -128,28 +124,24 @@ export function createActions(app, deps) {
     const projectJson = app.project ? exportProjectJson(app.project) : null;
     const projectName = app.project ? `${app.project.slug}.floorplan.json` : 'plan.floorplan.json';
 
-    // The frame (viewBox, and paper size when printing) for a legend position,
-    // page and paper layout. The Preview shows exactly this; the download uses it.
-    function frameFor(pos, pg, layout = print[pg]) {
+    // The frame (viewBox, and paper size when printing) for a page and paper
+    // layout. The legend is an item placed in Trace, so it's already in the
+    // doc (and in svgText). The Preview shows exactly this; the download uses it.
+    function frameFor(pg, layout = print[pg]) {
       const l = layout || {};
-      return pageFrame(contentBounds(doc, pos, legendGroupSize()), pg, l.orientation || 'auto', l);
-    }
-    function withLegend(text, pos) {
-      const sc = pos.scale && Number.isFinite(pos.scale) ? pos.scale : 1;
-      return text.replace('</svg>', `${legendSvgGroupAt(pos.x, pos.y, sc)}</svg>`);
+      return pageFrame(contentBounds(doc), pg, l.orientation || 'auto', l);
     }
     function finalSvgText() {
-      const base = legendPos ? withLegend(svgText, legendPos) : svgText;
-      return applyFrame(base, frameFor(legendPos, page));
+      return applyFrame(svgText, frameFor(page));
     }
     function pageLabel() {
       if (page === 'fit') return PAGES.fit.label;
-      const f = frameFor(legendPos, page);
+      const f = frameFor(page);
       return `${PAGES[page].label} · ${f.orientation} · ${Math.round(f.scale * 100)}% size`;
     }
     function rememberView() {
       if (!app.project) return;
-      app.project.view = { ...(app.project.view || {}), legendPos, print };
+      app.project.view = { ...(app.project.view || {}), print };
       if (app.saveView) app.saveView();
     }
 
@@ -160,24 +152,18 @@ export function createActions(app, deps) {
       closeExport();
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
       app._previewHandle = showPreviewStep({
-        svgText, validation: results, halls, rooms, initialLegendPos: legendPos,
-        page, print, frameFor,
+        svgText, validation: results, page, print, frameFor,
       }, {
         onBack: () => {
           app._previewHandle = null;
           if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
-        },
-        onSaveLegend: (pos) => {
-          legendPos = pos;
-          rememberView();
         },
         onPageChange: (pg) => { page = pg; },
         onLayoutChange: (pg, layout) => {
           print[pg] = layout;
           rememberView();
         },
-        onExport: (pos) => {
-          legendPos = pos != null ? pos : legendPos;
+        onExport: () => {
           closePreview();
           openExport();
         },

@@ -5,7 +5,7 @@
 // Depends on: js/view/panels/paletteIcons.js, app.canvas (js/view/stage.js).
 
 import { chipSvg, ghostSvg } from './paletteIcons.js';
-import { setFloor, removeItems } from '../../model/document.js';
+import { setFloor, removeItems, findLegend } from '../../model/document.js';
 import { straightenOutline } from '../rectify.js';
 
 const PIECES = [
@@ -17,7 +17,9 @@ const PIECES = [
   { key: 'stair', label: 'Stairs' },
   { key: 'void', label: 'Void' },
   { key: 'compass', label: 'Compass' },
+  { key: 'legend', label: 'Legend' },
 ];
+const ONE_LEGEND_TITLE = 'This plan already has a legend. Select it and press Delete to remove it.';
 
 const LOCKED_TITLE = 'Finish the previous step first';
 
@@ -170,9 +172,14 @@ export function mountPalette(el, app) {
       step.title = locked ? LOCKED_TITLE : '';
     });
     const roomsUnlocked = STEP_UNLOCKED.room();
+    const legendPlaced = !!findLegend(app.doc);
     chipRow.querySelectorAll('.chip').forEach((chip) => {
-      chip.classList.toggle('disabled', !roomsUnlocked);
       const key = chip.dataset.piece;
+      // Only one legend per plan: its piece is greyed out while one is placed.
+      const oneLegend = key === 'legend' && legendPlaced;
+      chip.classList.toggle('disabled', !roomsUnlocked || oneLegend);
+      chip.title = oneLegend ? ONE_LEGEND_TITLE : (!roomsUnlocked ? LOCKED_TITLE : '');
+      if (key === 'legend') chip.querySelector('.chip-label').textContent = legendPlaced ? 'Legend · placed' : 'Legend';
       const toolMatch = app.toolName === chipToolName(key);
       const active = toolMatch && (chipToolName(key) !== 'room' || app.pendingRoomPiece === key);
       chip.classList.toggle('active', active);
@@ -215,6 +222,7 @@ export function mountPalette(el, app) {
     if (!STEP_UNLOCKED.room()) return;
     const piece = PIECES.find((p) => p.key === chip.dataset.piece);
     if (!piece) return;
+    if (piece.key === 'legend' && findLegend(app.doc)) { app.toast(ONE_LEGEND_TITLE); return; }
     dragStart = { x: e.clientX, y: e.clientY };
     dragging = false;
     chip.setPointerCapture(e.pointerId);
@@ -241,7 +249,9 @@ export function mountPalette(el, app) {
         && ev.clientY >= rect.top && ev.clientY <= rect.bottom;
       if (dragging && inside) drop(piece, ev.clientX, ev.clientY);
       else if (!dragging) {
-        toggleTool(chipToolName(piece.key), piece.key);
+        // A click places the legend beside the building; other pieces pick a tool.
+        if (piece.key === 'legend') drop(piece, null, null);
+        else toggleTool(chipToolName(piece.key), piece.key);
       }
       dragging = false;
     };

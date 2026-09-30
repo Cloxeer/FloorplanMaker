@@ -7,8 +7,9 @@
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import {
-  STD, newId, addItem, setFloor, makeRoom, doorFor, doorSpanFor, NUMBERED_CLASSES,
+  STD, newId, addItem, setFloor, makeRoom, doorFor, doorSpanFor, NUMBERED_CLASSES, findLegend,
 } from '../model/document.js';
+import { legendGroupSize } from './panels/legend.js';
 import { snapToGrid, dist, nearestPointOnPolyline } from '../model/geometry.js';
 
 const DOOR_REACH = 12;
@@ -32,7 +33,7 @@ const HINTS = {
 };
 
 export function attachTools(ctx, editing) {
-  const { canvas, app, render, toPlan, getDoc } = ctx;
+  const { canvas, app, render, toPlan, getDoc, getView } = ctx;
   let draft = null; // { kind, points?, start?, objs:[] }
 
   function snapPt(p, e) {
@@ -332,7 +333,41 @@ export function attachTools(ctx, editing) {
   });
 
   // ------------------------------------------------------- palette drops --
+  // One legend per plan. Dropped: centered where it lands. Clicked (no point):
+  // in the first spot that's on screen — beside the building, else below it,
+  // else the visible bottom-right corner. Sized to about a third of the
+  // building's height (never taller than most of the screen). Resize it
+  // afterwards with the corner handles.
+  function placeLegend(pt) {
+    const doc = app.doc;
+    if (findLegend(doc)) {
+      app.toast('This plan already has a legend. Select it and press Delete to remove it first.');
+      return;
+    }
+    const { w, h } = legendGroupSize();
+    const fl = doc.floor && doc.floor.points && doc.floor.points.length >= 3 ? doc.floor.points : null;
+    const xs = fl ? fl.map((p) => p[0]) : [doc.viewBox.x, doc.viewBox.x + doc.viewBox.w];
+    const ys = fl ? fl.map((p) => p[1]) : [doc.viewBox.y, doc.viewBox.y + doc.viewBox.h];
+    const b = { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), btm: Math.max(...ys) };
+    const v = getView ? getView() : { x: b.l, y: b.t, w: b.r - b.l, h: b.btm - b.t };
+    let scale = Math.min(8, Math.max(0.3, ((b.btm - b.t) * 0.35) / h), (v.h * 0.8) / h);
+    scale = Math.round(scale * 100) / 100;
+    const lw = w * scale;
+    const lh = h * scale;
+    const gap = 30;
+    let at;
+    if (pt) at = { x: pt.x - lw / 2, y: pt.y - lh / 2 };
+    else if (b.r + gap + lw <= v.x + v.w - 10) at = { x: b.r + gap, y: Math.max(b.t, v.y + 10) };
+    else if (b.btm + gap + lh <= v.y + v.h - 10) at = { x: Math.max(b.l, v.x + 10), y: b.btm + gap };
+    else at = { x: v.x + v.w - lw - 20, y: v.y + v.h - lh - 20 };
+    at = { x: Math.round(at.x), y: Math.round(at.y) };
+    const item = { id: newId(), type: 'legend', x: at.x, y: at.y, scale };
+    app.commit(addItem(doc, item), 'Place legend');
+    if (app.setSelection) app.setSelection([item.id]);
+  }
+
   async function dropPieceAt(key, pt) {
+    if (key === 'legend') { placeLegend(pt); return; }
     if (key === 'door') {
       app.setTool('door');
       app.toast('Click the outside wall, or drag along it to size the opening');
@@ -377,6 +412,7 @@ export function attachTools(ctx, editing) {
     app.commit(addItem(app.doc, item), 'Place room');
   }
   function dropPiece(key, clientX, clientY) {
+    if (clientX == null) return dropPieceAt(key, null); // clicked, not dropped
     return dropPieceAt(key, toPlan(clientX, clientY));
   }
 

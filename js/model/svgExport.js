@@ -6,6 +6,7 @@
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
 import { iconForRoom, iconSvg } from '../view/icons.js';
+import { legendSvgGroupAt } from '../view/panels/legend.js';
 import {
   ROOM_LOOK, cssDecl, exportClass, hatchLinesSvg, rectPoints,
 } from './look.js';
@@ -279,6 +280,10 @@ export function exportSvg(doc) {
   for (const compass of compasses) {
     for (const l of compassLines(compass)) lines.push(l);
   }
+
+  // The legend (placed and sized in Trace), drawn on top of everything.
+  const legend = doc.items.find((it) => it.type === 'legend');
+  if (legend) lines.push(`${IND}${legendSvgGroupAt(legend.x, legend.y, legend.scale)}`);
 
   lines.push('</svg>');
 

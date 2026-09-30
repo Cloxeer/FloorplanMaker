@@ -6,7 +6,7 @@
 // and startup, and re-exports createActions from js/docActions.js.
 // Depends on: js/model/*, js/store/autosave.js, js/view/stage.js, js/view/panels/*.js.
 
-import { createDoc, mergeBigRooms } from './model/document.js';
+import { createDoc, mergeBigRooms, legendFromView } from './model/document.js';
 import { importSvg } from './model/svgImport.js';
 import {
   loadProject, listProjects, saveProject, saveNow, importProjectJson, exportProjectJson, suspend, resume, lastSavedAt, formatSavedAgo,
@@ -77,8 +77,8 @@ export function createStudio(app, deps) {
   function scheduleSaveView() {
     if (!app.project) return;
     const v = app.canvas.getView();
-    const { legendPos, print } = app.project.view || {}; // set by the Preview step
-    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity, legendPos, print };
+    const { print } = app.project.view || {}; // paper layouts, set by the Preview step
+    app.project.view = { zoom: app.doc.viewBox.w / (v.w || 1), panX: v.x, panY: v.y, onion: app.onion, gridOn: app.gridOn, planOpacity: app.planOpacity, print };
     saveProject(app.project);
     persistToFolder(app.project);
     app.emit({ type: 'view' });
@@ -319,6 +319,9 @@ export function createStudio(app, deps) {
   function enterStudio(project, opts = {}) {
     app.project = project;
     project.doc = mergeBigRooms(project.doc); // older projects: a big room is a room
+    // Older projects placed the legend in the Preview; it's now a plan item.
+    project.doc = legendFromView(project.doc, project.view);
+    if (project.view && project.view.legendPos) { const { legendPos, ...rest } = project.view; void legendPos; project.view = rest; }
     app.doc = project.doc;
     app.selection = new Set();
     app.magnet = true;

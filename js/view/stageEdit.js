@@ -11,6 +11,7 @@ import { updateItem, removeItems, setFloor, STD } from '../model/document.js';
 import { snapToGrid } from '../model/geometry.js';
 import { polyPoints, insertVertex, nearestEdge } from './stagePoly.js';
 import { absBox } from './stageSnap.js';
+import { LEGEND_PX } from './stageObjects.js';
 
 const EDGE_TOL = 10;
 
@@ -179,6 +180,12 @@ export function attachEditing(ctx) {
   canvas.on('object:scaling', (opt) => {
     const t = opt.target;
     if (!t) return;
+    // The legend only grows or shrinks evenly — never stretched.
+    if (t.itemType === 'legend') {
+      const s = Math.max(t.scaleX, t.scaleY);
+      t.set({ scaleX: s, scaleY: s });
+      return;
+    }
     paintYellow(t);
     counterScaleText(t);
     const corner = (opt.transform && opt.transform.corner) || '';
@@ -218,6 +225,10 @@ export function attachEditing(ctx) {
     if (!item) return null;
     if (item.type === 'compass') {
       return { x: Math.round(obj.left), y: Math.round(obj.top), deg: Math.round(obj.angle || 0) };
+    }
+    if (item.type === 'legend') {
+      const scale = Math.round(obj.scaleX * LEGEND_PX * 100) / 100;
+      return { x: Math.round(obj.left), y: Math.round(obj.top), scale: Math.max(0.1, scale) };
     }
     if (item.type === 'room' && item.shape === 'poly') {
       return { points: polyPoints(obj).map(([x, y]) => [grid(x), grid(y)]) };
