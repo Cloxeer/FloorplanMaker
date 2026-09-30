@@ -216,3 +216,22 @@ test('ordering: floor before rooms before stairs before doors before compass', (
   assert.ok(stairIdx < doorIdx);
   assert.ok(doorIdx < compassIdx);
 });
+
+test('elevator: icon on top, "Elevator" below (never overlapping), and it survives re-import', async () => {
+  const { importSvg } = await import('../js/model/svgImport.js');
+  const d = makeSampleDoc();
+  d.items = d.items.filter((i) => i.cls !== 'core');
+  d.items.push({ ...makeRoom('core', 360, 60, 120, 200, ''), name: 'Elevator' });
+  const out = exportSvg(d);
+  const line = out.match(/<rect class="core" x="360"[^\n]*/)[0];
+  const textY = Number(line.match(/<text class="lbl[S]?" x="\d+" y="(\d+)">Elevator<\/text>/)[1]);
+  const iconIdx = out.indexOf('<g class="icon"', out.indexOf('<rect class="core" x="360"'));
+  const m = out.slice(iconIdx).match(/translate\((\d+),(\d+)\) scale\(([\d.]+)\)/);
+  const iconBottom = Number(m[2]) + 24 * Number(m[3]);
+  assert.ok(textY - 12 > iconBottom, `label (y=${textY}) overlaps icon (bottom ${iconBottom})`);
+  // Re-import: "Elevator" comes back as the label text; the icon must stay.
+  const again = exportSvg(importSvg(out).doc);
+  assert.ok(again.slice(again.indexOf('<rect class="core" x="360"')).startsWith('<rect class="core" x="360"'));
+  assert.ok(/<rect class="core" x="360"[^\n]*\n\s*<g class="icon"/.test(again), 'icon kept after re-import');
+  assert.equal(exportSvg(importSvg(again).doc), again, 'stable on repeat');
+});

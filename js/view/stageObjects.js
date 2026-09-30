@@ -8,7 +8,7 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
-import { ICONS, iconForRoom } from './icons.js';
+import { ICONS, iconForRoom, iconRoomLayout } from './icons.js';
 import { ROOM_LOOK, VOID_TEXT, roomLook, voidLabelLines } from '../model/look.js';
 import { legendSvgGroupAt, legendGroupSize } from './panels/legend.js';
 import { bbox } from '../model/geometry.js';
@@ -99,44 +99,26 @@ function makeLabel(item, p, maxW, maxH) {
 // upper portion, a small label below it, both scaled to fit maxW x maxH with
 // a margin so neither the icon nor the text ever overflows the room rect.
 function makeIconAndLabel(item, cx, cy, maxW, maxH) {
-  const margin = 6;
-  const innerW = Math.max(4, maxW - margin * 2);
-  const innerH = Math.max(4, maxH - margin * 2);
   const hasName = !!(item.showName && item.name);
   const txt = mainLabelText(item);
-  const hasLabel = !!txt || hasName;
-
-  // Reserve ~55% of the height for the icon, ~45% for label(s) when both are
-  // shown; icon gets the full height when there's no label.
-  const iconMaxH = hasLabel ? innerH * 0.58 : innerH;
-  const iconCap = Math.min(maxW, maxH) * 0.6;
-  const iconSize = Math.max(10, Math.min(innerW * 0.9, iconMaxH, iconCap));
-  const iconCy = hasLabel ? cy - innerH / 2 + iconSize / 2 : cy;
-
+  const lines = [];
+  if (hasName) lines.push({ text: item.name, weight: 700, fill: '#1d1f23' });
+  if (txt) lines.push({ text: txt, weight: 400, fill: '#2b2e33' });
+  // Same layout as the export (icons.js iconRoomLayout): icon on top, words below.
+  const L = iconRoomLayout({ x: cx - maxW / 2, y: cy - maxH / 2, w: maxW, h: maxH }, lines.length);
   const kids = [];
   const iconKey = iconForRoom(item);
-  if (iconKey) {
-    kids.push(...iconGlyph(iconKey, cx, iconCy, iconSize));
-  }
-
-  if (hasLabel) {
-    const labelTop = kids.length ? iconCy + iconSize / 2 + 4 : cy;
-    const labelMaxH = kids.length ? Math.max(8, cy + innerH / 2 - labelTop) : innerH;
-    const lines = [];
-    if (hasName) lines.push({ text: item.name, weight: 700, fill: '#1d1f23' });
-    if (txt) lines.push({ text: txt, weight: 400, fill: '#2b2e33' });
-    const lineH = labelMaxH / lines.length;
-    lines.forEach((ln, i) => {
-      const t = new fabric.FabricText(ln.text, {
-        left: cx, top: labelTop + lineH * i + lineH / 2, originX: 'center', originY: 'center',
-        fontSize: labelClass(item) === 'lblS' ? STD.lblS : STD.lbl,
-        fontWeight: ln.weight, fill: ln.fill, fontFamily: FONT,
-        selectable: false, evented: false, objectCaching: false,
-      });
-      fitText(t, innerW, lineH - 2);
-      kids.push(t);
+  if (iconKey) kids.push(...iconGlyph(iconKey, L.icon.cx, L.icon.cy, L.icon.size));
+  lines.forEach((ln, i) => {
+    const t = new fabric.FabricText(ln.text, {
+      left: L.lines[i].cx, top: L.lines[i].cy, originX: 'center', originY: 'center',
+      fontSize: labelClass(item) === 'lblS' ? STD.lblS : STD.lbl,
+      fontWeight: ln.weight, fill: ln.fill, fontFamily: FONT,
+      selectable: false, evented: false, objectCaching: false,
     });
-  }
+    fitText(t, L.innerW, L.lineH - 2);
+    kids.push(t);
+  });
   return kids;
 }
 

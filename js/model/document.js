@@ -166,7 +166,7 @@ export function labelClass(item) {
 
 export function labelText(item) {
   const number = item.number || '';
-  return item.name ? `${item.name} ${number}` : number;
+  return item.name ? `${item.name} ${number}`.trim() : number;
 }
 
 export function nextNumber(n) {

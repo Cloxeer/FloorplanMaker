@@ -13,13 +13,39 @@ export const ICONS = {
   },
 };
 
-// Which icon a room shows, from its class + name (core rooms only).
+// Which icon a room shows, from its class + name, or its label text (core
+// rooms only). The label counts too: the real plans write "Elev", and an
+// imported SVG brings "Elevator" back as the label, not the name.
 export function iconForRoom(item) {
   if (item.cls !== 'core') return null;
-  const n = (item.name || '').toLowerCase();
-  if (n.includes('elevator') || n === 'elev' || n.includes('lift')) return 'elevator';
-  if (n.includes('restroom') || n.includes('bathroom') || n.includes('toilet')) return 'restroom';
+  for (const raw of [item.name, item.number]) {
+    const n = (raw || '').trim().toLowerCase();
+    if (!n) continue;
+    if (n.includes('elevator') || n === 'elev' || n.includes('lift')) return 'elevator';
+    if (n.includes('restroom') || n.includes('bathroom') || n.includes('toilet')) return 'restroom';
+  }
   return null;
+}
+
+// Where the icon and the label line(s) go in a room with an icon: icon on
+// top (about 58% of the height), label(s) stacked below — never on top of
+// each other. `box` is {x, y, w, h}; `lineCount` is 0, 1 or 2. Used by both
+// Trace (stageObjects.js) and the export (svgExport.js) so they match.
+export function iconRoomLayout(box, lineCount) {
+  const margin = 6;
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const innerW = Math.max(4, box.w - margin * 2);
+  const innerH = Math.max(4, box.h - margin * 2);
+  const hasLabel = lineCount > 0;
+  const iconMaxH = hasLabel ? innerH * 0.58 : innerH;
+  const size = Math.max(10, Math.min(innerW * 0.9, iconMaxH, Math.min(box.w, box.h) * 0.6));
+  const iconCy = hasLabel ? cy - innerH / 2 + size / 2 : cy;
+  const labelTop = iconCy + size / 2 + 4;
+  const lineH = hasLabel ? Math.max(8, cy + innerH / 2 - labelTop) / lineCount : 0;
+  const lines = [];
+  for (let i = 0; i < lineCount; i += 1) lines.push({ cx, cy: labelTop + lineH * i + lineH / 2 });
+  return { icon: { cx, cy: iconCy, size }, innerW, lineH, lines };
 }
 
 // An SVG <g> that draws icon `key` centred in the box (bx,by,bw,bh), scaled to

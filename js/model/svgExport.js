@@ -5,7 +5,7 @@
 
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
-import { iconForRoom, iconSvg } from '../view/icons.js';
+import { iconForRoom, iconSvg, iconRoomLayout } from '../view/icons.js';
 import { legendSvgGroupAt } from '../view/panels/legend.js';
 import {
   ROOM_LOOK, VOID_TEXT, cssDecl, exportClass, voidLabelLines,
@@ -47,6 +47,17 @@ function roomLabelLines(item) {
     }
     return lines.length ? [lines.map((l) => l.trim()).join('')] : lines;
   }
+  // A room with an icon (elevator / restroom): the words go below the icon,
+  // exactly where Trace puts them (icons.js iconRoomLayout).
+  if (iconForRoom(item)) {
+    const hasName = item.showName && item.name;
+    const main = hasName ? (item.number || '') : labelText(item);
+    const texts = [];
+    if (hasName) texts.push({ cls: 'name', text: item.name });
+    if (main) texts.push({ cls: labelClass(item), text: main });
+    const L = iconRoomLayout(roomBox(item), texts.length);
+    return texts.map((t, i) => `${IND}<text class="${t.cls}" x="${r(L.lines[i].cx)}" y="${r(L.lines[i].cy)}">${esc(t.text)}</text>`);
+  }
   const pos = labelPos(item);
   const cls = labelClass(item);
   const text = item.showName && item.name ? (item.number || '') : labelText(item);
@@ -70,10 +81,13 @@ function roomBox(item) {
 // silently ignored there and by svgImport.
 function roomExtraLine(item) {
   if (item.cls === 'void') return null; // its words are on the shape's own line
-  const box = roomBox(item);
   const key = iconForRoom(item);
   if (!key) return null;
-  return `${IND}${iconSvg(key, box.x, box.y, box.w, box.h, 0.5)}`;
+  const hasName = item.showName && item.name;
+  const main = hasName ? (item.number || '') : labelText(item);
+  const L = iconRoomLayout(roomBox(item), (hasName ? 1 : 0) + (main ? 1 : 0));
+  const { cx, cy, size } = L.icon;
+  return `${IND}${iconSvg(key, cx - size / 2, cy - size / 2, size, size, 1)}`;
 }
 
 function roomBlock(item) {

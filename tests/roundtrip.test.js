@@ -59,7 +59,7 @@ test('every traced component of an existing project reaches the SVG and round-tr
   // Every kind of thing drawn has a legend row, in the panel and in the SVG legend.
   const panel = legendHtml();
   const inSvg = legendSvgGroupAt(0, 0);
-  for (const label of ['Room', 'Hallway', 'Doors', 'Stairs', 'Compass', 'Staff only']) {
+  for (const label of ['Room', 'Hallway', 'Doors', 'Stairs', 'Compass', 'Staff only', 'Elevator', 'Void']) {
     assert.ok(panel.includes(label) && inSvg.includes(label), `legend is missing "${label}"`);
   }
   const { doc: back, problems } = importSvg(svg);

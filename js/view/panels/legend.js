@@ -12,6 +12,7 @@
 // Depends on: js/model/look.js.
 
 import { SWATCH_LOOK, cssDecl, svgAttrs } from '../../model/look.js';
+import { iconSvg } from '../icons.js';
 
 // The void swatch: the same dashed box as on the plan.
 function voidSwatch(x, y, w, h, attrs) {
@@ -28,6 +29,8 @@ const ITEMS = [
     svg: '<rect class="lg-selected" x="2" y="3" width="20" height="14"/>',
   },
   { label: 'Core', svg: '<rect class="lg-core" x="2" y="3" width="20" height="14"/>' },
+  // A core box with the same lift icon the plan draws (js/view/icons.js).
+  { label: 'Elevator', svg: `<rect class="lg-core" x="2" y="3" width="20" height="14"/>${iconSvg('elevator', 2, 3, 20, 14, 0.85)}` },
   { label: 'Void', caption: 'open to below', svg: voidSwatch(2, 3, 20, 14, false) },
   {
     label: 'Stairs',
@@ -118,6 +121,9 @@ function swatchFor(item) {
     return '<line x1="0" y1="8" x2="20" y2="8" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="4 3"/>'
       + '<path d="M8,7 V5 A2,2 0 0 1 12,5 V7" fill="none" stroke="#7c3aed" stroke-width="1.2"/>'
       + '<rect x="7" y="7" width="6" height="5" rx="1" fill="#ffffff" stroke="#7c3aed" stroke-width="1.2"/>';
+  }
+  if (item.label === 'Elevator') {
+    return `<rect x="0" y="0" width="20" height="14" ${svgAttrs(SWATCH_LOOK.core)}/>${iconSvg('elevator', 0, 0, 20, 14, 0.85)}`;
   }
   if (item.label === 'Void') return voidSwatch(0, 0, 20, 14, true);
   if (item.label === 'Compass') {
