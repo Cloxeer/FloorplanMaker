@@ -27,10 +27,10 @@ export function iconForRoom(item) {
   return null;
 }
 
-// An elevator is shown by its lift icon alone — no words (the legend says
-// "Elevator"). Other icon rooms (restrooms) keep their words under the icon.
+// A room with an icon (elevator, restroom) is shown by its icon alone — no
+// words on the plan (the legend explains the elevator icon).
 export function iconOnly(item) {
-  return iconForRoom(item) === 'elevator';
+  return !!iconForRoom(item);
 }
 
 // Which icon a path's `d` draws (to recognise an icon read back from an SVG).

@@ -415,11 +415,12 @@ export function importSvg(svgText) {
 
   doc0.meta = meta;
   attachTextsAndStairs(items, texts, problems);
-  // A core room holding an elevator icon but no words is an elevator.
+  // A core room holding an icon but no words is an elevator / restroom.
+  const ICON_NAMES = { elevator: 'Elevator', restroom: 'Restrooms' };
   for (const ic of icons) {
-    if (ic.key !== 'elevator') continue;
+    if (!ICON_NAMES[ic.key]) continue;
     const room = items.find((it) => it.type === 'room' && it.cls === 'core' && pointInPolygon([ic.x, ic.y], roomPolygon(it)));
-    if (room && !room.name && !room.number) room.name = 'Elevator';
+    if (room && !room.name && !room.number) room.name = ICON_NAMES[ic.key];
   }
   doc0.items = items;
   doc0.sections = sectionsById;

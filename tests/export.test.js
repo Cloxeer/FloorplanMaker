@@ -217,7 +217,7 @@ test('ordering: floor before rooms before stairs before doors before compass', (
   assert.ok(doorIdx < compassIdx);
 });
 
-test('elevator: just its icon, centred — no words — and it stays an elevator on re-import', async () => {
+test('elevator and restroom: just their icon, centred — no words — and they stay that on re-import', async () => {
   const { importSvg } = await import('../js/model/svgImport.js');
   const d = makeSampleDoc();
   d.items = d.items.filter((i) => i.cls !== 'core');
@@ -232,11 +232,13 @@ test('elevator: just its icon, centred — no words — and it stays an elevator
   const cx = Number(m[1]) + size / 2;
   const cy = Number(m[2]) + size / 2;
   assert.ok(Math.abs(cx - 420) <= 1 && Math.abs(cy - 160) <= 1, `icon centred in the room: ${cx},${cy}`);
-  // A restroom keeps its words (below its icon).
-  assert.ok(/<rect class="core" x="500"[^\n]*<text class="lbl[S]?"[^>]*>Restrooms<\/text>/.test(out), 'restroom keeps its words');
+  // A restroom is its icon alone too.
+  const restLine = out.match(/<rect class="core" x="500"[^\n]*/)[0];
+  assert.ok(!restLine.includes('<text'), `restroom has words: ${restLine}`);
   // Re-import: the icon alone marks the room as an elevator again.
   const back = importSvg(out).doc;
-  const elev = back.items.find((i) => i.type === 'room' && i.x === 360);
+  const elev = back.items.find((i) => i.cls === 'core' && i.x === 360);
   assert.equal(elev.name, 'Elevator');
+  assert.equal(back.items.find((i) => i.cls === 'core' && i.x === 500).name, 'Restrooms');
   assert.equal(exportSvg(back), out, 'export -> import -> export is exact');
 });
