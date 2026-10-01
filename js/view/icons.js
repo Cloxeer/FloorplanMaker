@@ -27,6 +27,18 @@ export function iconForRoom(item) {
   return null;
 }
 
+// An elevator is shown by its lift icon alone — no words (the legend says
+// "Elevator"). Other icon rooms (restrooms) keep their words under the icon.
+export function iconOnly(item) {
+  return iconForRoom(item) === 'elevator';
+}
+
+// Which icon a path's `d` draws (to recognise an icon read back from an SVG).
+export function iconKeyForPath(d) {
+  for (const [key, ic] of Object.entries(ICONS)) if (ic.d === d) return key;
+  return null;
+}
+
 // Where the icon and the label line(s) go in a room with an icon: icon on
 // top (about 58% of the height), label(s) stacked below — never on top of
 // each other. `box` is {x, y, w, h}; `lineCount` is 0, 1 or 2. Used by both

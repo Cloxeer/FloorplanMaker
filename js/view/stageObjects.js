@@ -8,7 +8,9 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
 import { attachPolyControls, setPolyPoints } from './stagePoly.js';
-import { ICONS, iconForRoom, iconRoomLayout } from './icons.js';
+import {
+  ICONS, iconForRoom, iconRoomLayout, iconOnly,
+} from './icons.js';
 import { ROOM_LOOK, VOID_TEXT, roomLook, voidLabelLines } from '../model/look.js';
 import { legendSvgGroupAt, legendGroupSize } from './panels/legend.js';
 import { bbox } from '../model/geometry.js';
@@ -102,8 +104,10 @@ function makeIconAndLabel(item, cx, cy, maxW, maxH) {
   const hasName = !!(item.showName && item.name);
   const txt = mainLabelText(item);
   const lines = [];
-  if (hasName) lines.push({ text: item.name, weight: 700, fill: '#1d1f23' });
-  if (txt) lines.push({ text: txt, weight: 400, fill: '#2b2e33' });
+  if (!iconOnly(item)) { // an elevator is just its icon, as in the export
+    if (hasName) lines.push({ text: item.name, weight: 700, fill: '#1d1f23' });
+    if (txt) lines.push({ text: txt, weight: 400, fill: '#2b2e33' });
+  }
   // Same layout as the export (icons.js iconRoomLayout): icon on top, words below.
   const L = iconRoomLayout({ x: cx - maxW / 2, y: cy - maxH / 2, w: maxW, h: maxH }, lines.length);
   const kids = [];

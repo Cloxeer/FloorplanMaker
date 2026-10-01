@@ -217,21 +217,26 @@ test('ordering: floor before rooms before stairs before doors before compass', (
   assert.ok(doorIdx < compassIdx);
 });
 
-test('elevator: icon on top, "Elevator" below (never overlapping), and it survives re-import', async () => {
+test('elevator: just its icon, centred — no words — and it stays an elevator on re-import', async () => {
   const { importSvg } = await import('../js/model/svgImport.js');
   const d = makeSampleDoc();
   d.items = d.items.filter((i) => i.cls !== 'core');
   d.items.push({ ...makeRoom('core', 360, 60, 120, 200, ''), name: 'Elevator' });
+  d.items.push({ ...makeRoom('core', 500, 60, 120, 200, ''), name: 'Restrooms' });
   const out = exportSvg(d);
-  const line = out.match(/<rect class="core" x="360"[^\n]*/)[0];
-  const textY = Number(line.match(/<text class="lbl[S]?" x="\d+" y="(\d+)">Elevator<\/text>/)[1]);
+  const elevLine = out.match(/<rect class="core" x="360"[^\n]*/)[0];
+  assert.ok(!elevLine.includes('<text'), `elevator has words: ${elevLine}`);
   const iconIdx = out.indexOf('<g class="icon"', out.indexOf('<rect class="core" x="360"'));
   const m = out.slice(iconIdx).match(/translate\((\d+),(\d+)\) scale\(([\d.]+)\)/);
-  const iconBottom = Number(m[2]) + 24 * Number(m[3]);
-  assert.ok(textY - 12 > iconBottom, `label (y=${textY}) overlaps icon (bottom ${iconBottom})`);
-  // Re-import: "Elevator" comes back as the label text; the icon must stay.
-  const again = exportSvg(importSvg(out).doc);
-  assert.ok(again.slice(again.indexOf('<rect class="core" x="360"')).startsWith('<rect class="core" x="360"'));
-  assert.ok(/<rect class="core" x="360"[^\n]*\n\s*<g class="icon"/.test(again), 'icon kept after re-import');
-  assert.equal(exportSvg(importSvg(again).doc), again, 'stable on repeat');
+  const size = 24 * Number(m[3]);
+  const cx = Number(m[1]) + size / 2;
+  const cy = Number(m[2]) + size / 2;
+  assert.ok(Math.abs(cx - 420) <= 1 && Math.abs(cy - 160) <= 1, `icon centred in the room: ${cx},${cy}`);
+  // A restroom keeps its words (below its icon).
+  assert.ok(/<rect class="core" x="500"[^\n]*<text class="lbl[S]?"[^>]*>Restrooms<\/text>/.test(out), 'restroom keeps its words');
+  // Re-import: the icon alone marks the room as an elevator again.
+  const back = importSvg(out).doc;
+  const elev = back.items.find((i) => i.type === 'room' && i.x === 360);
+  assert.equal(elev.name, 'Elevator');
+  assert.equal(exportSvg(back), out, 'export -> import -> export is exact');
 });

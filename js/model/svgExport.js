@@ -5,7 +5,9 @@
 
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
-import { iconForRoom, iconSvg, iconRoomLayout } from '../view/icons.js';
+import {
+  iconForRoom, iconSvg, iconRoomLayout, iconOnly,
+} from '../view/icons.js';
 import { legendSvgGroupAt } from '../view/panels/legend.js';
 import {
   ROOM_LOOK, VOID_TEXT, cssDecl, exportClass, voidLabelLines,
@@ -50,6 +52,7 @@ function roomLabelLines(item) {
   // A room with an icon (elevator / restroom): the words go below the icon,
   // exactly where Trace puts them (icons.js iconRoomLayout).
   if (iconForRoom(item)) {
+    if (iconOnly(item)) return lines; // an elevator is just its icon
     const hasName = item.showName && item.name;
     const main = hasName ? (item.number || '') : labelText(item);
     const texts = [];
@@ -85,7 +88,7 @@ function roomExtraLine(item) {
   if (!key) return null;
   const hasName = item.showName && item.name;
   const main = hasName ? (item.number || '') : labelText(item);
-  const L = iconRoomLayout(roomBox(item), (hasName ? 1 : 0) + (main ? 1 : 0));
+  const L = iconRoomLayout(roomBox(item), iconOnly(item) ? 0 : (hasName ? 1 : 0) + (main ? 1 : 0));
   const { cx, cy, size } = L.icon;
   return `${IND}${iconSvg(key, cx - size / 2, cy - size / 2, size, size, 1)}`;
 }

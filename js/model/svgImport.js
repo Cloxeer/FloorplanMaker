@@ -5,6 +5,7 @@
 
 import { createDoc, newId, roomCentroid, roomPolygon, STD } from './document.js';
 import { pointInPolygon, polygonArea } from './geometry.js';
+import { ICONS, iconKeyForPath } from '../view/icons.js';
 
 const TAG_RE = /<!--([\s\S]*?)-->|<([a-zA-Z][\w-]*)((?:\s+[\w:-]+="[^"]*")*)\s*\/?>|<\/([a-zA-Z][\w-]*)>/g;
 
@@ -145,6 +146,7 @@ export function importSvg(svgText) {
 
   // Track state while walking tokens
   const texts = []; // every lbl/lblS/name text, attached to shapes in a post-pass (like build_rooms.py)
+  const icons = []; // { key, x, y } of icon groups read
   const headerRe = /^\s*(.+?) \(bldg (\S+)\) - FLOOR (\d+)/;
 
   for (let i = 0; i < tokens.length; i++) {
@@ -343,6 +345,17 @@ export function importSvg(svgText) {
     // than re-deriving anything from them.
     if (t.kind === 'open' && t.name === 'g'
       && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch' || t.attrs.class === 'authwall-lock')) {
+      // An elevator is written as its icon alone (no words), so remember
+      // which icon sits where; the room it's in is marked afterwards.
+      if (t.attrs.class === 'icon') {
+        const tm = /translate\(([-\d.]+)[,\s]+([-\d.]+)\)\s*scale\(([-\d.]+)\)/.exec(t.attrs.transform || '');
+        const path = tokens[i + 1] && tokens[i + 1].name === 'path' ? tokens[i + 1].attrs.d : null;
+        const key = path && iconKeyForPath(path);
+        if (tm && key) {
+          const half = (ICONS[key].viewBox / 2) * Number(tm[3]);
+          icons.push({ key, x: Number(tm[1]) + half, y: Number(tm[2]) + half });
+        }
+      }
       let j = i + 1;
       while (j < tokens.length && !(tokens[j].kind === 'close' && tokens[j].name === 'g')) j++;
       i = j;
@@ -402,6 +415,12 @@ export function importSvg(svgText) {
 
   doc0.meta = meta;
   attachTextsAndStairs(items, texts, problems);
+  // A core room holding an elevator icon but no words is an elevator.
+  for (const ic of icons) {
+    if (ic.key !== 'elevator') continue;
+    const room = items.find((it) => it.type === 'room' && it.cls === 'core' && pointInPolygon([ic.x, ic.y], roomPolygon(it)));
+    if (room && !room.name && !room.number) room.name = 'Elevator';
+  }
   doc0.items = items;
   doc0.sections = sectionsById;
 
