@@ -357,6 +357,8 @@ export function createStudio(app, deps) {
     onStudio(window, 'keyup', onKeyUp);
     onStudio(window, 'blur', onWindowBlur);
     onStudio(window, 'pointerup', scheduleSaveView);
+    // every document change is saved too (debounced), so work that arrives without a click, like an AutoBuild result, is never lost
+    extraUnsubs.push(app.subscribe((e) => { if (e.type === 'doc' && app.project) { saveProject(app.project); persistToFolder(app.project); } }));
 
     app.canvas.setDoc(app.doc);
     app.canvas.setPhoto(project.photo);
