@@ -4,6 +4,7 @@
 // pan-tool dragging, two-finger touch pan+pinch, and the tool cursor.
 // Depends on: fabric@6.7.1, the Fabric canvas and the shared `app` object.
 
+import { createWheelIntent } from './wheelIntent.js';
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 
 const MIN_ZOOM = 0.1;
@@ -59,23 +60,22 @@ export function attachView(canvas, app, containerEl, render) {
   // Ctrl+wheel (browsers report trackpad pinch as a ctrlKey wheel event) also
   // zooms since it goes through this same handler regardless of ctrlKey.
   const WHEEL_UNIT = { 0: 100, 1: 3, 2: 1 };
-  // Two-finger scroll on a trackpad pans (small / fractional / sideways deltas); a mouse wheel
-  // (big whole-number steps) and pinch (ctrl+wheel) still zoom as before.
-  const isTrackpadScroll = (e) => !(e.ctrlKey || e.metaKey) && e.deltaMode === 0
-    && (e.deltaX !== 0 || Math.abs(e.deltaY) < 50 || !Number.isInteger(e.deltaY));
+  // Two-finger drag on a trackpad moves the map; a pinch (ctrl + wheel) and a mouse wheel notch zoom.
+  // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
+  const intent = createWheelIntent();
   canvas.on('mouse:wheel', (opt) => {
     const e = opt.e;
-    if (isTrackpadScroll(e)) {
+    const kind = intent(e);
+    if (kind === 'drag') {
       canvas.relativePan(new fabric.Point(-e.deltaX, -e.deltaY));
       e.preventDefault();
       e.stopPropagation();
       app.emit({ type: 'view' });
       return;
     }
-    const unit = WHEEL_UNIT[e.deltaMode] || 100;
-    const notches = (e.deltaY || 0) / unit;
-    let zoom = canvas.getZoom() * (1.1 ** -notches);
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+    // a pinch sends small deltas (about -10..10): scale them so the zoom keeps up with the fingers
+    const factor = kind === 'pinch' ? Math.exp(-e.deltaY * 0.012) : 1.1 ** -((e.deltaY || 0) / (WHEEL_UNIT[e.deltaMode] || 100));
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, canvas.getZoom() * factor));
     const rect = canvas.upperCanvasEl.getBoundingClientRect();
     canvas.zoomToPoint(new fabric.Point(e.clientX - rect.left, e.clientY - rect.top), zoom);
     e.preventDefault();

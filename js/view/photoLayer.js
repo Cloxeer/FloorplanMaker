@@ -117,6 +117,13 @@ export function mountPhotoLayer(app) {
     }
     return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
   }
+  // the frame round the drawing; it travels with the drawing while it is moved or resized (never left behind)
+  function currentFrame() {
+    let b = drawingBox();
+    if (b && drag && drag.kind === 'drawing') b = { x: b.x + drag.dx, y: b.y + drag.dy, w: b.w, h: b.h };
+    else if (drag && drag.kind === 'scale' && drag.box) b = drag.box;
+    return b;
+  }
   const corners = (b) => [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
   function draw(opt) {
     if (!alive || !mode) return;
@@ -137,7 +144,7 @@ export function mountPhotoLayer(app) {
           ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${i + 1}`, c[0][0] + 8 * px, c[0][1] + 20 * px);
         });
       } else if (mode === 'drawing') {
-        const b = (drag && drag.kind === 'scale' && drag.box) || drawingBox();
+        const b = currentFrame();
         if (b) {
           ctx.globalAlpha = 0.06; ctx.fillStyle = BLUE; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = 3 * px; ctx.setLineDash([12 * px, 7 * px]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
           for (const [x, y] of corners(b)) { ctx.beginPath(); ctx.arc(x, y, 8 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 3 * px; ctx.stroke(); }
@@ -191,7 +198,8 @@ export function mountPhotoLayer(app) {
       // one factor for both axes, so the drawing keeps its proportions: how far the corner went along its diagonal
       const [ax, ay] = drag.anchor, vx = drag.corner[0] - ax, vy = drag.corner[1] - ay;
       drag.f = Math.max(0.2, Math.min(5, ((p[0] - ax) * vx + (p[1] - ay) * vy) / (vx * vx + vy * vy || 1)));
-      if (!preview) preview = requestAnimationFrame(() => { preview = 0; if (drag && drag.kind === 'scale') try { const [qx, qy] = drag.anchor; app.canvas.setDoc(scaleDoc(app.doc, drag.f, qx, qy)); drag.box = { x: qx + (drag.box0x - qx) * drag.f, y: qy + (drag.box0y - qy) * drag.f, w: drag.box0w * drag.f, h: drag.box0h * drag.f }; } catch (err) { /* keep going */ } redraw(); });
+      { const [qx, qy] = drag.anchor; drag.box = { x: qx + (drag.box0x - qx) * drag.f, y: qy + (drag.box0y - qy) * drag.f, w: drag.box0w * drag.f, h: drag.box0h * drag.f }; } // the frame follows the cursor at once
+      if (!preview) preview = requestAnimationFrame(() => { preview = 0; if (drag && drag.kind === 'scale') try { const [qx, qy] = drag.anchor; app.canvas.setDoc(scaleDoc(app.doc, drag.f, qx, qy)); } catch (err) { /* keep going */ } redraw(); });
     } else {
       drag.dx = Math.round(dx); drag.dy = Math.round(dy);
       if (!preview) preview = requestAnimationFrame(() => { preview = 0; if (drag && app.doc) try { app.canvas.setDoc(translateDoc(app.doc, drag.dx, drag.dy)); } catch (err) { /* keep going */ } redraw(); });
@@ -325,6 +333,7 @@ export function mountPhotoLayer(app) {
 
   return {
     mode: () => mode,
+    frame: () => currentFrame(),
     setMode,
     // right after importing several photos: separated, outlined and ready to move
     async arrange() { await sync(); watchBg(); setMode('photo'); },

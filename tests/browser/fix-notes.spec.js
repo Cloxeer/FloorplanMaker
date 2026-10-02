@@ -147,6 +147,7 @@ test.describe('Worth a look: groups, guide, Fix all', () => {
     const v1 = await view();
     expect(v1[0]).toBeCloseTo(v0[0], 6);
     expect(v1[4]).not.toBe(v0[4]);
+    await page.waitForTimeout(250); // a lone notch, after the drag has ended
     await wheel(0, 100, false);
     expect((await view())[0]).not.toBeCloseTo(v1[0], 3);
     const z = (await view())[0];
