@@ -85,8 +85,10 @@ export function attachView(canvas, app, containerEl, render) {
     get: () => canvas.getZoom(),
     set: (z, x, y) => { canvas.zoomToPoint(new fabric.Point(x, y), z); app.emit({ type: 'view' }); },
   });
-  canvas.on('mouse:wheel', (opt) => {
-    const e = opt.e;
+  // Listen on the whole stage, not just the canvas: the zoom buttons, the hand button, the start card and the
+  // floating bars sit on top of the canvas, and a wheel over them used to do nothing (and ctrl + scroll there
+  // zoomed the whole web page instead).
+  const onWheel = (e) => {
     const kind = intent(e);
     if (kind === 'drag') {
       const [dx, dy] = dragFilter(e.deltaX, e.deltaY, e.timeStamp);
@@ -103,7 +105,19 @@ export function attachView(canvas, app, containerEl, render) {
     smoother.push(zoomFactor(e, kind), e.clientX - rect.left, e.clientY - rect.top);
     e.preventDefault();
     e.stopPropagation();
-  });
+  };
+  on(containerEl, 'wheel', onWheel, { passive: false });
+  // ctrl + scroll over the side panels or the top bar would zoom the whole web page: send it to the plan instead
+  // (about the middle of the stage). A plain scroll over the panels still scrolls them.
+  const studioEl = containerEl.closest('#studio');
+  if (studioEl) {
+    on(studioEl, 'wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || containerEl.contains(e.target)) return;
+      e.preventDefault();
+      const r = canvas.upperCanvasEl.getBoundingClientRect();
+      smoother.push(zoomFactor(e, 'pinch'), r.width / 2, r.height / 2);
+    }, { passive: false });
+  }
 
   // the scroll wheel pressed in: grab the map and drag it (fabric does not report the middle button)
   let grab = null;

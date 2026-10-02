@@ -291,3 +291,70 @@ test('a real diagonal two-finger drag still moves both ways', async ({ page }) =
   expect(d0[5] - d1[5]).toBeGreaterThan(100);
   expect(errors).toEqual([]);
 });
+
+// ---- hold Control and scroll: real keyboard + real wheel, wherever the pointer is on the editor
+test('hold Ctrl and scroll zooms the plan wherever the pointer is on the editor, never the web page', async ({ page }) => {
+  const errors = await openStudio(page); // (no outline yet: the start card is up)
+  await page.evaluate(() => { window.__w = []; window.addEventListener('wheel', (e) => setTimeout(() => window.__w.push([e.ctrlKey, e.defaultPrevented]), 0), { passive: true, capture: true }); });
+  const z = async () => (await vt(page))[0];
+  const stage = await page.locator('#stage').boundingBox();
+  const spots = {
+    'canvas centre': [stage.x + stage.width / 2, stage.y + stage.height / 2],
+    'canvas corner': [stage.x + 40, stage.y + 40],
+    'over the zoom buttons': [stage.x + stage.width - 60, stage.y + stage.height - 40],
+    'over the hand button': [stage.x + 40, stage.y + stage.height - 40],
+  };
+  const ctrlScroll = async ([x, y], dy, n = 5) => {
+    await page.mouse.move(x, y);
+    await page.keyboard.down('Control');
+    for (let i = 0; i < n; i++) { await page.mouse.wheel(0, dy); await page.waitForTimeout(30); }
+    await page.keyboard.up('Control');
+    await page.waitForTimeout(600);
+  };
+  for (const [name, p] of Object.entries(spots)) {
+    const a = await z();
+    await ctrlScroll(p, -100); // scroll up = zoom in
+    const b = await z();
+    expect(b, `${name}: in`).toBeGreaterThan(a * 1.3);
+    await ctrlScroll(p, 100); // scroll down = zoom out, back through the middle
+    const c = await z();
+    expect(c, `${name}: out`).toBeLessThan(b * 0.8);
+    expect(c, `${name}: back near the start`).toBeGreaterThan(a * 0.7);
+  }
+  // over the side panel / top bar: still the plan that zooms (not the page), about the middle of the stage
+  const side = await page.locator('#palette').boundingBox();
+  const a = await z();
+  await ctrlScroll([side.x + side.width / 2, side.y + 60], -100, 4);
+  expect(await z()).toBeGreaterThan(a * 1.3);
+  // every ctrl + wheel event was handled by the app (default prevented = no browser page zoom)
+  const seen = await page.evaluate(() => window.__w);
+  expect(seen.length).toBeGreaterThan(20);
+  expect(seen.every(([ctrl, prevented]) => !ctrl || prevented)).toBe(true);
+  // and a plain wheel over the side panel still scrolls the panel, not the plan
+  const zBefore = await z();
+  await page.mouse.move(side.x + side.width / 2, side.y + 100);
+  await page.mouse.wheel(0, 200);
+  await page.waitForTimeout(300);
+  expect(await z()).toBeCloseTo(zBefore, 6);
+  expect(errors).toEqual([]);
+});
+
+test('ctrl + scroll zooms about the pointer: the spot under the cursor stays put', async ({ page }) => {
+  const errors = await openStudio(page);
+  const box = await page.locator('#stage canvas.upper-canvas').boundingBox();
+  const px = box.x + box.width * 0.3, py = box.y + box.height * 0.4;
+  const planAt = () => page.evaluate(([x, y]) => {
+    const c = window.__app.canvas.fabricCanvas, r = c.upperCanvasEl.getBoundingClientRect(), v = c.viewportTransform;
+    return [(x - r.left - v[4]) / v[0], (y - r.top - v[5]) / v[3]];
+  }, [px, py]);
+  const before = await planAt();
+  await page.mouse.move(px, py);
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(25); }
+  await page.keyboard.up('Control');
+  await page.waitForTimeout(700);
+  const after = await planAt();
+  expect(Math.abs(after[0] - before[0])).toBeLessThan(3); // within a screen pixel or two
+  expect(Math.abs(after[1] - before[1])).toBeLessThan(3);
+  expect(errors).toEqual([]);
+});
