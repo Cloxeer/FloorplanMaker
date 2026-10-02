@@ -110,3 +110,27 @@ export function translateDoc(doc, dx, dy) {
   const floor = doc.floor && Array.isArray(doc.floor.points) ? { ...doc.floor, points: doc.floor.points.map((p) => [mv(p[0], dx), mv(p[1], dy)]) } : doc.floor;
   return { ...doc, floor, items };
 }
+
+// ---- the drawing: grow or shrink everything by one factor about a point (always 1:1, never stretched).
+// Positions land on the 5-unit grid; two edges that shared a coordinate still share it afterwards.
+// Compass and legend keep their size and only move. -> a new doc (the input is not changed)
+export function scaleDoc(doc, f, ox, oy, grid = 5) {
+  if (!doc || !(f > 0) || f === 1) return doc;
+  const g = (v) => Math.round(v / grid) * grid;
+  const mx = (x) => g(ox + (x - ox) * f), my = (y) => g(oy + (y - oy) * f);
+  const pt = (p) => [mx(p[0]), my(p[1])];
+  const items = (doc.items || []).map((it) => {
+    if (!it || typeof it !== 'object') return it;
+    const n = { ...it };
+    if (ok(n.x) && ok(n.y)) {
+      if (n.type === 'compass' || n.type === 'legend' || !ok(n.w) || !ok(n.h)) { n.x = mx(n.x); n.y = my(n.y); }
+      else { const x1 = mx(n.x + n.w), y1 = my(n.y + n.h); n.x = mx(n.x); n.y = my(n.y); n.w = Math.max(grid, x1 - n.x); n.h = Math.max(grid, y1 - n.y); }
+    }
+    for (const [a, b] of [['x1', 'y1'], ['x2', 'y2']]) if (ok(n[a]) && ok(n[b])) { n[a] = mx(it[a]); n[b] = my(it[b]); }
+    if (Array.isArray(n.points)) n.points = n.points.map((p) => (ok(p[0]) && ok(p[1]) ? pt(p) : p));
+    if (n.label && typeof n.label === 'object' && ok(n.label.x) && ok(n.label.y)) n.label = { ...n.label, x: Math.round(ox + (n.label.x - ox) * f), y: Math.round(oy + (n.label.y - oy) * f) };
+    return n;
+  });
+  const floor = doc.floor && Array.isArray(doc.floor.points) ? { ...doc.floor, points: doc.floor.points.map((p) => (ok(p[0]) && ok(p[1]) ? pt(p) : p)) } : doc.floor;
+  return { ...doc, floor, items };
+}

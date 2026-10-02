@@ -222,7 +222,7 @@ test('View > Select: Photo re-enters arrange mode, Drawing moves the whole drawi
   // Select next to Drawing
   await page.click('#btn-view');
   await selDraw.click();
-  await expect(page.locator('.pl-pill')).toContainText('Move the drawing');
+  await expect(page.locator('.pl-pill')).toContainText('Drawing selected');
   await expect(selDraw).toHaveAttribute('aria-pressed', 'true').catch(() => {}); // popover closes; attribute still set
   // fit the canvas so that the drag is on-screen
   await dragPlan(page, [300, 500], [370, 530]);
@@ -240,7 +240,7 @@ test('View > Select: Photo re-enters arrange mode, Drawing moves the whole drawi
   // Esc ends drawing mode too
   await page.click('#btn-view');
   await selDraw.click();
-  await expect(page.locator('.pl-pill')).toContainText('Move the drawing');
+  await expect(page.locator('.pl-pill')).toContainText('Drawing selected');
   await page.keyboard.press('Escape');
   await expect(page.locator('.pl-pill')).toHaveCount(0);
 });
@@ -321,4 +321,51 @@ test('several files dropped at once on the drop screen', async ({ page }) => {
   await expect(page.locator('.pl-pill')).toBeVisible({ timeout: 15000 });
   expect((await proj(page)).extra.length).toBe(1);
   await page.click('.pl-done');
+});
+
+test('Drawing select: a corner handle resizes everything 1:1 (one undo step); every photo shares one opacity; Done clears the outlines', async ({ page }) => {
+  await importMulti(page, [A(), B()]);
+  // arranging: the main photo and the extra have the SAME opacity, and the Photo slider moves both
+  const ops = () => page.evaluate(() => {
+    const c = window.__app.canvas.fabricCanvas;
+    return [c.backgroundImage.opacity, ...c.getObjects().filter((o) => /^image$/i.test(o.type)).map((o) => o.opacity)];
+  });
+  const o1 = await ops();
+  expect(new Set(o1).size).toBe(1);
+  await page.evaluate(() => { const s = document.getElementById('onion'); s.value = '0.6'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+  const o2 = await ops();
+  expect(new Set(o2).size).toBe(1);
+  expect(o2[0]).toBeCloseTo(0.6, 2);
+  // Done: no outline is left behind (the overlay stops drawing, the pill is gone, the guides are cleared)
+  await page.click('.pl-done');
+  await expect(page.locator('.pl-pill')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__app._photoLayer.mode())).toBe(null);
+  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.getObjects().filter((o) => o.overlay && o.width < 60000).length)).toBe(0); // (the 60000-wide grid sheet is not an outline)
+  expect(new Set(await ops()).size).toBe(1);
+
+  await page.evaluate(async () => {
+    const { setFloor, addItem, makeRoom } = await import('/js/model/document.js');
+    let d = setFloor(window.__app.doc, [[100, 100], [500, 100], [500, 300], [100, 300]]);
+    d = addItem(d, makeRoom('room', 100, 100, 200, 200, '101'));
+    window.__app.commit(d, 'Seed');
+  });
+  const size = () => page.evaluate(() => {
+    const p = window.__app.doc.floor.points, xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
+    const r = window.__app.doc.items.find((i) => i.type === 'room');
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys), rw: r.w, rh: r.h, past: window.__app.project.history.past.length };
+  });
+  const s0 = await size();
+  await page.click('#btn-view');
+  await page.locator('.vp-sel[data-sel="drawing"]').click();
+  await expect(page.locator('.pl-pill')).toContainText('resize');
+  await dragPlan(page, [500, 300], [700, 400]); // bottom-right corner out to 1.5x about the top-left
+  await expect.poll(async () => (await size()).w).toBe(600);
+  const s1 = await size();
+  expect(s1.h).toBe(300); // 1.5x both ways, never stretched
+  expect([s1.rw, s1.rh]).toEqual([300, 300]);
+  expect(s1.past).toBe(s0.past + 1);
+  await page.click('[data-pd="bigger"]');
+  expect((await size()).w).toBeGreaterThan(600);
+  await page.evaluate(() => { window.__app.undo(); window.__app.undo(); });
+  expect(await size()).toEqual(s0);
 });

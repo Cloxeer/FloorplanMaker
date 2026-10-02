@@ -85,3 +85,36 @@ test('snapPhoto: edges meet, tops line up, far photos are left alone, turned pho
   assert.ok(Number.isFinite(turned.dx));
   assert.deepEqual(snapPhoto(a, [], 8).guides, []);
 });
+
+test('scaleDoc: one factor both ways, on the 5-grid, shared edges stay shared, compass and legend keep their size', async () => {
+  const { scaleDoc } = await import('../js/model/photos.js');
+  const doc = {
+    floor: { points: [[0, 0], [400, 0], [400, 200], [0, 200]] },
+    items: [
+      { id: 'a', type: 'room', shape: 'rect', x: 0, y: 0, w: 200, h: 200 },
+      { id: 'b', type: 'room', shape: 'rect', x: 200, y: 0, w: 200, h: 200 },
+      { id: 'p', type: 'room', shape: 'poly', points: [[0, 0], [100, 0], [100, 50]] },
+      { id: 'd', type: 'door', x1: 0, y1: 100, x2: 0, y2: 140, label: { x: 20, y: 120 } },
+      { id: 'c', type: 'compass', x: 380, y: 20, deg: 0 },
+      null,
+    ],
+  };
+  const t = scaleDoc(doc, 1.5, 0, 0);
+  const [a, b] = t.items;
+  assert.deepEqual([a.x, a.w, a.h], [0, 300, 300]);
+  assert.equal(a.x + a.w, b.x, 'neighbours still share their edge');
+  assert.deepEqual(t.floor.points[2], [600, 300]);
+  assert.deepEqual(t.items[2].points[2], [150, 75].map((v) => Math.round(v / 5) * 5));
+  assert.deepEqual([t.items[3].y1, t.items[3].y2, t.items[3].label.x, t.items[3].label.y], [150, 210, 30, 180]);
+  assert.deepEqual([t.items[4].x, t.items[4].y], [570, 30]);
+  assert.equal(t.items[4].w, undefined);
+  assert.equal(t.items[5], null);
+  assert.equal(doc.items[0].w, 200, 'input untouched');
+  assert.equal(scaleDoc(doc, 1, 0, 0), doc);
+  assert.equal(scaleDoc(doc, -2, 0, 0), doc);
+  const back = scaleDoc(t, 1 / 1.5, 0, 0);
+  assert.deepEqual([back.items[0].w, back.items[1].x], [200, 200]);
+  // about a corner other than the origin keeps that corner put
+  const c2 = scaleDoc(doc, 2, 400, 200);
+  assert.deepEqual(c2.floor.points[2], [400, 200]);
+});

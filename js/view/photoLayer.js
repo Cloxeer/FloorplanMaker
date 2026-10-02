@@ -9,7 +9,7 @@
 // Depends on: js/model/photos.js, fabric (same build as the stage), app.canvas.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { tOf, photoCorners, hitPhoto, unionBox, moved, scaledBy, turnedBy, translateDoc, snapPhoto } from '../model/photos.js';
+import { tOf, photoCorners, hitPhoto, unionBox, moved, scaledBy, turnedBy, translateDoc, scaleDoc, snapPhoto } from '../model/photos.js';
 
 const BLUE = '#0a84ff';
 const FAINT = 0.12;
@@ -35,7 +35,7 @@ export function mountPhotoLayer(app) {
 
   let alive = true, mode = null, sel = -1, drag = null, raf = 0;
   let extraObjs = []; // [{ key, obj }] fabric images for project.extraPhotos
-  let lastBg = null, savedView = null, pill = null, preview = null, spaceHeld = false;
+  let lastBg = null, savedView = null, pill = null, preview = null, spaceHeld = false, moved_ = false;
 
   // ---- the photos, as one list: main photo first, then the extras
   const refs = () => {
@@ -53,6 +53,7 @@ export function mountPhotoLayer(app) {
   }
 
   // ---- drawing the photos on the stage
+  let arrangeOpacity = 1; // while arranging, every photo (main and extras) shares ONE opacity; the Photo slider changes it
   const bgOpacity = () => (canvas.backgroundImage ? canvas.backgroundImage.opacity : 0.5);
   function place() {
     const p = app.project; if (!p) return;
@@ -72,8 +73,8 @@ export function mountPhotoLayer(app) {
     paintOpacity();
   }
   function paintOpacity() {
-    const op = mode === 'photo' ? 1 : bgOpacity();
-    if (canvas.backgroundImage && mode === 'photo') canvas.backgroundImage.opacity = 1;
+    const op = mode === 'photo' ? arrangeOpacity : bgOpacity();
+    if (canvas.backgroundImage && mode === 'photo') canvas.backgroundImage.opacity = op;
     for (const { obj } of extraObjs) obj.opacity = op;
   }
   let syncing = null, again = false; // one sync at a time: overlapping runs each added their own copy of the same photo
@@ -116,6 +117,7 @@ export function mountPhotoLayer(app) {
     }
     return Number.isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
   }
+  const corners = (b) => [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
   function draw(opt) {
     if (!alive || !mode) return;
     try {
@@ -135,8 +137,11 @@ export function mountPhotoLayer(app) {
           ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${i + 1}`, c[0][0] + 8 * px, c[0][1] + 20 * px);
         });
       } else if (mode === 'drawing') {
-        const b = drawingBox();
-        if (b) { ctx.globalAlpha = 0.06; ctx.fillStyle = BLUE; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = 3 * px; ctx.setLineDash([12 * px, 7 * px]); ctx.strokeRect(b.x, b.y, b.w, b.h); }
+        const b = (drag && drag.kind === 'scale' && drag.box) || drawingBox();
+        if (b) {
+          ctx.globalAlpha = 0.06; ctx.fillStyle = BLUE; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = 3 * px; ctx.setLineDash([12 * px, 7 * px]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.setLineDash([]);
+          for (const [x, y] of corners(b)) { ctx.beginPath(); ctx.arc(x, y, 8 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 3 * px; ctx.stroke(); }
+        }
       }
       ctx.restore();
     } catch (e) { /* canvas gone */ }
@@ -157,7 +162,12 @@ export function mountPhotoLayer(app) {
       const i = hitPhoto(list(), p);
       if (i < 0) { sel = -1; syncPill(); redraw(); return; }
       sel = i; drag = { kind: 'photo', i, p0: p, orig: list()[i] };
-    } else drag = { kind: 'drawing', p0: p, dx: 0, dy: 0 };
+    } else {
+      const box = drawingBox(), z = canvas.getZoom() || 1;
+      const k = box ? corners(box).findIndex(([x, y]) => Math.hypot(x - p[0], y - p[1]) * z <= 16) : -1;
+      if (k >= 0) { const cs = corners(box); drag = { kind: 'scale', p0: p, box, box0x: box.x, box0y: box.y, box0w: box.w, box0h: box.h, corner: cs[k], anchor: cs[(k + 2) % 4], f: 1 }; }
+      else drag = { kind: 'drawing', p0: p, dx: 0, dy: 0 };
+    }
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
     syncPill(); redraw();
@@ -177,7 +187,12 @@ export function mountPhotoLayer(app) {
       setPhoto(drag.i, next);
       try { app.canvas.setGuides(guides); } catch (err) { /* gone */ }
     }
-    else {
+    else if (drag.kind === 'scale') {
+      // one factor for both axes, so the drawing keeps its proportions: how far the corner went along its diagonal
+      const [ax, ay] = drag.anchor, vx = drag.corner[0] - ax, vy = drag.corner[1] - ay;
+      drag.f = Math.max(0.2, Math.min(5, ((p[0] - ax) * vx + (p[1] - ay) * vy) / (vx * vx + vy * vy || 1)));
+      if (!preview) preview = requestAnimationFrame(() => { preview = 0; if (drag && drag.kind === 'scale') try { const [qx, qy] = drag.anchor; app.canvas.setDoc(scaleDoc(app.doc, drag.f, qx, qy)); drag.box = { x: qx + (drag.box0x - qx) * drag.f, y: qy + (drag.box0y - qy) * drag.f, w: drag.box0w * drag.f, h: drag.box0h * drag.f }; } catch (err) { /* keep going */ } redraw(); });
+    } else {
       drag.dx = Math.round(dx); drag.dy = Math.round(dy);
       if (!preview) preview = requestAnimationFrame(() => { preview = 0; if (drag && app.doc) try { app.canvas.setDoc(translateDoc(app.doc, drag.dx, drag.dy)); } catch (err) { /* keep going */ } redraw(); });
     }
@@ -187,8 +202,11 @@ export function mountPhotoLayer(app) {
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
     const d = drag; drag = null;
-    if (d.kind === 'photo') { try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
-    else {
+    if (d.kind === 'photo') { moved_ = true; try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
+    else if (d.kind === 'scale') {
+      if (preview) { cancelAnimationFrame(preview); preview = 0; }
+      if (Math.abs(d.f - 1) > 0.002) app.commit(scaleDoc(app.doc, d.f, d.anchor[0], d.anchor[1]), 'Scale drawing'); else app.canvas.setDoc(app.doc);
+    } else {
       if (preview) { cancelAnimationFrame(preview); preview = 0; }
       if (d.dx || d.dy) app.commit(translateDoc(app.doc, d.dx, d.dy), 'Move drawing'); else app.canvas.setDoc(app.doc);
     }
@@ -200,7 +218,7 @@ export function mountPhotoLayer(app) {
   }
 
   // ---- the pill and the View buttons
-  function nudge(fn) { if (sel < 0) return; setPhoto(sel, fn(list()[sel])); if (app.saveView) app.saveView(); }
+  function nudge(fn) { if (sel < 0) return; moved_ = true; setPhoto(sel, fn(list()[sel])); if (app.saveView) app.saveView(); }
   function syncPill() {
     if (!pill || mode !== 'photo') return; // the drawing pill has its own fixed text
     const has = sel >= 0, isExtra = has && refs()[sel] && !refs()[sel].main;
@@ -229,7 +247,16 @@ export function mountPhotoLayer(app) {
           sel = -1; await sync(); if (app.saveView) app.saveView(); syncPill();
         }
       });
-    } else pill.innerHTML = '<span class="pl-msg"><b>Move the drawing</b> &nbsp;Drag anywhere to slide it over the photos</span><button type="button" class="pl-done">Done</button>';
+    } else {
+      pill.innerHTML = `<span class="pl-msg"><b>Drawing selected</b> &nbsp;Drag to move it, drag a corner to resize it</span><span class="pl-tools">
+        <button type="button" data-pd="smaller" title="Smaller (keeps the proportions)">\u2212</button><button type="button" data-pd="bigger" title="Bigger (keeps the proportions)">+</button></span><button type="button" class="pl-done">Done</button>`;
+      pill.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-pd]'); if (!b || !app.doc) return;
+        const box = drawingBox(); if (!box) return;
+        const f = b.dataset.pd === 'bigger' ? 1.05 : 1 / 1.05;
+        app.commit(scaleDoc(app.doc, f, box.x + box.w / 2, box.y + box.h / 2), 'Scale drawing');
+      });
+    }
     pill.querySelector('.pl-done').addEventListener('click', () => setMode(null));
     (canvas.wrapperEl || upper.parentElement).appendChild(pill);
     syncPill();
@@ -244,8 +271,15 @@ export function mountPhotoLayer(app) {
     if (next === mode) return;
     const was = mode;
     mode = next; sel = -1; drag = null;
-    if (was === 'photo') { try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } }
-    if (was && !next) { if (savedView && app.canvas) { try { app.canvas.setView(savedView); } catch (e) { /* gone */ } } savedView = null; }
+    if (preview) { cancelAnimationFrame(preview); preview = 0; }
+    try { app.canvas.setGuides([]); } catch (e) { /* gone */ }
+    if (was === 'photo') { try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } place(); }
+    if (was === 'drawing') { try { app.canvas.setDoc(app.doc); } catch (e) { /* gone */ } }
+    if (was && !next) {
+      // photos were moved: show them where they are now; otherwise go back to the view you had
+      if (app.canvas) { try { if (moved_ && was === 'photo') fitAll(); else if (savedView) app.canvas.setView(savedView); } catch (e) { /* gone */ } }
+      savedView = null; moved_ = false;
+    }
     if (next) {
       if (!savedView && app.canvas) savedView = (({ x, y, zoom }) => ({ x, y, zoom }))(app.canvas.getView());
       if (app.toolName !== 'select' && app.toolName !== 'pan') app.setTool('select');
@@ -259,7 +293,9 @@ export function mountPhotoLayer(app) {
       if (pill) { pill.remove(); pill = null; }
       if (app.canvas && app.canvas.applyCursor) app.canvas.applyCursor();
     }
-    paintOpacity(); syncButtons(); redraw();
+    paintOpacity(); syncButtons();
+    try { canvas.renderAll(); } catch (e) { /* gone */ } // draw now: no outline from before is left on screen
+    redraw();
   }
   let buttons = null;
   function syncButtons() { if (buttons) { buttons.photo.setAttribute('aria-pressed', String(mode === 'photo')); buttons.drawing.setAttribute('aria-pressed', String(mode === 'drawing')); } }
@@ -281,8 +317,8 @@ export function mountPhotoLayer(app) {
   mountButtons();
   // keep the extras' opacity in step with the Photo slider / the H key flash
   const origOnion = app.canvas.setOnion, origFlash = app.canvas.flashPhoto;
-  app.canvas.setOnion = (op) => { origOnion(op); paintOpacity(); canvas.requestRenderAll(); };
-  app.canvas.flashPhoto = (on) => { origFlash(on); for (const { obj } of extraObjs) obj.opacity = on ? 1 : bgOpacity(); canvas.requestRenderAll(); };
+  app.canvas.setOnion = (op) => { if (mode === 'photo') arrangeOpacity = op; else origOnion(op); paintOpacity(); canvas.requestRenderAll(); };
+  app.canvas.flashPhoto = (on) => { if (mode === 'photo') return; origFlash(on); for (const { obj } of extraObjs) obj.opacity = on ? 1 : bgOpacity(); canvas.requestRenderAll(); };
   const unsub = app.subscribe((e) => { if (e.type === 'project' || e.type === 'step') { sync(); watchBg(); } if (e.type === 'tool' && mode && app.toolName !== 'select' && app.toolName !== 'pan') setMode(null); });
   const poll = setInterval(watchBg, 400); // the main photo loads after the studio opens
   sync();
