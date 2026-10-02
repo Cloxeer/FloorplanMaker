@@ -12,6 +12,7 @@
 import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 import { createLayoutBox } from './pageLayout.js';
+import { mountPreviewScope } from './previewScope.js';
 
 const PAGE_BUTTONS = [
   ['fit', 'Fit to SVG'],
@@ -30,8 +31,8 @@ function pageNote(page, frame) {
 }
 
 export function showPreviewStep({
-  svgText, validation, page: initialPage = 'fit', print: initialPrint = {}, frameFor,
-}, { onBack, onExport, onPageChange, onLayoutChange }) {
+  svgText, validation, page: initialPage = 'fit', print: initialPrint = {}, frameFor, floorsPromise, floorScope, finalSvgFor,
+}, { onBack, onExport, onPageChange, onLayoutChange, onScope }) {
   const host = document.getElementById('dialogs');
   const el = document.createElement('div');
   el.id = 'preview';
@@ -90,11 +91,13 @@ export function showPreviewStep({
 
   // The <svg> is shown as a white sheet whose edges ARE the file's edges (its
   // viewBox), sized to the largest box of that shape that fits the panel.
+  const zoom = { z: 1, tx: 0, ty: 0 };
   function sizeSheet() {
     if (!svgEl) return;
+    if (zoom.z !== 1 && page !== 'fit') resetZoom(); // zoom is for the Fit to SVG view
     const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
     if (vb.length !== 4 || !(vb[2] > 0) || !(vb[3] > 0)) return;
-    const pad = 24;
+    const pad = 12;
     const availW = Math.max(40, wrapEl.clientWidth - pad * 2);
     const availH = Math.max(40, wrapEl.clientHeight - pad * 2);
     const ratio = vb[2] / vb[3];
@@ -105,6 +108,141 @@ export function showPreviewStep({
     svgEl.style.height = `${Math.floor(h)}px`;
   }
   if (svgEl) new MutationObserver(sizeSheet).observe(svgEl, { attributes: true, attributeFilter: ['viewBox'] });
+
+  // --- Click to zoom (Fit to SVG view) ---------------------------------------
+  // Click the plan to zoom in on that spot (click again to fit), mouse wheel zooms at the
+  // pointer, drag pans while zoomed, and +/-/Fit buttons sit in the corner.
+  const ZMAX = 8;
+  function applyZoom() {
+    if (!svgEl) return;
+    const wr = wrapEl.getBoundingClientRect();
+    // (SVG elements have no offsetWidth/Left: the sheet's size is the style we set, and it is centred)
+    const bw = parseFloat(svgEl.style.width) || svgEl.getBoundingClientRect().width / zoom.z;
+    const bh = parseFloat(svgEl.style.height) || svgEl.getBoundingClientRect().height / zoom.z;
+    const w = bw * zoom.z, h = bh * zoom.z;
+    const base = { x: (wr.width - bw) / 2, y: (wr.height - bh) / 2 };
+    // keep at least 80 px of the sheet inside the panel
+    const minTx = 80 - w - base.x, maxTx = wr.width - 80 - base.x;
+    const minTy = 80 - h - base.y, maxTy = wr.height - 80 - base.y;
+    zoom.tx = Math.min(maxTx, Math.max(minTx, zoom.tx));
+    zoom.ty = Math.min(maxTy, Math.max(minTy, zoom.ty));
+    svgEl.style.transformOrigin = '0 0';
+    svgEl.style.transform = zoom.z === 1 ? '' : `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.z})`;
+    wrapEl.classList.toggle('is-zoomed', zoom.z !== 1);
+    if (zoomOut) zoomOut.textContent = `${Math.round(zoom.z * 100)}%`;
+  }
+  function resetZoom() { zoom.z = 1; zoom.tx = 0; zoom.ty = 0; applyZoom(); }
+  function zoomAt(clientX, clientY, z2) {
+    z2 = Math.min(ZMAX, Math.max(1, z2));
+    if (z2 === zoom.z) return;
+    if (z2 === 1) { resetZoom(); return; }
+    if (zoom.z === 1) { zoom.tx = 0; zoom.ty = 0; }
+    const r = svgEl.getBoundingClientRect();
+    const lx = (clientX - r.left) / zoom.z, ly = (clientY - r.top) / zoom.z; // point on the unzoomed sheet
+    zoom.tx += (zoom.z - z2) * lx;
+    zoom.ty += (zoom.z - z2) * ly;
+    zoom.z = z2;
+    applyZoom();
+  }
+  let zoomOut = null;
+  if (svgEl) {
+    const st = document.createElement('style');
+    st.textContent = `
+      #preview-svg-wrap.zoomable svg.preview-sheet { cursor: zoom-in; }
+      #preview-svg-wrap.zoomable.is-zoomed svg.preview-sheet { cursor: grab; }
+      #preview-svg-wrap.zoomable.panning svg.preview-sheet { cursor: grabbing; }
+      #preview-svg-wrap.is-paper svg.preview-sheet { cursor: default; }
+      .pv-zoom { position:absolute; right:10px; top:10px; z-index:5; display:flex; align-items:center; gap:4px; background:#fff; border:1px solid #d5d9df; border-radius:8px; padding:3px; box-shadow:0 2px 8px rgba(20,30,50,.12); font:12px system-ui,sans-serif; }
+      .pv-zoom button { font:inherit; min-width:28px; height:26px; border:1px solid #d5d9df; border-radius:6px; background:#fff; cursor:pointer; }
+      .pv-zoom button:hover { background:#eef3fe; }
+      .pv-zoom output { min-width:40px; text-align:center; color:#6b7078; }
+      .pv-hint { position:absolute; left:12px; bottom:10px; z-index:5; font:12px system-ui,sans-serif; color:#6b7078; background:rgba(255,255,255,.85); padding:3px 8px; border-radius:6px; pointer-events:none; }
+    `;
+    el.appendChild(st);
+    wrapEl.classList.add('zoomable');
+    const bar = document.createElement('div');
+    bar.className = 'pv-zoom';
+    bar.innerHTML = '<button type="button" data-z="out" aria-label="Zoom out">&minus;</button><output>100%</output><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="fit">Fit</button>';
+    wrapEl.appendChild(bar);
+    zoomOut = bar.querySelector('output');
+    const hint = document.createElement('div');
+    hint.className = 'pv-hint';
+    hint.textContent = 'Click to zoom in · two-finger drag or drag to move · pinch or +/− to zoom · Fit to reset';
+    wrapEl.appendChild(hint);
+    const center = () => { const r = wrapEl.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || page !== 'fit') return;
+      const [cx, cy] = center();
+      if (b.dataset.z === 'in') zoomAt(cx, cy, zoom.z * 1.6);
+      else if (b.dataset.z === 'out') zoomAt(cx, cy, zoom.z / 1.6);
+      else resetZoom();
+    });
+    // Two-finger scroll on a trackpad (or the wheel) moves the plan once it is zoomed; pinch
+    // (ctrl/cmd + wheel) zooms at the pointer. At fit, the wheel leaves the page alone.
+    wrapEl.addEventListener('wheel', (e) => {
+      if (page !== 'fit') return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomAt(e.clientX, e.clientY, zoom.z * Math.exp(-e.deltaY * 0.01));
+        return;
+      }
+      if (zoom.z === 1) return;
+      e.preventDefault();
+      const k = e.deltaMode === 1 ? 16 : 1;
+      zoom.tx -= e.deltaX * k;
+      zoom.ty -= e.deltaY * k;
+      applyZoom();
+    }, { passive: false });
+
+    // Pointers: one finger / the mouse drags (when zoomed); two fingers pan and pinch together.
+    // A plain click zooms in once from fit; it never zooms back out (use Fit or the buttons).
+    svgEl.style.touchAction = 'none';
+    const pts = new Map();
+    let down = null, pinch = null;
+    const mid = () => { const v = [...pts.values()]; return { x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2, d: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1 }; };
+    svgEl.addEventListener('pointerdown', (e) => {
+      if (page !== 'fit' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { svgEl.setPointerCapture(e.pointerId); } catch { /* synthetic / already released pointer */ }
+      if (pts.size === 2) { pinch = mid(); if (down) down.moved = true; return; }
+      if (pts.size === 1) down = { x: e.clientX, y: e.clientY, tx: zoom.tx, ty: zoom.ty, moved: false };
+    });
+    svgEl.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2 && pinch) {
+        const m = mid();
+        zoomAt(m.x, m.y, zoom.z * (m.d / pinch.d));
+        if (zoom.z > 1) { zoom.tx += m.x - pinch.x; zoom.ty += m.y - pinch.y; }
+        pinch = m;
+        applyZoom();
+        return;
+      }
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (!down.moved && Math.hypot(dx, dy) < 5) return;
+      down.moved = true;
+      if (zoom.z === 1) return; // nothing to move at fit
+      wrapEl.classList.add('panning');
+      zoom.tx = down.tx + dx; zoom.ty = down.ty + dy;
+      applyZoom();
+    });
+    const lift = (e, cancelled) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.delete(e.pointerId);
+      if (pts.size < 2) pinch = null;
+      if (pts.size === 1 && down) { const v = [...pts.values()][0]; down = { x: v.x, y: v.y, tx: zoom.tx, ty: zoom.ty, moved: true }; return; }
+      if (pts.size > 0) return;
+      wrapEl.classList.remove('panning');
+      const click = down && !down.moved && !cancelled;
+      down = null;
+      if (click && page === 'fit' && zoom.z === 1) zoomAt(e.clientX, e.clientY, 2.5);
+    };
+    svgEl.addEventListener('pointerup', (e) => lift(e, false));
+    svgEl.addEventListener('pointercancel', (e) => lift(e, true));
+    svgEl.addEventListener('dblclick', (e) => { if (page === 'fit' && zoom.z > 1) zoomAt(e.clientX, e.clientY, zoom.z * 1.6); });
+  }
   // On a window resize the sheet changes size, so the box's handles (sized in
   // screen pixels) are redrawn too.
   const resizeObs = typeof ResizeObserver === 'function' ? new ResizeObserver(() => applyPage()) : null;
@@ -214,5 +352,6 @@ export function showPreviewStep({
   el.querySelector('#preview-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#preview-export').addEventListener('click', () => { if (onExport) onExport(); });
 
+  mountPreviewScope(el, { floorsPromise, scope: floorScope, finalSvgFor, getPage: () => page, onScope });
   return { close };
 }

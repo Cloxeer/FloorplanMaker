@@ -8,8 +8,9 @@
 
 import { exportExtrasSnippet, exportCommands, exportFileNames } from '../../model/svgExport.js';
 import { writeFinishedSvg } from '../../store/folderStore.js';
+import { mountExportScope } from './exportScope.js';
 
-function downloadBlob(filename, blob) {
+export function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -20,7 +21,7 @@ function downloadBlob(filename, blob) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-function dataUrlToBlob(dataUrl) {
+export function dataUrlToBlob(dataUrl) {
   const [header, data] = dataUrl.split(',');
   const isBase64 = header.includes('base64');
   const mimeMatch = header.match(/data:([^;]+)/);
@@ -31,13 +32,13 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-function svgPixelSize(svgText) {
+export function svgPixelSize(svgText) {
   const m = svgText.match(/viewBox="([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)"/);
   if (m) return { w: Math.round(parseFloat(m[3])), h: Math.round(parseFloat(m[4])) };
   return { w: 1600, h: 1200 };
 }
 
-function svgToPngBlob(svgText, w, h) {
+export function svgToPngBlob(svgText, w, h) {
   return new Promise((resolve, reject) => {
     const blob = new Blob([svgText], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
@@ -68,8 +69,8 @@ function escapeHtml(s) {
 }
 
 export function showExportStep({
-  svgText, jpgDataUrl, meta, projectJson, projectName, folderApi, pageLabel = 'Fit to SVG',
-}, { onBack }) {
+  svgText, jpgDataUrl, meta, projectJson, projectName, folderApi, pageLabel = 'Fit to SVG', floorsPromise, floorScope, finalSvgFor, getPage,
+}, { onBack, onScope }) {
   const host = document.getElementById('dialogs');
   const names = exportFileNames(meta);
   const finishedName = `${meta.slug}.svg`;
@@ -241,5 +242,6 @@ export function showExportStep({
   el.querySelector('#export-back').addEventListener('click', () => { close(); if (onBack) onBack(); });
   el.querySelector('#export-back-top').addEventListener('click', () => { close(); if (onBack) onBack(); });
 
+  mountExportScope(el, { floorsPromise, scope: floorScope, finalSvgFor, getPage, meta, folderApi, setStatus, onScope });
   return { close };
 }

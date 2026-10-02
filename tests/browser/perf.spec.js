@@ -12,11 +12,11 @@ const BUDGET_MS = 4;
 
 test.describe('stage performance', () => {
   test('object:moving stays under 4ms with 2,000 rooms', async ({ page }) => {
+    test.setTimeout(180000); // headless software canvas: each of the 100 renders of 2,000 rooms takes ~0.5 s
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(String(e.stack || e)));
 
-    await page.goto('/');
-    await page.click('#btn-start-blueprint');
+    await page.goto('/#/new'); // the legacy blank 4-field dialog (the building flow has its own spec)
     await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
     await page.fill('#bp-building', 'Perf Building');
     await page.fill('#bp-property', '9999');

@@ -95,6 +95,7 @@ export async function listProjects() {
       name: p.name,
       building: p.doc && p.doc.meta ? p.doc.meta.building : undefined,
       floor: p.doc && p.doc.meta ? p.doc.meta.floor : undefined,
+      property: p.doc && p.doc.meta ? p.doc.meta.property : undefined,
       savedAt: p.savedAt,
       hasPhoto: !!(p.photo && p.photo.dataUrl),
     }));

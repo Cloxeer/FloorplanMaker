@@ -12,13 +12,15 @@ import { magnetSnap } from './model/geometry.js';
 import { validate } from './model/validate.js';
 import { installAutosaveHooks, onExternalChange } from './store/autosave.js';
 import { isSupported as folderIsSupported, getFolder, pickFolder as pickFolderHandle } from './store/folderStore.js';
-import { mountProjects } from './view/panels/projects.js';
+import { mountBuildings } from './view/panels/buildingsHome.js';
+import { mountBuildingPage } from './view/panels/buildingPage.js';
 import { showPrompt, showConfirm, showToast } from './view/panels/blueprint.js';
 import { createActions, createStudio } from './mainActions.js';
 
 // ---------------------------------------------------------------- screens --
 const screens = {
   start: document.getElementById('start'),
+  building: document.getElementById('building'),
   photoStep: document.getElementById('photo-step'),
   studio: document.getElementById('studio'),
 };
@@ -65,13 +67,30 @@ async function applyRoute(studio) {
       else studio.gotoTrace();
       return;
     }
+    const bnew = hash.match(/^#\/b\/([^/]+)\/new$/);
+    if (bnew) { // "Start blueprint" on a building page: a new floor of that building
+      const name = decodeURIComponent(bnew[1]);
+      if (app.project) await studio.closeProject(`#/b/${bnew[1]}`);
+      showScreen('building');
+      const b = await buildingPageHandle.show(name);
+      const started = await studio.onStartBlueprint({ building: (b && b.building) || name, property: (b && b.property) || '' });
+      if (!started) { setRoute(`#/b/${bnew[1]}`); showScreen('building'); }
+      return;
+    }
+    const bm = hash.match(/^#\/b\/([^/]+)$/);
+    if (bm) { // a building: its floors
+      if (app.project) await studio.closeProject(hash);
+      showScreen('building');
+      await buildingPageHandle.show(decodeURIComponent(bm[1]));
+      return;
+    }
     if (hash === '#/new') {
       showScreen('start');
       await studio.onStartBlueprint();
       return;
     }
     if (app.project) studio.closeProject();
-    else showScreen('start');
+    else { showScreen('start'); if (projectsHandle) projectsHandle.refresh(); } // the list may be stale (a building was just created / emptied)
   } finally {
     routing = false;
   }
@@ -272,6 +291,7 @@ app.pickFolderThenContinue = onChooseFolder;
 
 // ------------------------------------------------------------------- init --
 let projectsHandle = null;
+let buildingPageHandle = null;
 
 async function init() {
   const studio = createStudio(app, {
@@ -286,9 +306,15 @@ async function init() {
 
   await refreshFolder();
 
-  projectsHandle = mountProjects(document.getElementById('projects'), app, {
-    onStart: () => app.setRoute('#/new'),
-    onOpen: (entry) => app.setRoute(`#/p/${entry.slug}/trace`),
+  const enc = encodeURIComponent;
+  projectsHandle = mountBuildings(document.getElementById('projects'), app, {
+    onOpenBuilding: (name) => app.setRoute(`#/b/${enc(name)}`),
+    onImport: studio.onImportJson,
+  });
+  buildingPageHandle = mountBuildingPage(app, {
+    onBack: () => app.setRoute('#/projects'),
+    onOpenFloor: (f) => app.setRoute(`#/p/${f.slug}/trace`),
+    onStart: (b) => app.setRoute(`#/b/${enc(b.building)}/new`),
     onImport: studio.onImportJson,
     onImportSvg: studio.onImportSvg,
   });

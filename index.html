@@ -10,7 +10,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Floor Plan Studio</title>
-  <link rel="stylesheet" href="css/studio.css?v=42">
+  <link rel="stylesheet" href="css/studio.css?v=43">
 </head>
 <body>
   <div id="mobile-block"><div class="mb-card"><h1>Floor Plan Studio</h1><p>This tool needs a desktop or laptop with a mouse. Please open it on a larger screen.</p></div></div>
@@ -25,13 +25,29 @@
       <p id="folder-line" class="folder-line"></p>
     </header>
     <div class="start-actions">
-      <button id="btn-start-blueprint" class="btn btn-primary btn-big">Start blueprint</button>
-      <label class="btn btn-secondary" for="open-json-input">Open .json project</label>
+      <button id="btn-start-blueprint" class="btn btn-primary btn-big">Create building</button>
+      <label class="btn btn-secondary" for="open-json-input">Open building file</label>
       <input type="file" id="open-json-input" accept="application/json,.json" hidden>
-      <label class="btn btn-secondary" for="import-svg-input">Import .svg</label>
-      <input type="file" id="import-svg-input" accept="image/svg+xml,.svg" hidden>
     </div>
     <div id="projects"></div>
+  </section>
+
+  <!-- BUILDING PAGE: the floors of one building -->
+  <section id="building" hidden>
+    <header class="start-header">
+      <button id="bd-back" class="btn-link" type="button">&larr; Buildings</button>
+      <h1 id="bd-name">Building</h1>
+      <p class="intro" id="bd-sub"></p>
+    </header>
+    <div class="start-actions">
+      <button id="bd-start" class="btn btn-primary btn-big" type="button">Start blueprint</button>
+      <label class="btn btn-secondary" for="bd-open-json">Open .json project</label>
+      <input type="file" id="bd-open-json" accept="application/json,.json" hidden>
+      <label class="btn btn-secondary" for="bd-import-svg">Import .svg</label>
+      <input type="file" id="bd-import-svg" accept="image/svg+xml,.svg" hidden>
+    </div>
+    <h2 class="bd-floors-title">Floors</h2>
+    <div id="bd-floors"></div>
   </section>
 
   <!-- PHOTO STEP -->
@@ -47,7 +63,7 @@
   <section id="studio" hidden>
     <header id="topbar">
       <div class="topbar-left">
-        <button id="btn-close" class="btn-link" type="button">&larr; Projects</button>
+        <button id="btn-close" class="btn-link" type="button">&larr; Floors</button>
         <div class="topbar-title">
           <strong id="project-name">Untitled</strong>
           <span id="project-floor"></span>
@@ -68,6 +84,7 @@
             </label>
             <button id="btn-grid" title="Toggle grid" aria-pressed="true">Grid</button>
             <button id="btn-photo">Change photo</button>
+            <button id="btn-layers" type="button" title="Show the layers sidebar and what overlaps" aria-pressed="false">View layers</button>
           </div>
         </div>
         <span id="saved-chip" class="saved-chip">Saved</span>
@@ -105,6 +122,6 @@
 
   <div id="dialogs"></div>
 
-  <script type="module" src="js/main.js?v=44"></script>
+  <script type="module" src="js/main.js?v=45"></script>
 </body>
 </html>

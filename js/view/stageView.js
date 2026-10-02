@@ -59,8 +59,19 @@ export function attachView(canvas, app, containerEl, render) {
   // Ctrl+wheel (browsers report trackpad pinch as a ctrlKey wheel event) also
   // zooms since it goes through this same handler regardless of ctrlKey.
   const WHEEL_UNIT = { 0: 100, 1: 3, 2: 1 };
+  // Two-finger scroll on a trackpad pans (small / fractional / sideways deltas); a mouse wheel
+  // (big whole-number steps) and pinch (ctrl+wheel) still zoom as before.
+  const isTrackpadScroll = (e) => !(e.ctrlKey || e.metaKey) && e.deltaMode === 0
+    && (e.deltaX !== 0 || Math.abs(e.deltaY) < 50 || !Number.isInteger(e.deltaY));
   canvas.on('mouse:wheel', (opt) => {
     const e = opt.e;
+    if (isTrackpadScroll(e)) {
+      canvas.relativePan(new fabric.Point(-e.deltaX, -e.deltaY));
+      e.preventDefault();
+      e.stopPropagation();
+      app.emit({ type: 'view' });
+      return;
+    }
     const unit = WHEEL_UNIT[e.deltaMode] || 100;
     const notches = (e.deltaY || 0) / unit;
     let zoom = canvas.getZoom() * (1.1 ** -notches);

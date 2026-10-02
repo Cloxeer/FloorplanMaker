@@ -29,7 +29,7 @@ function makeBackdrop() {
   return { backdrop, modal };
 }
 
-export function showBlueprint() {
+export function showBlueprint(defaults) {
   return new Promise((resolve) => {
     const host = dialogsEl();
     const { backdrop, modal } = makeBackdrop();
@@ -125,7 +125,42 @@ export function showBlueprint() {
     cancelBtn.addEventListener('click', () => { cleanup(); resolve(null); });
     document.addEventListener('keydown', onKeyDown);
 
-    buildingEl.focus();
+    if (defaults) { // adding a floor to a building: the building is fixed, only the floor is asked
+      buildingEl.value = defaults.building || ''; propertyEl.value = defaults.property || '';
+      buildingEl.readOnly = true; propertyEl.readOnly = true;
+      modal.querySelector('h3').textContent = `New floor in ${defaults.building}`;
+      refreshSlug();
+      floorEl.focus();
+    } else buildingEl.focus();
+  });
+}
+
+// "Create building": a name and a property number. -> { building, property } or null
+export function showCreateBuilding(check) {
+  return new Promise((resolve) => {
+    const { backdrop, modal } = makeBackdrop();
+    modal.innerHTML = `
+      <h3>Create a building</h3>
+      <div class="form-row"><label for="cb-name">Building name</label><input type="text" id="cb-name" autocomplete="off"></div>
+      <div class="form-row"><label for="cb-prop">Property number</label><input type="text" id="cb-prop" autocomplete="off"></div>
+      <div class="modal-error" id="cb-error" hidden></div>
+      <div class="modal-actions"><button type="button" id="cb-cancel">Cancel</button><button type="button" id="cb-ok" class="btn-primary">Create</button></div>`;
+    dialogsEl().appendChild(backdrop);
+    const nameEl = modal.querySelector('#cb-name'), propEl = modal.querySelector('#cb-prop'), errEl = modal.querySelector('#cb-error');
+    const done = (v) => { document.removeEventListener('keydown', onKey); backdrop.remove(); resolve(v); };
+    async function submit() {
+      const v = { building: nameEl.value.trim(), property: propEl.value.trim() };
+      const bad = check ? await check(v) : (!v.building || !v.property ? 'Both fields are required.' : '');
+      if (bad) { errEl.textContent = bad; errEl.hidden = false; return; }
+      done(v);
+    }
+    function onKey(e) {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); } else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+    }
+    modal.querySelector('#cb-ok').addEventListener('click', submit);
+    modal.querySelector('#cb-cancel').addEventListener('click', () => done(null));
+    document.addEventListener('keydown', onKey);
+    nameEl.focus();
   });
 }
 

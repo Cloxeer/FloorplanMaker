@@ -13,8 +13,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
 async function startProject(page) {
-  await page.goto('/');
-  await page.click('#btn-start-blueprint');
+  await page.goto('/#/new'); // the legacy blank 4-field dialog (the building flow has its own spec)
   await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
   await page.fill('#bp-building', 'Hardman Jacobs Learning Center');
   await page.fill('#bp-property', '1234');

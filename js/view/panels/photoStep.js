@@ -1,10 +1,13 @@
 // photoStep.js
 // Photo straighten step: drop zone / file input, draggable corner handles
 // (Pointer Events), homography warp on a canvas via Gaussian elimination.
-// Depends on: nothing (pure DOM + canvas).
+// Depends on: js/view/panels/autobuild.js (the AutoBuild button).
+
+import { autoStraighten } from './autobuild.js';
+import { warpToCanvas } from './photoWarp.js';
+import { mountFlattenStage } from './flattenStage.js';
 
 const MAX_ORIGINAL = 2400;
-const MAX_OUTPUT = 2400;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -42,67 +45,20 @@ function downscale(img, maxSide) {
   return { canvas, w, h };
 }
 
-// Solve an 8x8 linear system (Gaussian elimination with partial pivoting).
-function solve8(A, b) {
-  const n = 8;
-  const M = A.map((row, i) => [...row, b[i]]);
-  for (let col = 0; col < n; col++) {
-    let piv = col;
-    for (let r = col + 1; r < n; r++) {
-      if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
-    }
-    [M[col], M[piv]] = [M[piv], M[col]];
-    const pivVal = M[col][col] || 1e-12;
-    for (let c = col; c <= n; c++) M[col][c] /= pivVal;
-    for (let r = 0; r < n; r++) {
-      if (r === col) continue;
-      const factor = M[r][col];
-      if (factor === 0) continue;
-      for (let c = col; c <= n; c++) M[r][c] -= factor * M[col][c];
-    }
-  }
-  return M.map((row) => row[n]);
-}
-
-// Homography mapping dst quad -> src quad, i.e. for each output (x,y) gives
-// the source pixel to sample (inverse mapping for warp).
-function computeHomography(srcPts, dstPts) {
-  // Solve for H mapping dst -> src: [x',y',1]^T ~ H [x,y,1]^T
-  const A = [];
-  const b = [];
-  for (let i = 0; i < 4; i++) {
-    const [x, y] = dstPts[i];
-    const [xp, yp] = srcPts[i];
-    A.push([x, y, 1, 0, 0, 0, -x * xp, -y * xp]);
-    b.push(xp);
-    A.push([0, 0, 0, x, y, 1, -x * yp, -y * yp]);
-    b.push(yp);
-  }
-  const h = solve8(A, b);
-  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
-}
-
-function applyH(h, x, y) {
-  const w = h[6] * x + h[7] * y + h[8];
-  return {
-    x: (h[0] * x + h[1] * y + h[2]) / w,
-    y: (h[3] * x + h[4] * y + h[5]) / w,
-  };
-}
-
-function dist(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
-
-export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
+export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, initial } = {}) {
   containerEl.innerHTML = `
     <div class="ps-wrap">
       <div class="ps-drop" id="ps-drop">
+        <p class="ps-navrow"><button type="button" class="ps-back" id="ps-back-projects">&larr; Back to projects</button></p>
         <p>Drag a photo here, or</p>
         <label class="btn btn-secondary" for="ps-file">Choose a photo</label>
         <input type="file" id="ps-file" accept="image/*" hidden>
         <p id="ps-error" style="color:#b3261e; display:none"></p>
         <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button></p>
+        <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
       </div>
       <div class="ps-editor" id="ps-editor" hidden>
+        <p class="ps-navrow"><button type="button" class="ps-back" id="ps-back-corners">&larr; Choose a different photo</button></p>
         <div class="ps-canvas-wrap">
           <canvas id="ps-canvas"></canvas>
           <svg id="ps-overlay"></svg>
@@ -112,6 +68,10 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
           <button type="button" id="ps-straighten" class="btn-primary">Flatten</button>
           <button type="button" id="ps-skip">Skip for now</button>
         </div>
+      </div>
+      <div class="ps-flat" id="ps-flat" hidden>
+        <p class="ps-navrow"><button type="button" class="ps-back" id="ps-back-flat">&larr; Back</button></p>
+        <div id="ps-flat-body"></div>
       </div>
     </div>
   `;
@@ -131,7 +91,12 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     .ps-canvas-wrap svg { position:absolute; top:0; left:0; width:100%; height:100%; }
     .ps-handle { fill:#2f6feb; stroke:#fff; stroke-width:2; cursor:grab; }
     .ps-actions { display:flex; gap:10px; margin-top:10px; }
-    .ps-tip { margin:8px 0 0; font-size:12px; color:#6b7078; }
+    .ps-tip { margin:8px 0 0; font-size:12px; color:#6b7078; text-align:center; }
+    .ps-flat { width:100%; }
+    .ps-navrow { margin:0 0 6px; text-align:left; }
+    .ps-back { border:0; background:none; padding:4px 0; color:var(--accent,#2f6feb); cursor:pointer; font-size:14px; }
+    .ps-back:hover { text-decoration:underline; }
+    .ps-actions .btn-primary { font-size:16px; padding:11px 30px; }
   `;
   containerEl.appendChild(style);
 
@@ -145,6 +110,28 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
   const skipBtn = containerEl.querySelector('#ps-skip');
   const skipInitialBtn = containerEl.querySelector('#ps-skip-initial');
   const errorEl = containerEl.querySelector('#ps-error');
+  const flatEl = containerEl.querySelector('#ps-flat');
+  const flatBody = containerEl.querySelector('#ps-flat-body');
+  const headerEl = document.querySelector('.photo-step-header');
+  const HEADERS = {
+    drop: ['Add your floor plan photo', 'Drop in a photo of the plan. You will straighten it next.'],
+    corners: ['Flatten the photo', 'Took the photo at an angle? Drag the four corners onto the corners of the map and press Flatten, so rooms line up.'],
+    flat: ['Flattened', 'Check the walls look straight, then choose how to continue.'],
+  };
+  let mode = 'drop';
+  let flat = null; // { key, base: canvas, vals } kept across Back
+  let stage = null;
+  function show(next) {
+    mode = next;
+    dropEl.hidden = next !== 'drop';
+    editorEl.hidden = next !== 'corners';
+    flatEl.hidden = next !== 'flat';
+    if (headerEl) {
+      headerEl.querySelector('h2').textContent = HEADERS[next][0];
+      headerEl.querySelector('p').textContent = HEADERS[next][1];
+    }
+    if (next === 'corners') fitToViewport();
+  }
   const ctx = canvas.getContext('2d');
 
   // Fit the photo (and its handle overlay, which scales with it) into
@@ -157,7 +144,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     const top = canvasWrap.getBoundingClientRect().top;
     const actionsEl = containerEl.querySelector('.ps-actions');
     const actionsH = actionsEl ? actionsEl.getBoundingClientRect().height + 20 : 60;
-    const maxH = Math.max(200, window.innerHeight - top - actionsH - 16);
+    const maxH = Math.max(200, window.innerHeight - top - actionsH - 56);
     canvasWrap.style.setProperty('--ps-max-h', `${maxH}px`);
     canvasWrap.classList.add('ps-fit');
   }
@@ -173,6 +160,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
   let originalDataUrl = null;
   let corners = null; // [[x,y]x4] in display-canvas pixel space
   let dragIndex = -1;
+  let cornersTouched = false; // the user placed the corners themselves
 
   function defaultCorners(w, h) {
     const ix = w * 0.05, iy = h * 0.05;
@@ -215,6 +203,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     const target = e.target;
     if (target && target.dataset && target.dataset.index !== undefined) {
       dragIndex = parseInt(target.dataset.index, 10);
+      cornersTouched = true;
       overlay.setPointerCapture(e.pointerId);
       e.preventDefault();
     }
@@ -247,10 +236,9 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
 
     corners = (initial && initial.corners) ? initial.corners.map((p) => [...p]) : defaultCorners(w, h);
 
-    dropEl.hidden = true;
-    editorEl.hidden = false;
+    flat = null;
+    show('corners');
     drawOverlay();
-    fitToViewport();
   }
 
   function onFileChange() {
@@ -273,11 +261,58 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     loadFromDataUrl(initial.originalDataUrl).catch(showError);
   }
 
+  function unmountStage() { if (stage) { stage.destroy(); stage = null; } }
+
+  function toPixels(canvas) {
+    const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    return { width: canvas.width, height: canvas.height, data: d.data };
+  }
+
+  async function runAutoBuild({ photo, canvas }, adjusted) {
+    // the user's own corners or sliders win; otherwise refine from the plan's walls
+    let built = null;
+    if (!adjusted && !cornersTouched) built = await autoStraighten(canvas, originalDataUrl);
+    if (!onDone) return;
+    if (built) {
+      const corners0 = corners.map((p) => [...p]);
+      onDone({ ...built.photo, corners: corners0, originalDataUrl }, { autoBuild: true, pixels: built.pixels });
+    } else onDone(photo, { autoBuild: true, pixels: toPixels(canvas) });
+  }
+
   straightenBtn.addEventListener('click', () => {
     if (!corners || !displayImg) return;
-    const result = straighten(displayImg, corners, originalDataUrl);
-    if (onDone) onDone(result);
+    const key = JSON.stringify(corners.map((p) => p.map(Math.round)));
+    if (!flat || flat.key !== key) {
+      flat = { key, base: warpToCanvas(displayImg, corners), vals: { tilt: 0, turn: 0, roll: 0, grid: false } };
+    }
+    unmountStage();
+    stage = mountFlattenStage(flatBody, {
+      base: flat.base, vals: flat.vals, corners, originalDataUrl,
+      onBack: backToCorners,
+      onStart: (photo) => { if (onDone) onDone(photo); },
+      onAutoBuild: runAutoBuild,
+    });
+    show('flat');
   });
+
+  function backToCorners() { unmountStage(); show('corners'); }
+  function backToDrop() {
+    unmountStage();
+    initial = null; flat = null; displayImg = null; originalDataUrl = null; corners = null; cornersTouched = false;
+    fileInput.value = '';
+    errorEl.style.display = 'none';
+    show('drop');
+  }
+  function onBackProjects() { if (onBackToProjects) onBackToProjects(); else if (onSkip) onSkip(); }
+  containerEl.querySelector('#ps-back-projects').addEventListener('click', onBackProjects);
+  containerEl.querySelector('#ps-back-corners').addEventListener('click', backToDrop);
+  containerEl.querySelector('#ps-back-flat').addEventListener('click', backToCorners);
+  function onKey(e) {
+    if (e.key !== 'Escape' || containerEl.offsetParent === null) return;
+    if (mode === 'flat') backToCorners(); else if (mode === 'corners') backToDrop(); else onBackProjects();
+  }
+  document.addEventListener('keydown', onKey);
+  show('drop');
 
   skipBtn.addEventListener('click', () => {
     if (onSkip) onSkip();
@@ -286,69 +321,6 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
     skipInitialBtn.addEventListener('click', () => {
       if (onSkip) onSkip();
     });
-  }
-
-  function straighten(srcCanvas, quad, origDataUrl) {
-    // side lengths
-    const [tl, tr, br, bl] = quad;
-    const topLen = dist(tl, tr);
-    const bottomLen = dist(bl, br);
-    const leftLen = dist(tl, bl);
-    const rightLen = dist(tr, br);
-    let outW = Math.round((topLen + bottomLen) / 2);
-    let outH = Math.round((leftLen + rightLen) / 2);
-    outW = Math.max(10, outW);
-    outH = Math.max(10, outH);
-    const longest = Math.max(outW, outH);
-    if (longest > MAX_OUTPUT) {
-      const scale = MAX_OUTPUT / longest;
-      outW = Math.round(outW * scale);
-      outH = Math.round(outH * scale);
-    }
-
-    const dst = [[0, 0], [outW, 0], [outW, outH], [0, outH]];
-    // H maps dst -> src (so for each output pixel we look up source pixel)
-    const H = computeHomography(quad, dst);
-
-    const srcCtx = srcCanvas.getContext ? srcCanvas.getContext('2d') : ctx;
-    const srcImageData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
-    const sw = srcCanvas.width, sh = srcCanvas.height;
-    const sdata = srcImageData.data;
-
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = outW;
-    outCanvas.height = outH;
-    const outCtx = outCanvas.getContext('2d');
-    const outImageData = outCtx.createImageData(outW, outH);
-    const odata = outImageData.data;
-
-    for (let y = 0; y < outH; y++) {
-      for (let x = 0; x < outW; x++) {
-        const p = applyH(H, x, y);
-        const sx = Math.round(p.x);
-        const sy = Math.round(p.y);
-        const oi = (y * outW + x) * 4;
-        if (sx >= 0 && sx < sw && sy >= 0 && sy < sh) {
-          const si = (sy * sw + sx) * 4;
-          odata[oi] = sdata[si];
-          odata[oi + 1] = sdata[si + 1];
-          odata[oi + 2] = sdata[si + 2];
-          odata[oi + 3] = 255;
-        } else {
-          odata[oi] = 255; odata[oi + 1] = 255; odata[oi + 2] = 255; odata[oi + 3] = 255;
-        }
-      }
-    }
-    outCtx.putImageData(outImageData, 0, 0);
-    const dataUrl = outCanvas.toDataURL('image/jpeg', 0.85);
-
-    return {
-      dataUrl,
-      width: outW,
-      height: outH,
-      corners: quad.map((p) => [...p]),
-      originalDataUrl: origDataUrl,
-    };
   }
 
   return {
@@ -361,6 +333,8 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, initial } = {}) {
       dropEl.removeEventListener('dragover', onDragOver);
       dropEl.removeEventListener('drop', onDrop);
       window.removeEventListener('resize', fitToViewport);
+      document.removeEventListener('keydown', onKey);
+      unmountStage();
       containerEl.innerHTML = '';
     },
   };

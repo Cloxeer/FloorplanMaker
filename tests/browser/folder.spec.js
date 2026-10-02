@@ -42,6 +42,9 @@ test('folderStore writes, lists, reads, and deletes projects atomically', async 
       tmpExists = false;
     }
 
+    let subHas = false;
+    try { await (await handle.getDirectoryHandle('T')).getFileHandle('test-1.floorplan.json'); subHas = true; } catch { /* top level */ }
+
     await mod.deleteProject(handle, 'test-1');
 
     let finalExistsAfterDelete = true;
@@ -51,27 +54,31 @@ test('folderStore writes, lists, reads, and deletes projects atomically', async 
       finalExistsAfterDelete = false;
     }
 
-    return { found, readSlug: read.slug, tmpExists, finalExistsAfterDelete };
+    return { found, readSlug: read.slug, tmpExists, finalExistsAfterDelete, subHas };
   });
 
   expect(result.found).toBeTruthy();
   expect(result.found.slug).toBe('test-1');
   expect(result.readSlug).toBe('test-1');
+  expect(result.subHas).toBe(true); // lives in the building's subfolder
   expect(result.tmpExists).toBe(false);
   expect(result.finalExistsAfterDelete).toBe(false);
 });
 
-test('Start blueprint with a chosen folder writes a .floorplan.json into it', async ({ page }) => {
+test('Start blueprint with a chosen folder writes the floor into the building subfolder', async ({ page }) => {
   await page.addInitScript(() => {
     window.showDirectoryPicker = async () => navigator.storage.getDirectory();
   });
   await page.goto('http://localhost:8080/');
 
+  // Create building -> building page -> Start blueprint (this is where the folder is asked for)
   await page.click('#btn-start-blueprint');
+  await page.fill('#cb-name', 'Test Hall');
+  await page.fill('#cb-prop', '99');
+  await page.click('#cb-ok');
+  await page.click('#bd-start');
   await page.click('#folder-modal-choose');
 
-  await page.fill('#bp-building', 'Test Hall');
-  await page.fill('#bp-property', '99');
   await page.fill('#bp-floor', '1');
   await page.click('#bp-ok');
 
@@ -90,12 +97,27 @@ test('Start blueprint with a chosen folder writes a .floorplan.json into it', as
 
   await page.waitForTimeout(500);
 
-  const exists = await page.evaluate(async () => {
+  const found = await page.evaluate(async () => {
     const dir = await navigator.storage.getDirectory();
-    for await (const [name] of dir.entries()) {
-      if (name.endsWith('.floorplan.json') && name.startsWith('th-1')) return true;
+    const top = [];
+    let inBuilding = [];
+    let hasBuildingJson = false;
+    for await (const [name, h] of dir.entries()) {
+      top.push(name);
+      if (h.kind === 'directory' && name === 'Test Hall') {
+        for await (const [n] of h.entries()) { inBuilding.push(n); if (n === 'building.json') hasBuildingJson = true; }
+      }
     }
-    return false;
+    return { top, inBuilding, hasBuildingJson };
   });
-  expect(exists).toBe(true);
+  // the floor file lives inside the building's folder (no building.json: the building was created before a
+  // folder was connected, so it is only in the browser registry; its floor on disk still makes it appear)
+  expect(found.inBuilding.some((n) => n.endsWith('.floorplan.json') && n.startsWith('th-1'))).toBe(true);
+  // ... and not loose at the top level
+  expect(found.top.some((n) => n.endsWith('.floorplan.json'))).toBe(false);
+
+  // the building page lists the floor from disk
+  await page.click('#btn-close');
+  await expect(page.locator('#bd-floors .project-card')).toHaveCount(1);
+  await expect(page.locator('#bd-floors .project-card .chip')).toHaveText('on disk');
 });

@@ -11,6 +11,7 @@ import { exportSvg } from './model/svgExport.js';
 import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
 import { exportProjectJson } from './store/autosave.js';
+import { prepareBuilding } from './view/buildingExport.js';
 import {
   PAGES, contentBounds, pageFrame, applyFrame,
 } from './model/pageFit.js';
@@ -131,8 +132,8 @@ export function createActions(app, deps) {
       const l = layout || {};
       return pageFrame(contentBounds(doc), pg, l.orientation || 'auto', l);
     }
-    function finalSvgText() {
-      return applyFrame(svgText, frameFor(page));
+    function finalSvgText(pg = page) {
+      return applyFrame(svgText, frameFor(pg));
     }
     function pageLabel() {
       if (page === 'fit') return PAGES.fit.label;
@@ -145,6 +146,11 @@ export function createActions(app, deps) {
       if (app.saveView) app.saveView();
     }
 
+    // every floor of this building, for the "All floors" preview and export
+    const floorsPromise = prepareBuilding(app).catch(() => []);
+    let floorScope = 'this';
+    const finalSvgFor = (f, pg) => (f.current ? finalSvgText(pg) : f.svgFor(pg));
+
     function closePreview() { if (app._previewHandle) { app._previewHandle.close(); app._previewHandle = null; } }
     function closeExport() { if (app._exportHandle) { app._exportHandle.close(); app._exportHandle = null; } }
 
@@ -152,8 +158,9 @@ export function createActions(app, deps) {
       closeExport();
       if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/preview`);
       app._previewHandle = showPreviewStep({
-        svgText, validation: results, page, print, frameFor,
+        svgText, validation: results, page, print, frameFor, floorsPromise, floorScope, finalSvgFor,
       }, {
+        onScope: (v) => { floorScope = v; },
         onBack: () => {
           app._previewHandle = null;
           if (app.setRoute && app.project) app.setRoute(`#/p/${app.project.slug}/trace`);
@@ -182,8 +189,9 @@ export function createActions(app, deps) {
         },
       };
       app._exportHandle = showExportStep({
-        svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName, folderApi, pageLabel: pageLabel(),
+        svgText: finalSvg, jpgDataUrl, meta: doc.meta, projectJson, projectName, folderApi, pageLabel: pageLabel(), floorsPromise, floorScope, finalSvgFor, getPage: () => page,
       }, {
+        onScope: (v) => { floorScope = v; },
         onBack: () => {
           app._exportHandle = null;
           openPreview();

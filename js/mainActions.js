@@ -20,6 +20,8 @@ import { mountValidation, checklistReady, docChecklistCodes } from './view/panel
 import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
+import { mountAutoBuild } from './view/panels/autobuild.js'; import { mountLayers } from './view/panels/layers.js'; import { mountAttention } from './view/attention.js'; import { mountOverlapDot } from './view/overlapDot.js'; import { mountFixAll } from './view/fixAll.js';
+import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
 
 export { createActions } from './docActions.js';
 
@@ -28,7 +30,7 @@ const TOOL_KEYS = { v: 'select', r: 'room', f: 'floor', o: 'door', a: 'hall', s:
 
 export function createStudio(app, deps) {
   const { screens, showScreen, scheduleValidate, updateUndoRedoButtons } = deps;
-  let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null;
+  let paletteHandle = null, propertiesHandle = null, validationHandle = null, suggestHandle = null, stepStripHandle = null, autoBuildHandle = null;
   let photoStepHandle = null, studioUnsub = null, reloadBarShown = false;
   const studioListeners = [];
   const extraUnsubs = [];
@@ -161,6 +163,11 @@ export function createStudio(app, deps) {
     const hasFloor = !!(app.doc && app.doc.floor && app.doc.floor.points && app.doc.floor.points.length >= 3);
     overlay.hidden = hasFloor;
   }
+  // where back goes: the building's floors page (or the buildings list for a project with no building)
+  const buildingRoute = (project) => {
+    const b = project && project.doc && project.doc.meta && project.doc.meta.building;
+    return `#/b/${encodeURIComponent(b || UNNAMED)}`;
+  };
   let toolBeforePan = 'select';
   function toggleHandTool() {
     const btn = document.getElementById('btn-hand-toggle');
@@ -214,6 +221,8 @@ export function createStudio(app, deps) {
     validationHandle = mountValidation(document.getElementById('validation'), app);
     suggestHandle = mountSuggest(app);
     app.suggest = suggestHandle;
+    autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app);
+    app.autoBuild = autoBuildHandle;
     const stripEl = document.getElementById('step-strip');
     if (stripEl) {
       stepStripHandle = mountStepStrip(stripEl, app, {
@@ -254,7 +263,7 @@ export function createStudio(app, deps) {
     });
     onStudio(document.getElementById('btn-export'), 'click', () => app.exportAll());
     onStudio(document.getElementById('btn-close'), 'click', () => {
-      if (app.setRoute && app.project) app.setRoute('#/projects');
+      if (app.setRoute && app.project) app.setRoute(buildingRoute(app.project));
       else closeProject();
     });
     onStudio(document.getElementById('btn-hand-toggle'), 'click', toggleHandTool);
@@ -309,6 +318,9 @@ export function createStudio(app, deps) {
     if (propertiesHandle) propertiesHandle.destroy();
     if (validationHandle) validationHandle.destroy();
     if (suggestHandle) suggestHandle.destroy();
+    if (app._floors) { app._floors.destroy(); app._floors = null; } if (app._outlineEdit) { app._outlineEdit.destroy(); app._outlineEdit = null; } if (app._guide) { app._guide.destroy(); app._guide = null; } if (app._fixAll) { app._fixAll.destroy(); app._fixAll = null; } if (app._ovDot) { app._ovDot.destroy(); app._ovDot = null; } if (app._attention) { app._attention.destroy(); app._attention = null; } if (app._layers) { app._layers.destroy(); app._layers = null; } if (autoBuildHandle) autoBuildHandle.destroy();
+    autoBuildHandle = null;
+    app.autoBuild = null;
     if (stepStripHandle) stepStripHandle.destroy();
     paletteHandle = propertiesHandle = validationHandle = suggestHandle = stepStripHandle = null;
     app.suggest = null;
@@ -317,6 +329,10 @@ export function createStudio(app, deps) {
     app.canvas = null;
   }
   function enterStudio(project, opts = {}) {
+    // Idempotent: a studio that is already set up (Change photo, #/p/<slug>/photo
+    // then Flatten) is torn down first, so the Fabric canvas, panels and
+    // window listeners are never created twice.
+    if (app.canvas || studioListeners.length || paletteHandle || studioUnsub) teardownStudio();
     app.project = project;
     project.doc = mergeBigRooms(project.doc); // older projects: a big room is a room
     // Older projects placed the legend in the Preview; it's now a plan item.
@@ -370,13 +386,14 @@ export function createStudio(app, deps) {
     updateExportButton();
   }
 
-  async function closeProject() {
-    if (!app.project) { showScreen('start'); if (app.setRoute) app.setRoute('#/projects'); return; }
+  async function closeProject(afterHash) {
+    const back = typeof afterHash === 'string' ? afterHash : '#/projects';
+    if (!app.project) { showScreen('start'); if (app.setRoute) app.setRoute(back); return; }
     try { await saveNow(app.project); persistToFolder(app.project); } catch { /* ignore */ }
     teardownStudio();
     app.project = null; app.doc = null; app.selection = new Set(); app.validation = [];
     showScreen('start');
-    if (app.setRoute) app.setRoute('#/projects');
+    if (app.setRoute) app.setRoute(back);
     if (deps.onClosed) deps.onClosed();
   }
   function showPhotoStepFor(project, existingPhoto) {
@@ -385,12 +402,14 @@ export function createStudio(app, deps) {
     if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
     photoStepHandle = mountPhotoStep(document.getElementById('photo-step-body'), {
       initial: existingPhoto || undefined,
-      onDone: (photo) => {
+      onBackToProjects: () => { if (app.setRoute) app.setRoute(buildingRoute(project)); else closeProject(); },
+      onDone: (photo, extra) => {
         const hadContent = project.doc.items.length > 0 || !!project.doc.floor;
         project.photo = photo;
         if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
         enterStudio(project, { freshView: true });
+        if (extra && extra.autoBuild && app.autoBuild) app.autoBuild.run(extra.pixels);
       },
       onSkip: () => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
@@ -399,16 +418,48 @@ export function createStudio(app, deps) {
     });
   }
 
-  async function onStartBlueprint() {
+  async function onStartBlueprint(defaults) {
     if (app.isFolderSupported && app.isFolderSupported() && !(app.folder && app.folder.handle)) {
       await showChooseFolderModal();
     }
-    const result = await showBlueprint();
-    if (!result) return;
+    const result = await showBlueprint(defaults);
+    if (!result) return false;
     const meta = { building: result.building, property: result.property, floor: result.floor, slug: result.slug };
     const project = { id: crypto.randomUUID(), slug: result.slug, name: result.building, createdAt: Date.now(), savedAt: 0, doc: createDoc(meta, { x: 0, y: 0, w: 1000, h: 1000 }), photo: null, view: { zoom: 1, panX: 0, panY: 0, onion: 0.5 }, history: { past: [], future: [] } };
     showPhotoStepFor(project, null);
+    return true;
   }
+
+
+  // ---- floors of one building: each floor is its own project; these two move between them ----
+  async function saveCurrent() {
+    if (!app.project) return;
+    try { await saveNow(app.project); persistToFolder(app.project); } catch { /* the autosave will retry */ }
+  }
+  async function switchFloor(slug) {
+    if (!slug || (app.project && app.project.slug === slug)) return;
+    await saveCurrent();
+    app.setRoute(`#/p/${slug}/trace`);
+    // a floor with no photo and no outline yet starts at the photo step, like a new one
+    for (let i = 0; i < 40 && !(app.project && app.project.slug === slug); i++) await new Promise((r) => setTimeout(r, 50));
+    const p = app.project;
+    if (p && p.slug === slug && !p.photo && !(p.doc && p.doc.floor)) app.setRoute(`#/p/${slug}/photo`);
+  }
+  async function startFloor(floor) {
+    const cur = app.project;
+    if (!cur || !app.doc) return;
+    await saveCurrent();
+    const { building, property } = app.doc.meta || {};
+    const taken = (await listProjects()).map((p) => p.slug);
+    const slug = freeSlug(slugify(building || 'unnamed', floor), taken);
+    const meta = { building, property, floor, slug };
+    const project = { id: crypto.randomUUID(), slug, name: cur.name || building, createdAt: Date.now(), savedAt: 0, doc: createDoc(meta, { x: 0, y: 0, w: 1000, h: 1000 }), photo: null, view: { zoom: 1, panX: 0, panY: 0, onion: 0.5 }, history: { past: [], future: [] } };
+    await saveNow(project);
+    persistToFolder(project);
+    app.setRoute(`#/p/${slug}/photo`);
+  }
+  app.switchFloor = switchFloor;
+  app.startFloor = startFloor;
 
   async function onOpenProject(entry) {
     const isFolderEntry = entry && typeof entry === 'object' && entry.onDisk;
