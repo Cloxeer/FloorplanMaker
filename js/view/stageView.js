@@ -5,7 +5,7 @@
 // Depends on: fabric@6.7.1, the Fabric canvas and the shared `app` object.
 
 import { unionBox } from '../model/photos.js';
-import { createWheelIntent, createZoomSmoother, createDragFilter, zoomFactor } from './wheelIntent.js';
+import { createWheelIntent, createZoomSmoother, createDragFilter, createMomentumCut, zoomFactor } from './wheelIntent.js';
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 
 const MIN_ZOOM = 0.1;
@@ -80,6 +80,7 @@ export function attachView(canvas, app, containerEl, render) {
   // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
   const intent = createWheelIntent();
   const dragFilter = createDragFilter(); // a straight up / down drag does not creep sideways
+  const momentumCut = createMomentumCut(); // and the map stays where you let go: no coasting on the OS momentum
   const smoother = createZoomSmoother({
     min: MIN_ZOOM, max: MAX_ZOOM,
     get: () => canvas.getZoom(),
@@ -91,6 +92,7 @@ export function attachView(canvas, app, containerEl, render) {
   const onWheel = (e) => {
     const kind = intent(e);
     if (kind === 'drag') {
+      if (momentumCut(e.deltaX, e.deltaY, e.timeStamp)) { e.preventDefault(); e.stopPropagation(); return; }
       const [dx, dy] = dragFilter(e.deltaX, e.deltaY, e.timeStamp);
       canvas.relativePan(new fabric.Point(-dx, -dy));
       keepPlanInView();

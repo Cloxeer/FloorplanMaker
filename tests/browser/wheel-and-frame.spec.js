@@ -358,3 +358,111 @@ test('ctrl + scroll zooms about the pointer: the spot under the cursor stays put
   expect(Math.abs(after[1] - before[1])).toBeLessThan(3);
   expect(errors).toEqual([]);
 });
+
+test('two-finger drag: when the fingers lift, the map stays where it is (the OS momentum tail is not followed)', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.evaluate(() => window.__app.canvas.zoomTo(true));
+  const sample = (script) => page.evaluate(async (script) => {
+    const u = window.__app.canvas.fabricCanvas.upperCanvasEl, r = u.getBoundingClientRect(), c = window.__app.canvas.fabricCanvas;
+    const send = (dx, dy) => u.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + 300, clientY: r.top + 300, deltaX: dx, deltaY: dy, deltaMode: 0, bubbles: true, cancelable: true }));
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    const y0 = c.viewportTransform[5];
+    const contact = [20, 18, 23, 19, 25, 17, 22, 21, 26, 18, 24, 20, 23, 19, 27, 22];
+    for (const m of contact) { send(0, -m); await sleep(8); } // fingers down, moving up the page
+    const yLift = c.viewportTransform[5];
+    let v = 34; // lift-off: the trackpad keeps sending shrinking events
+    for (let i = 0; i < 45; i++) { send(0, -v); v *= 0.94; await sleep(8); }
+    await sleep(200);
+    return { dragged: Math.round(yLift - y0), coasted: Math.round(c.viewportTransform[5] - yLift) };
+  }, script);
+  const r = await sample('go');
+  expect(r.dragged).toBeGreaterThan(300); // the drag itself moved the map
+  expect(Math.abs(r.coasted)).toBeLessThan(150); // the momentum tail (about 500 px) was not followed
+  // two-way: left then right still tracks the fingers
+  const lr = await page.evaluate(async () => {
+    const u = window.__app.canvas.fabricCanvas.upperCanvasEl, r = u.getBoundingClientRect(), c = window.__app.canvas.fabricCanvas;
+    const send = (dx) => u.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + 300, clientY: r.top + 300, deltaX: dx, deltaY: 0, deltaMode: 0, bubbles: true, cancelable: true }));
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    await sleep(400);
+    const x0 = c.viewportTransform[4];
+    for (const m of [20, 22, 19, 24, 18, 21, 23, 20]) { send(m); await sleep(8); }
+    const xRight = c.viewportTransform[4];
+    await sleep(300);
+    for (const m of [20, 22, 19, 24, 18, 21, 23, 20]) { send(-m); await sleep(8); }
+    await sleep(300);
+    return { out: Math.round(xRight - x0), back: Math.round(c.viewportTransform[4] - x0) };
+  });
+  expect(lr.out).toBeLessThan(-100);
+  expect(Math.abs(lr.back)).toBeLessThan(25); // back to where it started
+  expect(errors).toEqual([]);
+});
+
+test('hold and drag (hand tool, Space, wheel press): left then right tracks the cursor, and after you let go the map stays put', async ({ page }) => {
+  const errors = await openStudio(page);
+  const box = await page.locator('#stage canvas.upper-canvas').boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  const side = await page.locator('#palette').boundingBox();
+  const modes = {
+    'hand tool': { start: async () => { await page.click('#btn-hand-toggle'); }, end: async () => { await page.click('#btn-hand-toggle'); }, button: 'left' },
+    'Space': { start: async () => { await page.keyboard.down('Space'); }, end: async () => { await page.keyboard.up('Space'); }, button: 'left' },
+    'wheel press': { start: async () => {}, end: async () => {}, button: 'middle' },
+  };
+  for (const [name, m] of Object.entries(modes)) {
+    await m.start();
+    await page.mouse.move(cx, cy);
+    const v0 = await vt(page);
+    await page.mouse.down({ button: m.button });
+    await page.mouse.move(cx - 120, cy + 30, { steps: 6 }); // left
+    expect((await vt(page))[4], `${name}: left`).toBeCloseTo(v0[4] - 120, 0);
+    await page.mouse.move(cx + 80, cy - 20, { steps: 10 }); // then right, past where it started
+    const v1 = await vt(page);
+    expect(v1[4], `${name}: right`).toBeCloseTo(v0[4] + 80, 0);
+    expect(v1[5], `${name}: up`).toBeCloseTo(v0[5] - 20, 0);
+    // let go over the side panel (outside the canvas), then wander: the map must not move
+    await page.mouse.move(side.x + 40, side.y + 60, { steps: 4 });
+    await page.mouse.up({ button: m.button });
+    const v2 = await vt(page);
+    await page.mouse.move(cx, cy, { steps: 5 });
+    await page.mouse.move(cx + 200, cy + 100, { steps: 5 });
+    await page.waitForTimeout(500);
+    expect(await vt(page), `${name}: stays put after release`).toEqual(v2);
+    expect(v2[0], `${name}: no zoom change`).toBeCloseTo(v0[0], 6);
+    await m.end();
+  }
+  expect(errors).toEqual([]);
+});
+
+test('Drawing select: drag left then right in one hold lands exactly where you let go, and nothing moves afterwards', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.click('#btn-view');
+  await page.locator('.vp-sel[data-sel="drawing"]').click();
+  const state = () => page.evaluate(() => ({ pts: window.__app.doc.floor.points[0], frame: window.__app._photoLayer.frame(), past: window.__app.project.history.past.length }));
+  const toClient = (p) => page.evaluate(([x, y]) => {
+    const c = window.__app.canvas.fabricCanvas, r = c.upperCanvasEl.getBoundingClientRect(), v = c.viewportTransform;
+    return { x: r.left + x * v[0] + v[4], y: r.top + y * v[3] + v[5], z: v[0] };
+  }, p);
+  const s0 = await state();
+  const a = await toClient([300, 200]);
+  const side = await page.locator('#palette').boundingBox();
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(a.x - 90, a.y + 20, { steps: 6 }); // left
+  const midLeft = (await state()).frame.x;
+  expect(midLeft).toBeLessThan(s0.frame.x - 40);
+  await page.mouse.move(a.x + 60, a.y - 10, { steps: 8 }); // right, past the start
+  const right = (await state()).frame;
+  expect(right.x).toBeGreaterThan(s0.frame.x + 20);
+  await page.mouse.move(side.x + 30, side.y + 50, { steps: 4 }); // release outside the canvas
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const s1 = await state();
+  expect(s1.past).toBe(s0.past + 1); // one undo step
+  await page.mouse.move(a.x, a.y, { steps: 4 });
+  await page.mouse.move(a.x + 150, a.y + 90, { steps: 6 }); // wander with no button
+  await page.waitForTimeout(400);
+  const s2 = await state();
+  expect(s2.pts).toEqual(s1.pts); // nothing moved after the release
+  expect(s2.frame).toEqual(s1.frame);
+  expect(s2.past).toBe(s1.past);
+  expect(errors).toEqual([]);
+});

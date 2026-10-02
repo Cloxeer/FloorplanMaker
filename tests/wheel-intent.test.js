@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWheelIntent, zoomFactor, createZoomSmoother, createDragFilter } from '../js/view/wheelIntent.js';
+import { createWheelIntent, zoomFactor, createZoomSmoother, createDragFilter, createMomentumCut } from '../js/view/wheelIntent.js';
 
 const ev = (dy, t, o = {}) => ({ deltaX: 0, deltaY: dy, deltaMode: 0, ctrlKey: false, metaKey: false, timeStamp: t, ...o });
 const run = (list) => { const c = createWheelIntent(); return list.map((e) => c(e)); };
@@ -110,4 +110,28 @@ test('drag filter: a real diagonal keeps both directions; a pause starts a new g
   for (let i = 0; i < 6; i++) h(2, 30, i * 8);
   const [lx] = h(40, 0, 3000); // 3 s later: a fresh gesture, so sideways travel is allowed again
   assert.equal(lx, 40);
+});
+
+test('momentum cut: fingers down (sizes jumping around) is never cut; the shrinking run after lift-off is', () => {
+  const c = createMomentumCut();
+  const noisy = [20, 18, 23, 19, 25, 17, 22, 21, 26, 18, 24, 20, 23, 19, 27, 22];
+  noisy.forEach((m, i) => assert.equal(c(0, m, i * 8), false, `contact event ${i} was cut`));
+  // lift-off: a steady run of shrinking events (the OS momentum)
+  let v = 30, t = noisy.length * 8, dropped = 0, kept = 0;
+  for (let i = 0; i < 40; i++) { const cut = c(0, v, t); if (cut) dropped++; else kept++; v *= 0.94; t += 8; }
+  assert.ok(dropped >= 30, `dropped ${dropped} of 40`);
+  assert.ok(kept <= 8, `kept ${kept} (the run has to show itself first)`);
+});
+
+test('momentum cut: a new push ends the cut, a pause starts afresh, slow even drags are untouched', () => {
+  const c = createMomentumCut();
+  let t = 0;
+  [40, 38, 36, 34, 32, 30, 28, 26].forEach((m) => c(0, m, (t += 8)));
+  assert.equal(c(0, 24, (t += 8)), true); // coasting is being dropped
+  assert.equal(c(0, 60, (t += 8)), false); // a new, bigger movement: let it through
+  assert.equal(c(0, 22, 5000), false); // a fresh gesture after a pause
+  const slow = createMomentumCut();
+  for (let i = 0; i < 60; i++) assert.equal(slow(0, 6, i * 16), false); // a steady slow drag
+  const ramp = createMomentumCut();
+  for (let i = 0; i < 30; i++) assert.equal(ramp(0, 5 + i, i * 8), false); // speeding up
 });

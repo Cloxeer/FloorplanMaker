@@ -94,3 +94,29 @@ export function createDragFilter({ gap = 150, ratio = 0.4, settle = 12 } = {}) {
     return sy >= sx ? [0, dy] : [dx, 0];
   };
 }
+
+// ---- no coasting after you let go
+// Many trackpads keep sending wheel events after the fingers lift (the OS "momentum"): the same direction,
+// each a little smaller than the one before. For a map that feels like it slides on after you let go. While
+// fingers are down the sizes jump around; momentum is a steady run of shrinking events, so when a gesture
+// shows that run (4 in a row, each 55-97% of the one before, now well under the peak) the rest of the run
+// is dropped. A new, bigger movement ends the cut. cut(dx, dy, timeStamp) -> true to ignore the event.
+export function createMomentumCut({ gap = 150, run = 4, below = 0.85 } = {}) {
+  let last = null, peak = 0, falling = 0, cutting = false, lastT = -Infinity;
+  return (dx, dy, t) => {
+    const now = Number.isFinite(t) ? t : Date.now();
+    if (now - lastT > gap) { last = null; peak = 0; falling = 0; cutting = false; }
+    lastT = now;
+    const m = Math.hypot(dx, dy);
+    if (cutting) {
+      if (last != null && m > last * 1.15 + 2) { cutting = false; peak = m; falling = 0; last = m; return false; } // a new push
+      last = Math.min(m, last == null ? m : last);
+      return true;
+    }
+    peak = Math.max(peak, m);
+    if (last != null && m < last && m >= last * 0.55 && m <= last * 0.97) falling++; else falling = 0;
+    last = m;
+    if (falling >= run && peak >= 8 && m < peak * below) { cutting = true; return true; }
+    return false;
+  };
+}
