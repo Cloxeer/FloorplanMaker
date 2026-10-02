@@ -5,6 +5,7 @@
 
 import { labelPos, labelClass, labelText, stairTreads } from './document.js';
 import { bbox } from './geometry.js';
+import { hallLabels } from './hallLabels.js';
 import {
   iconForRoom, iconSvg, iconRoomLayout, iconOnly,
 } from '../view/icons.js';
@@ -105,35 +106,16 @@ function roomBlock(item) {
 // stageObjects.js so the SVG looks like the trace view. Drawn behind rooms.
 // The "hall" class is outside the parser's known set, so build_rooms.py and
 // svgImport.js both ignore these on read-back (halls live in the .json project).
-// Where the "Hallway" label goes: the hall's center, unless a staff wall's
-// padlock sits there — then the middle of the longer stretch beside the wall.
-function hallLabelPos(item, walls) {
-  const cx = item.x + item.w / 2;
-  const cy = item.y + item.h / 2;
-  const across = item.w >= item.h; // label runs along the hall's long side
-  for (const w of walls) {
-    const mx = (w.x1 + w.x2) / 2;
-    const my = (w.y1 + w.y2) / 2;
-    if (mx < item.x || mx > item.x + item.w || my < item.y || my > item.y + item.h) continue;
-    if (across && Math.abs(mx - cx) < 60) {
-      return mx - item.x > item.x + item.w - mx ? { x: (item.x + mx) / 2, y: cy } : { x: (mx + item.x + item.w) / 2, y: cy };
-    }
-    if (!across && Math.abs(my - cy) < 20) {
-      return my - item.y > item.y + item.h - my ? { x: cx, y: (item.y + my) / 2 } : { x: cx, y: (my + item.y + item.h) / 2 };
-    }
-  }
-  return { x: cx, y: cy };
+function hallLines(item) {
+  return [`${IND}<rect class="hall" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`];
 }
 
-function hallLines(item, walls = []) {
-  const lines = [];
-  lines.push(`${IND}<rect class="hall" x="${r(item.x)}" y="${r(item.y)}" width="${r(item.w)}" height="${r(item.h)}"/>`);
-  // Skip the label on very thin/short segments so it never overflows the box.
-  if (item.w >= 80 && item.h >= 28) {
-    const p = hallLabelPos(item, walls);
-    lines.push(`${IND}<text class="hall-lbl" x="${r(p.x)}" y="${r(p.y)}">Hallway</text>`);
-  }
-  return lines;
+// One "Hallway" word per stretch of corridor, not per piece (see hallLabels.js): placed on open floor,
+// clear of rooms, doors / EXIT labels and padlocks, and turned to run vertically in narrow corridors.
+function hallLabelLines(items) {
+  return hallLabels(items).map((p) => (p.vertical
+    ? `${IND}<text class="hall-lbl" transform="rotate(-90 ${r(p.x)} ${r(p.y)})" x="${r(p.x)}" y="${r(p.y)}">Hallway</text>`
+    : `${IND}<text class="hall-lbl" x="${r(p.x)}" y="${r(p.y)}">Hallway</text>`));
 }
 
 // Padlock glyph centered on (cx, cy), the same shape as lockGlyph() on the
@@ -236,8 +218,8 @@ export function exportSvg(doc) {
   const halls = doc.items.filter((it) => it.type === 'hall');
   if (halls.length) {
     lines.push(`${IND}<!-- HALLWAYS -->`);
-    const walls = doc.items.filter((it) => it.type === 'authwall');
-    for (const hall of halls) lines.push(...hallLines(hall, walls));
+    for (const hall of halls) lines.push(...hallLines(hall));
+    lines.push(...hallLabelLines(doc.items));
     lines.push('');
   }
 

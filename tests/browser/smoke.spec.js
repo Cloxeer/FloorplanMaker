@@ -207,6 +207,11 @@ test.describe('Floor Plan Studio smoke test', () => {
     await page.click('#pr-ok');
     await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'room').length).toBe(2);
 
+    // ---- 11c. Export also needs a compass: put one back (step 11 deleted it) ----
+    await dragChip(page, 'compass', 700, 700);
+    await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'compass').length).toBe(1);
+    await page.keyboard.press('Escape');
+
     // ---- 12. Reload; the URL is #/p/<slug>/trace, so the project reopens
     // straight into the studio with the same items (no trip through the
     // projects list) ----

@@ -46,6 +46,9 @@ test.describe('Guided walkthrough', () => {
     await page.setInputFiles('#ps-file', path.join(ROOT, 'samples', 'hjlc-1-posted.jpg'));
     await expect(page.locator('#ps-editor')).toBeVisible();
     await page.click('#ps-straighten');
+    // Straighten keeps the Flatten screen; "Start tracing" moves on to the studio.
+    await expect(page.locator('#ps-start-tracing')).toBeVisible();
+    await page.click('#ps-start-tracing');
     await expect(page.locator('#studio')).toBeVisible();
     await page.waitForTimeout(400);
 
@@ -76,8 +79,19 @@ test.describe('Guided walkthrough', () => {
     await page.keyboard.press('Escape');
     await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'door').length).toBe(2);
 
-    // ---- Wait for the auto-suggest bar (runs automatically once the
-    // outline exists on a fresh project), then "Keep all" ----
+    // ---- "Draw a hallway" drag (it unlocks the Rooms step, so it comes first) ----
+    await page.click('#btn-tool-hall');
+    const hp1 = P(0.12, 0.45); // starts on the left wall so the hallway reaches the outline
+    const hp2 = P(0.65, 0.52);
+    await page.mouse.move(hp1.x, hp1.y);
+    await page.mouse.down();
+    await page.mouse.move(hp2.x, hp2.y, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'hall').length).toBe(1);
+    await page.keyboard.press('Escape');
+
+    // ---- "Detect rooms" is now an explicit button (no auto-run), then "Keep all" ----
+    await page.click('#btn-detect-rooms');
     await expect(page.locator('#sg-accept-all')).toBeVisible({ timeout: 30000 });
     // Let OCR finish reading numbers before accepting (best-effort; the bar
     // itself is already interactive).
@@ -88,7 +102,9 @@ test.describe('Guided walkthrough', () => {
 
     // ---- Select one unnumbered room and type 101 in the Number field ----
     const rooms = (await doc(page)).items.filter((i) => i.type === 'room');
-    const unnumbered = rooms.find((r) => !r.number) || rooms[0];
+    const hall = (await doc(page)).items.find((i) => i.type === 'hall');
+    const clear = rooms.filter((r) => r.x + r.w < hall.x || r.x > hall.x + hall.w || r.y + r.h < hall.y || r.y > hall.y + hall.h);
+    const unnumbered = clear.find((r) => !r.number) || clear[0] || rooms[0];
     const rc = await toClient(page, unnumbered.x + unnumbered.w / 2, unnumbered.y + unnumbered.h / 2);
     await page.mouse.click(rc[0], rc[1]);
     await expect(page.locator('#p-number')).toBeVisible();
@@ -96,16 +112,22 @@ test.describe('Guided walkthrough', () => {
     await page.locator('#p-number').blur();
     await expect.poll(async () => (await doc(page)).items.find((i) => i.id === unnumbered.id).number).toBe('101');
 
-    // ---- "Draw a hallway" drag ----
-    await page.click('#btn-tool-hall');
-    const hp1 = P(0.3, 0.45);
-    const hp2 = P(0.65, 0.52);
-    await page.mouse.move(hp1.x, hp1.y);
-    await page.mouse.down();
-    await page.mouse.move(hp2.x, hp2.y, { steps: 10 });
-    await page.mouse.up();
-    await expect.poll(async () => (await doc(page)).items.filter((i) => i.type === 'hall').length).toBe(1);
-    await page.keyboard.press('Escape');
+    // ---- Number the remaining rooms: export is blocked until every room has
+    // a unique number, and the photo's numbers are only read best-effort by OCR ----
+    await page.evaluate(async () => {
+      const { updateItem } = await import('/js/model/document.js');
+      const app = window.__app;
+      const used = new Set(app.doc.items.filter((i) => i.type === 'room' && i.number).map((i) => i.number));
+      let n = 102;
+      let d = app.doc;
+      for (const it of app.doc.items) {
+        if (it.type !== 'room' || it.number) continue;
+        while (used.has(String(n))) n += 1;
+        used.add(String(n));
+        d = updateItem(d, it.id, { number: String(n) });
+      }
+      app.commit(d, 'Number rooms');
+    });
 
     // ---- Press C and click to place the compass ----
     await page.keyboard.press('c');
