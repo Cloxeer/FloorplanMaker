@@ -13,7 +13,7 @@ import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 import { createLayoutBox } from './pageLayout.js';
 import { mountPreviewScope } from './previewScope.js';
-import { createZoomSmoother, zoomFactor } from '../wheelIntent.js';
+import { createZoomSmoother, createDragFilter, zoomFactor } from '../wheelIntent.js';
 
 const PAGE_BUTTONS = [
   ['fit', 'Fit to SVG'],
@@ -146,6 +146,7 @@ export function showPreviewStep({
     applyZoom();
   }
   let zoomOut = null;
+  const dragFilter = createDragFilter();
   const zs = createZoomSmoother({ min: 1, max: ZMAX, get: () => zoom.z, set: (z, x, y) => zoomAt(x, y, z) });
   if (svgEl) {
     const st = document.createElement('style');
@@ -192,8 +193,9 @@ export function showPreviewStep({
       if (zoom.z === 1) return;
       e.preventDefault();
       const k = e.deltaMode === 1 ? 16 : 1;
-      zoom.tx -= e.deltaX * k;
-      zoom.ty -= e.deltaY * k;
+      const [fx, fy] = dragFilter(e.deltaX * k, e.deltaY * k, e.timeStamp);
+      zoom.tx -= fx;
+      zoom.ty -= fy;
       applyZoom();
     }, { passive: false });
 

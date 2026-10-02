@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWheelIntent, zoomFactor, createZoomSmoother } from '../js/view/wheelIntent.js';
+import { createWheelIntent, zoomFactor, createZoomSmoother, createDragFilter } from '../js/view/wheelIntent.js';
 
 const ev = (dy, t, o = {}) => ({ deltaX: 0, deltaY: dy, deltaMode: 0, ctrlKey: false, metaKey: false, timeStamp: t, ...o });
 const run = (list) => { const c = createWheelIntent(); return list.map((e) => c(e)); };
@@ -84,4 +84,30 @@ test('zoom smoother: a long burst cannot queue a long tail, and the limits hold 
   assert.equal(z, 8);
   for (let r = 0; r < 40; r++) { sm.push(1 / 1.3, 0, 0); n = 0; while (frames.length && n++ < 300) frames.shift()(); }
   assert.equal(z, 0.1);
+});
+
+test('drag filter: a straight vertical drag with a little sideways skew does not creep sideways', () => {
+  const f = createDragFilter();
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < 40; i++) { const [x, y] = f(3, 20, i * 8); sumX += x; sumY += y; }
+  assert.equal(sumY, 800, 'vertical travel is kept in full');
+  assert.ok(sumX <= 12, `sideways creep ${sumX}`); // only the first few events, before the direction is clear
+  // the same, the other way round
+  const g = createDragFilter(); let ax = 0, ay = 0;
+  for (let i = 0; i < 40; i++) { const [x, y] = g(-25, -2, i * 8); ax += x; ay += y; }
+  assert.equal(ax, -1000); assert.ok(Math.abs(ay) <= 12);
+});
+
+test('drag filter: a real diagonal keeps both directions; a pause starts a new gesture', () => {
+  const f = createDragFilter();
+  let sx = 0, sy = 0;
+  for (let i = 0; i < 30; i++) { const [x, y] = f(12, 15, i * 8); sx += x; sy += y; }
+  assert.deepEqual([sx, sy], [360, 450]);
+  // a new gesture after a pause: vertical, then sideways, each judged on its own
+  const [a, b] = [f(0, 30, 2000), f(0, 30, 2008)];
+  assert.deepEqual([a[1], b[1]], [30, 30]);
+  const h = createDragFilter();
+  for (let i = 0; i < 6; i++) h(2, 30, i * 8);
+  const [lx] = h(40, 0, 3000); // 3 s later: a fresh gesture, so sideways travel is allowed again
+  assert.equal(lx, 40);
 });

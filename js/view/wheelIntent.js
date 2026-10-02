@@ -74,3 +74,23 @@ export function createZoomSmoother({ get, set, min = 0.05, max = 8, raf = (fn) =
     target: () => target,
   };
 }
+
+// ---- axis lock for a two-finger drag
+// Fingers never move perfectly straight: a drag meant to go straight up or down also carries a few pixels of
+// sideways travel in nearly every event, and over a long drag (or many drags) that adds up, so the map creeps
+// to one side until the plan is gone. Like native scrolling, a drag that is clearly mostly one direction
+// ignores the small leftover in the other; a real diagonal drag keeps both. Judged over the whole gesture
+// (events less than `gap` ms apart), not event by event.
+// filter(dx, dy, timeStamp) -> [dx, dy]
+export function createDragFilter({ gap = 150, ratio = 0.4, settle = 12 } = {}) {
+  let sx = 0, sy = 0, last = -Infinity;
+  return (dx, dy, t) => {
+    const now = Number.isFinite(t) ? t : Date.now();
+    if (now - last > gap) { sx = 0; sy = 0; }
+    last = now;
+    sx += Math.abs(dx); sy += Math.abs(dy);
+    const major = Math.max(sx, sy), minor = Math.min(sx, sy);
+    if (major < settle || minor / major >= ratio) return [dx, dy]; // too early to tell, or a real diagonal
+    return sy >= sx ? [0, dy] : [dx, 0];
+  };
+}

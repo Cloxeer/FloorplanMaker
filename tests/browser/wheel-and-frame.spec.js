@@ -260,3 +260,34 @@ test('the page is idle after a drag: no animation loop keeps re-drawing the plan
   expect(renders).toBeLessThanOrEqual(2); // it used to redraw ten times a second (the highlight pulse)
   expect(errors).toEqual([]);
 });
+
+const dragEvents = (page, dx, dy, n) => page.evaluate(async ({ dx, dy, n }) => {
+  const u = window.__app.canvas.fabricCanvas.upperCanvasEl, r = u.getBoundingClientRect();
+  for (let i = 0; i < n; i++) { u.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + 300, clientY: r.top + 300, deltaX: dx, deltaY: dy, deltaMode: 0, bubbles: true, cancelable: true })); await new Promise((res) => setTimeout(res, 8)); }
+}, { dx, dy, n });
+
+test('a straight two-finger drag does not creep sideways, drag after drag, and never loses the plan', async ({ page }) => {
+  const errors = await openStudio(page);
+  const start = await vt(page);
+  for (let round = 0; round < 8; round++) { // eight separate drags, each straight down with the usual finger skew
+    await dragEvents(page, 3, 20, 25);
+    await page.waitForTimeout(250);
+  }
+  const end = await vt(page);
+  expect(end[5]).toBeLessThan(start[5] - 300); // it went down...
+  const bottom = await page.evaluate(() => { const v = window.__app.canvas.fabricCanvas.viewportTransform, vb = window.__app.doc.viewBox; return (vb.y + vb.h) * v[0] + v[5]; });
+  expect(bottom).toBeGreaterThanOrEqual(79); // ...but never so far that the plan is gone: a strip of it stays on screen
+  expect(Math.abs(end[4] - start[4])).toBeLessThan(40); // and hardly moved sideways (it used to creep ~600 px)
+  expect(errors).toEqual([]);
+});
+
+test('a real diagonal two-finger drag still moves both ways', async ({ page }) => {
+  const errors = await openStudio(page);
+  const d0 = await vt(page);
+  await dragEvents(page, 8, 8, 20);
+  await page.waitForTimeout(150);
+  const d1 = await vt(page);
+  expect(d0[4] - d1[4]).toBeGreaterThan(100);
+  expect(d0[5] - d1[5]).toBeGreaterThan(100);
+  expect(errors).toEqual([]);
+});

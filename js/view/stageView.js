@@ -4,7 +4,8 @@
 // pan-tool dragging, two-finger touch pan+pinch, and the tool cursor.
 // Depends on: fabric@6.7.1, the Fabric canvas and the shared `app` object.
 
-import { createWheelIntent, createZoomSmoother, zoomFactor } from './wheelIntent.js';
+import { unionBox } from '../model/photos.js';
+import { createWheelIntent, createZoomSmoother, createDragFilter, zoomFactor } from './wheelIntent.js';
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 
 const MIN_ZOOM = 0.1;
@@ -56,9 +57,29 @@ export function attachView(canvas, app, containerEl, render) {
     return fabric.util.transformPoint(p, fabric.util.invertTransform(canvas.viewportTransform));
   }
 
+  // A two-finger drag can never carry the plan (or its photos) completely out of sight: at least a strip of it
+  // stays on screen, so one stray flick cannot lose the work.
+  function keepPlanInView() {
+    const doc = getDoc && getDoc();
+    if (!doc || !doc.viewBox) return;
+    const vb = doc.viewBox;
+    let box = { x: vb.x, y: vb.y, w: vb.w, h: vb.h };
+    const ph = app.project && [app.project.photo, ...((app.project && app.project.extraPhotos) || [])].filter((p) => p && p.dataUrl);
+    const u = ph && ph.length ? unionBox(ph) : null;
+    if (u) { const x0 = Math.min(box.x, u.x), y0 = Math.min(box.y, u.y); box = { x: x0, y: y0, w: Math.max(box.x + box.w, u.x + u.w) - x0, h: Math.max(box.y + box.h, u.y + u.h) - y0 }; }
+    const v = canvas.viewportTransform, z = v[0] || 1, W = canvas.getWidth(), H = canvas.getHeight();
+    const keep = 80; // screen px of the plan that must stay visible
+    const left = box.x * z + v[4], right = (box.x + box.w) * z + v[4], top = box.y * z + v[5], bottom = (box.y + box.h) * z + v[5];
+    let nx = v[4], ny = v[5];
+    if (right < keep) nx += keep - right; else if (left > W - keep) nx -= left - (W - keep);
+    if (bottom < keep) ny += keep - bottom; else if (top > H - keep) ny -= top - (H - keep);
+    if (nx !== v[4] || ny !== v[5]) canvas.setViewportTransform([v[0], v[1], v[2], v[3], nx, ny]);
+  }
+
   // Two-finger drag on a trackpad moves the map; a pinch (ctrl + wheel) and a mouse wheel notch zoom.
   // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
   const intent = createWheelIntent();
+  const dragFilter = createDragFilter(); // a straight up / down drag does not creep sideways
   const smoother = createZoomSmoother({
     min: MIN_ZOOM, max: MAX_ZOOM,
     get: () => canvas.getZoom(),
@@ -68,7 +89,9 @@ export function attachView(canvas, app, containerEl, render) {
     const e = opt.e;
     const kind = intent(e);
     if (kind === 'drag') {
-      canvas.relativePan(new fabric.Point(-e.deltaX, -e.deltaY));
+      const [dx, dy] = dragFilter(e.deltaX, e.deltaY, e.timeStamp);
+      canvas.relativePan(new fabric.Point(-dx, -dy));
+      keepPlanInView();
       e.preventDefault();
       e.stopPropagation();
       app.emit({ type: 'view' });
