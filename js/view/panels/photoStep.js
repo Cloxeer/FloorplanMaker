@@ -6,6 +6,7 @@
 import { autoStraighten } from './autobuild.js';
 import { warpToCanvas } from './photoWarp.js';
 import { mountFlattenStage } from './flattenStage.js';
+import { layoutExtras } from '../../model/photos.js';
 
 const MAX_ORIGINAL = 2400;
 
@@ -54,7 +55,8 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
         <label class="btn btn-secondary" for="ps-file">Choose a photo</label>
         <input type="file" id="ps-file" accept="image/*" hidden>
         <p id="ps-error" style="color:#b3261e; display:none"></p>
-        <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button></p>
+        <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button> <button type="button" id="ps-multi-initial" title="One photo per floor is best. Use this only if the plan needs several photos.">Add multiple photos</button></p>
+        <input type="file" id="ps-multi-file" accept="image/*" multiple hidden>
         <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
       </div>
       <div class="ps-editor" id="ps-editor" hidden>
@@ -67,6 +69,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
         <div class="ps-actions">
           <button type="button" id="ps-straighten" class="btn-primary">Flatten</button>
           <button type="button" id="ps-skip">Skip for now</button>
+          <button type="button" id="ps-multi" title="Add more photos of this floor and line them up before tracing">Add multiple photos</button>
         </div>
       </div>
       <div class="ps-flat" id="ps-flat" hidden>
@@ -241,6 +244,28 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     drawOverlay();
   }
 
+  // Several photos for one floor: read them all, keep the straight-on one as the main photo (the current photo
+  // when one is already open, else the first), put the others beside it and go straight to arranging them.
+  async function readPhoto(file) {
+    const img = await loadImage(await fileToDataUrl(file));
+    const { canvas: c, w, h } = downscale(img, MAX_ORIGINAL);
+    return { dataUrl: c.toDataURL('image/jpeg', 0.9), width: w, height: h };
+  }
+  async function addMultiple(files, fromEditor) {
+    try {
+      const picked = await Promise.all([...files].filter((f) => /^image\//.test(f.type || 'image/')).map(readPhoto));
+      const main = fromEditor && originalDataUrl ? { dataUrl: originalDataUrl, width: displayImg.width, height: displayImg.height } : picked.shift();
+      if (!main) return;
+      if (!picked.length && !fromEditor) { fileToDataUrl(files[0]).then(loadFromDataUrl).catch(showError); return; } // one photo: the normal flow
+      if (onDone) onDone(main, { multi: true, extraPhotos: layoutExtras(main, picked) });
+    } catch (err) { showError(err); }
+  }
+  const multiFile = containerEl.querySelector('#ps-multi-file');
+  const pickMore = (fromEditor) => { multiFile.dataset.from = fromEditor ? 'editor' : 'drop'; multiFile.value = ''; multiFile.click(); };
+  containerEl.querySelector('#ps-multi-initial').addEventListener('click', () => pickMore(false));
+  containerEl.querySelector('#ps-multi').addEventListener('click', () => pickMore(true));
+  multiFile.addEventListener('change', () => { if (multiFile.files.length) addMultiple(multiFile.files, multiFile.dataset.from === 'editor'); });
+
   function onFileChange() {
     const file = fileInput.files[0];
     if (!file) return;
@@ -251,6 +276,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     e.preventDefault();
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file) return;
+    if (e.dataTransfer.files.length > 1) { addMultiple(e.dataTransfer.files, false); return; } // several dropped at once
     fileToDataUrl(file).then(loadFromDataUrl).catch(showError);
   }
   fileInput.addEventListener('change', onFileChange);

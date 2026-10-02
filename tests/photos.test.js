@@ -1,0 +1,87 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { photoCorners, hitPhoto, layoutExtras, moved, scaledBy, turnedBy, photoCentre, translateDoc, unionBox, tOf } from '../js/model/photos.js';
+
+const P = (w, h, t) => ({ dataUrl: 'x', width: w, height: h, ...(t ? { t } : {}) });
+const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} vs ${b}`);
+
+test('corners: rotation turns about the top-left corner', () => {
+  const c = photoCorners(P(100, 50, { x: 10, y: 20, s: 1, a: 90 }));
+  near(c[1][0], 10); near(c[1][1], 120); near(c[3][0], -40); near(c[3][1], 20);
+});
+
+test('hitPhoto: top-most wins, rotated photos use their own axes, misses are -1', () => {
+  const a = P(100, 100, { x: 0, y: 0, s: 1, a: 0 }), b = P(100, 100, { x: 50, y: 50, s: 1, a: 0 });
+  assert.equal(hitPhoto([a, b], [75, 75]), 1);
+  assert.equal(hitPhoto([a, b], [10, 10]), 0);
+  assert.equal(hitPhoto([a, b], [300, 300]), -1);
+  const r = P(100, 20, { x: 0, y: 0, s: 1, a: 90 }); // now runs down from the origin
+  assert.equal(hitPhoto([r], [-10, 50]), 0);
+  assert.equal(hitPhoto([r], [50, 10]), -1);
+});
+
+test('layoutExtras: arrive apart, to the right, about the first photo height', () => {
+  const first = P(1000, 800);
+  const out = layoutExtras(first, [P(600, 400), P(900, 1600)]);
+  assert.ok(out[0].t.x > 1000 && out[1].t.x > out[0].t.x + 600 * out[0].t.s);
+  near(out[0].t.s, 2); near(out[1].t.s, 0.5);
+  assert.equal(out[0].t.y, 0);
+  assert.equal(first.t, undefined, 'input untouched');
+  assert.deepEqual(layoutExtras(first, []), []);
+});
+
+test('move / scale / turn keep the centre put (scale, turn) and never mutate', () => {
+  const p = P(200, 100, { x: 50, y: 50, s: 1, a: 0 });
+  const c0 = photoCentre(p);
+  const s = scaledBy(p, 2), r = turnedBy(p, 30);
+  near(photoCentre(s)[0], c0[0]); near(photoCentre(s)[1], c0[1]);
+  near(photoCentre(r)[0], c0[0]); near(photoCentre(r)[1], c0[1]);
+  near(tOf(r).a, 30); near(tOf(s).s, 2);
+  assert.equal(p.t.s, 1);
+  assert.equal(moved(p, 5, -5).t.x, 55);
+  near(tOf(turnedBy(p, -10)).a, 350);
+  assert.ok(tOf(scaledBy(p, 1e-9)).s >= 0.05);
+});
+
+test('unionBox covers every photo', () => {
+  const b = unionBox([P(100, 100, { x: 0, y: 0, s: 1, a: 0 }), P(100, 100, { x: 300, y: 50, s: 1, a: 0 })]);
+  assert.deepEqual([b.x, b.y, b.w, b.h], [0, 0, 400, 150]);
+  assert.equal(unionBox([]), null);
+});
+
+test('translateDoc slides every kind of item, labels and the outline', () => {
+  const doc = {
+    viewBox: { x: 0, y: 0, w: 100, h: 100 }, floor: { points: [[0, 0], [100, 0], [100, 100]] },
+    items: [
+      { id: 'r', type: 'room', shape: 'rect', x: 10, y: 10, w: 20, h: 20, label: { pinned: true, x: 15, y: 15 } },
+      { id: 'p', type: 'room', shape: 'poly', points: [[0, 0], [5, 0], [5, 5]], label: { pinned: false, x: null, y: null } },
+      { id: 'd', type: 'door', x1: 0, y1: 0, x2: 10, y2: 0, label: { x: 5, y: 3 } },
+      null,
+    ],
+  };
+  const t = translateDoc(doc, 100, -50);
+  assert.deepEqual(t.floor.points[1], [200, -50]);
+  assert.deepEqual([t.items[0].x, t.items[0].y, t.items[0].label.x, t.items[0].label.y], [110, -40, 115, -35]);
+  assert.deepEqual(t.items[1].points[2], [105, -45]); assert.equal(t.items[1].label.x, null);
+  assert.deepEqual([t.items[2].x1, t.items[2].y2, t.items[2].label.x], [100, -50, 105]);
+  assert.equal(t.items[3], null);
+  assert.deepEqual(t.viewBox, doc.viewBox);
+  assert.equal(doc.items[0].x, 10, 'input untouched');
+  assert.equal(translateDoc(doc, 0, 0), doc);
+});
+
+test('snapPhoto: edges meet, tops line up, far photos are left alone, turned photos use their box', async () => {
+  const { snapPhoto } = await import('../js/model/photos.js');
+  const a = P(100, 100, { x: 0, y: 0, s: 1, a: 0 });
+  const nearRight = P(100, 100, { x: 104, y: 3, s: 1, a: 0 }); // 4 to the right of a's right edge, 3 low
+  const r = snapPhoto(nearRight, [a], 8);
+  assert.equal(r.dx, -4); assert.equal(r.dy, -3);
+  assert.deepEqual(r.guides.map((g) => g.axis).sort(), ['x', 'y']);
+  const far = snapPhoto(P(100, 100, { x: 300, y: 300, s: 1, a: 0 }), [a], 8);
+  assert.deepEqual([far.dx, far.dy, far.guides.length], [0, 0, 0]);
+  const centred = snapPhoto(P(40, 40, { x: 31, y: 200, s: 1, a: 0 }), [a], 8); // its middle (51) vs a's middle (50)
+  assert.equal(centred.dx, -1);
+  const turned = snapPhoto(P(100, 20, { x: 105, y: 0, s: 1, a: 90 }), [a], 8); // runs down; its box spans x 85..105
+  assert.ok(Number.isFinite(turned.dx));
+  assert.deepEqual(snapPhoto(a, [], 8).guides, []);
+});

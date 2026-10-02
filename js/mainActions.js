@@ -21,7 +21,7 @@ import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
 import { mountAutoBuild } from './view/panels/autobuild.js'; import { mountLayers } from './view/panels/layers.js'; import { mountAttention } from './view/attention.js'; import { mountOverlapDot } from './view/overlapDot.js'; import { mountFixAll } from './view/fixAll.js';
-import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
+import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { mountPhotoLayer } from './view/photoLayer.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
 
 export { createActions } from './docActions.js';
 
@@ -221,7 +221,7 @@ export function createStudio(app, deps) {
     validationHandle = mountValidation(document.getElementById('validation'), app);
     suggestHandle = mountSuggest(app);
     app.suggest = suggestHandle;
-    autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app);
+    autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app); app._photoLayer = mountPhotoLayer(app);
     app.autoBuild = autoBuildHandle;
     const stripEl = document.getElementById('step-strip');
     if (stripEl) {
@@ -318,7 +318,7 @@ export function createStudio(app, deps) {
     if (propertiesHandle) propertiesHandle.destroy();
     if (validationHandle) validationHandle.destroy();
     if (suggestHandle) suggestHandle.destroy();
-    if (app._floors) { app._floors.destroy(); app._floors = null; } if (app._outlineEdit) { app._outlineEdit.destroy(); app._outlineEdit = null; } if (app._guide) { app._guide.destroy(); app._guide = null; } if (app._fixAll) { app._fixAll.destroy(); app._fixAll = null; } if (app._ovDot) { app._ovDot.destroy(); app._ovDot = null; } if (app._attention) { app._attention.destroy(); app._attention = null; } if (app._layers) { app._layers.destroy(); app._layers = null; } if (autoBuildHandle) autoBuildHandle.destroy();
+    if (app._photoLayer) { app._photoLayer.destroy(); app._photoLayer = null; } if (app._floors) { app._floors.destroy(); app._floors = null; } if (app._outlineEdit) { app._outlineEdit.destroy(); app._outlineEdit = null; } if (app._guide) { app._guide.destroy(); app._guide = null; } if (app._fixAll) { app._fixAll.destroy(); app._fixAll = null; } if (app._ovDot) { app._ovDot.destroy(); app._ovDot = null; } if (app._attention) { app._attention.destroy(); app._attention = null; } if (app._layers) { app._layers.destroy(); app._layers = null; } if (autoBuildHandle) autoBuildHandle.destroy();
     autoBuildHandle = null;
     app.autoBuild = null;
     if (stepStripHandle) stepStripHandle.destroy();
@@ -408,10 +408,13 @@ export function createStudio(app, deps) {
       onDone: (photo, extra) => {
         const hadContent = project.doc.items.length > 0 || !!project.doc.floor;
         project.photo = photo;
+        project.extraPhotos = (extra && extra.extraPhotos) || project.extraPhotos || [];
         if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
         enterStudio(project, { freshView: true });
+        if (app.saveView) app.saveView(); // the new photo(s) are saved right away
         if (extra && extra.autoBuild && app.autoBuild) app.autoBuild.run(extra.pixels);
+        if (extra && extra.multi && app._photoLayer) app._photoLayer.arrange(); // several photos: arrive apart and selected
       },
       onSkip: () => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }

@@ -51,6 +51,8 @@ export function projectSignature(project) {
     name: project.name,
     slug: project.slug,
     photo: photoSig,
+    placement: p && p.t ? p.t : null,
+    extra: (project.extraPhotos || []).map((e) => `${e.width || 0}x${e.height || 0}:${e.dataUrl ? e.dataUrl.length : 0}:${JSON.stringify(e.t || null)}`),
   });
 }
 
@@ -224,6 +226,7 @@ export function exportProjectJson(project) {
     savedAt: project.savedAt,
     doc: project.doc,
     photo: project.photo,
+    extraPhotos: project.extraPhotos && project.extraPhotos.length ? project.extraPhotos : undefined,
     view: project.view,
   };
   return JSON.stringify(payload, null, 2);
@@ -246,6 +249,7 @@ export function importProjectJson(text) {
     savedAt: data.savedAt || Date.now(),
     doc: data.doc,
     photo: data.photo || null,
+    extraPhotos: Array.isArray(data.extraPhotos) ? data.extraPhotos : [],
     view: data.view || { zoom: 1, panX: 0, panY: 0, onion: 0.5 },
     history: { past: [], future: [] },
   };
