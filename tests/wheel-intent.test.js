@@ -40,7 +40,8 @@ test('zoomFactor: continuous and capped for pinch / ctrl+scroll; a wheel notch i
   const f = (dy, kind, o = {}) => zoomFactor({ deltaY: dy, deltaMode: 0, ...o }, kind);
   assert.ok(f(-4, 'pinch') > 1 && f(4, 'pinch') < 1);
   assert.ok(f(-2, 'pinch') < f(-4, 'pinch') && f(-4, 'pinch') < f(-8, 'pinch'), 'bigger delta, bigger step');
-  assert.equal(f(-30, 'pinch'), f(-500, 'pinch'), 'one huge event never jumps past the cap');
+  assert.equal(f(-40, 'pinch'), f(-500, 'pinch'), 'one huge event never jumps past the cap');
+  assert.ok(f(-500, 'pinch') < 1.25, 'and the cap is gentle (about 22%)');
   assert.ok(Math.abs(f(-500, 'pinch') * f(500, 'pinch') - 1) < 1e-9, 'in and out cancel');
   assert.ok(Math.abs(f(-100, 'wheel') - 1.1) < 1e-9);
   assert.ok(Math.abs(f(-120, 'wheel') - 1.1 ** 1.2) < 1e-9);
@@ -51,20 +52,36 @@ test('zoom smoother: glides toward the target over several frames, merges a burs
   let z = 1, frames = [], seen = [];
   const raf = (fn) => { frames.push(fn); return frames.length; };
   const sm = createZoomSmoother({ min: 0.1, max: 8, get: () => z, set: (v) => { z = v; seen.push(v); }, raf, caf: () => { frames = []; } });
-  for (let i = 0; i < 10; i++) sm.push(1.1, 5, 5); // a burst of ten events in one frame
-  assert.ok(Math.abs(sm.target() - 1.1 ** 10) < 1e-9);
+  for (let i = 0; i < 5; i++) sm.push(1.05, 5, 5); // a burst of five events in one frame
+  assert.ok(Math.abs(sm.target() - 1.05 ** 5) < 1e-9);
   let n = 0;
-  while (frames.length && n++ < 200) { const fn = frames.shift(); fn(); }
+  while (frames.length && n++ < 300) { const fn = frames.shift(); fn(); }
   assert.ok(seen.length >= 5, `eased over ${seen.length} frames`);
   assert.ok(seen.every((v, i) => i === 0 || v >= seen[i - 1]), 'monotonic: no spike back');
-  assert.ok(Math.max(...seen) <= 1.1 ** 10 + 1e-9, 'no overshoot');
-  assert.ok(Math.abs(z - 1.1 ** 10) < 1e-9, 'lands exactly on the target');
+  assert.ok(Math.max(...seen) <= 1.05 ** 5 + 1e-9, 'no overshoot');
+  assert.ok(Math.abs(z - 1.05 ** 5) < 1e-9, 'lands exactly on the target');
   assert.equal(sm.active(), false);
-  // clamps to the limits
-  sm.push(100, 0, 0); n = 0; while (frames.length && n++ < 200) frames.shift()();
-  assert.equal(z, 8);
-  sm.push(1e-9, 0, 0); n = 0; while (frames.length && n++ < 200) frames.shift()();
-  assert.equal(z, 0.1);
+  // no frame changes the zoom by more than ~4%
+  let prev = 1; for (const v of seen) { assert.ok(Math.abs(Math.log(v / prev)) <= 0.0401, 'step too big'); prev = v; }
   // cancel stops it
-  sm.push(2, 0, 0); sm.cancel(); assert.equal(sm.active(), false);
+  sm.push(1.2, 0, 0); sm.cancel(); assert.equal(sm.active(), false);
+});
+
+test('zoom smoother: a long burst cannot queue a long tail, and the limits hold (no flying between two extremes)', () => {
+  let z = 1, frames = [];
+  const raf = (fn) => { frames.push(fn); return frames.length; };
+  const sm = createZoomSmoother({ min: 0.1, max: 8, get: () => z, set: (v) => { z = v; }, raf, caf: () => { frames = []; } });
+  for (let i = 0; i < 200; i++) sm.push(1.2, 0, 0); // a huge burst, e.g. a trackpad's momentum
+  assert.ok(sm.target() <= Math.exp(0.3) + 1e-9, `target ${sm.target()}`);
+  let n = 0; while (frames.length && n++ < 300) frames.shift()();
+  assert.ok(z <= Math.exp(0.3) + 1e-9 && z > 1.2);
+  // zooming out the same way comes back through the middle, not to the far end
+  for (let i = 0; i < 200; i++) sm.push(1 / 1.2, 0, 0);
+  n = 0; while (frames.length && n++ < 300) frames.shift()();
+  assert.ok(z > 0.6 && z < 1.3, `z ${z}`);
+  // the hard limits
+  for (let r = 0; r < 20; r++) { sm.push(1.3, 0, 0); n = 0; while (frames.length && n++ < 300) frames.shift()(); }
+  assert.equal(z, 8);
+  for (let r = 0; r < 40; r++) { sm.push(1 / 1.3, 0, 0); n = 0; while (frames.length && n++ < 300) frames.shift()(); }
+  assert.equal(z, 0.1);
 });

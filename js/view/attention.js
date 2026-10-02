@@ -88,7 +88,7 @@ export function mountAttention(app) {
           if (any) { ctx.strokeStyle = col; ctx.stroke(); }
         }
       } else {
-        const pulse = 0.5 + 0.5 * Math.sin((performance.now() - t0) / 380);
+        const pulse = 0.6; // steady
         for (const p of vis) {
           const col = p.level === 'error' ? ORANGE : YELLOW;
           ctx.beginPath();
@@ -103,7 +103,9 @@ export function mountAttention(app) {
     } catch (e) { /* canvas gone (studio re-entry): nothing to draw on */ }
   }
 
-  const animated = () => enabled && polys.length > 0 && polys.length <= RICH_MAX;
+  // No pulsing: a pulse re-draws the whole plan (photo included) ten times a second, which keeps the page busy and
+  // makes dragging, panning and zooming lag. The yellow outline is static; it only redraws when something changes.
+  const animated = () => false;
   function tick() {
     timer = 0;
     if (!alive || busy || !animated()) return;

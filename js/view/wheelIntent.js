@@ -31,33 +31,41 @@ export function createWheelIntent() {
 
 // ---- how far one wheel / pinch event zooms, as a factor (>1 zooms in)
 // One continuous rule for pinch and ctrl + scroll (so slow, fast and trailing "momentum" events all feel the
-// same): proportional to the delta, with a cap so one big event never jumps. A plain mouse-wheel notch is a
+// same): proportional to the delta, with a cap so one big event never jumps. (Too strong a gain makes the zoom
+// fly between its two extremes.) A plain mouse-wheel notch is a
 // fixed 10% step, however many pixels the browser reports for it.
 export function zoomFactor(e, kind) {
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
   const dy = (e.deltaY || 0) * unit;
   if (kind === 'wheel') return 1.1 ** -Math.max(-3, Math.min(3, dy / 100));
-  return Math.exp(-Math.max(-30, Math.min(30, dy)) * 0.01);
+  return Math.exp(-Math.max(-40, Math.min(40, dy)) * 0.005); // at most about 22% for one event; a pinch (1..8) is 0.5..4%
 }
 
 // Eases the zoom toward where the wheel / pinch is asking it to go, a little each animation frame, so a
 // burst of events (or the tail of a gesture) glides instead of jumping. get() -> current zoom;
 // set(zoom, x, y) applies a zoom about the point (x, y).
-export function createZoomSmoother({ get, set, min = 0.05, max = 8, raf = (fn) => requestAnimationFrame(fn), caf = (id) => cancelAnimationFrame(id), ease = 0.4 }) {
+export function createZoomSmoother({ get, set, min = 0.05, max = 8, raf = (fn) => requestAnimationFrame(fn), caf = (id) => cancelAnimationFrame(id), ease = 0.4, maxStep = 0.04, maxPending = 0.3 }) {
+  // maxStep: the most the zoom may change in one frame (log units, 0.04 = about 4%); maxPending: how far ahead
+  // of the current zoom the target may run (0.3 = about 1.35x), so a long burst or a trackpad's trailing
+  // momentum cannot queue up a long tail that keeps zooming after you let go.
   let target = null, x = 0, y = 0, id = 0;
   const step = () => {
     id = 0;
     if (target == null) return;
     const z = get();
-    const next = z * Math.pow(target / z, ease); // a fixed share of the remaining distance, in log space
-    if (Math.abs(Math.log(target / next)) < 0.003) { set(target, x, y); target = null; return; }
-    set(next, x, y);
+    const want = Math.log(target / z);
+    if (Math.abs(want) < 0.003) { set(target, x, y); target = null; return; }
+    const move = Math.max(-maxStep, Math.min(maxStep, want * ease)); // a share of the way, never more than maxStep
+    set(z * Math.exp(move), x, y);
     id = raf(step);
   };
   return {
     push(factor, px, py) {
-      const base = target == null ? get() : target;
-      target = Math.max(min, Math.min(max, base * factor));
+      const z = get();
+      const base = target == null ? z : target;
+      let t = Math.max(min, Math.min(max, base * factor));
+      t = Math.max(z * Math.exp(-maxPending), Math.min(z * Math.exp(maxPending), t));
+      target = Math.max(min, Math.min(max, t));
       x = px; y = py;
       if (!id) id = raf(step);
     },

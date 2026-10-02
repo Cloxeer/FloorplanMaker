@@ -145,12 +145,13 @@ test('ctrl + scroll zooms the map fluidly: a glide over many frames, no spike, a
     }
   }`);
   const z0 = frames[0], zEnd = frames[frames.length - 1];
-  expect(zEnd).toBeGreaterThan(z0 * 1.5); // it actually zoomed in
+  expect(zEnd).toBeGreaterThan(z0 * 1.3); // it actually zoomed in
+  expect(zEnd).toBeLessThan(z0 * 4); // ...but did not fly to the far end
   const distinct = new Set(frames.map((v) => Math.round(v * 1e4))).size;
   expect(distinct).toBeGreaterThan(10); // a glide, not one jump
   let worst = 1;
   for (let i = 1; i < frames.length; i++) { expect(frames[i]).toBeGreaterThanOrEqual(frames[i - 1] - 1e-9); worst = Math.max(worst, frames[i] / frames[i - 1]); }
-  expect(worst).toBeLessThan(1.35); // never a spike from one frame to the next
+  expect(worst).toBeLessThan(1.06); // never a spike from one frame to the next (about 4% at most)
   const tail = frames.slice(-20);
   expect(Math.abs(tail[tail.length - 1] - tail[0])).toBeLessThan(1e-6); // and it has stopped
   expect(errors).toEqual([]);
@@ -191,11 +192,12 @@ test('Preview: ctrl + scroll glides, and the scroll wheel pressed in drags the p
       await new Promise((res) => setTimeout(res, 16));
     }
   }`);
-  expect(frames[frames.length - 1]).toBeGreaterThan(1.5);
+  expect(frames[frames.length - 1]).toBeGreaterThan(1.2);
+  expect(frames[frames.length - 1]).toBeLessThan(5);
   expect(new Set(frames.map((v) => Math.round(v * 1e3))).size).toBeGreaterThan(10);
   let worst = 1;
   for (let i = 1; i < frames.length; i++) { expect(frames[i]).toBeGreaterThanOrEqual(frames[i - 1] - 1e-9); worst = Math.max(worst, frames[i] / frames[i - 1]); }
-  expect(worst).toBeLessThan(1.35);
+  expect(worst).toBeLessThan(1.06);
   const tail = frames.slice(-15);
   expect(Math.abs(tail[tail.length - 1] - tail[0])).toBeLessThan(1e-6);
 
@@ -213,5 +215,48 @@ test('Preview: ctrl + scroll glides, and the scroll wheel pressed in drags the p
   expect(t1[0]).toBeLessThan(t0[0] - 40);
   expect(t1[1]).toBeLessThan(t0[1] - 30);
   expect(await page.evaluate(() => (/scale\(([-0-9.]+)\)/.exec(document.querySelector('#preview-svg-wrap svg').style.transform) || [])[1])).toBeTruthy(); // a wheel press never zooms/resets
+  expect(errors).toEqual([]);
+});
+
+test('ctrl + scroll goes in AND out through the middle (never flying between two extremes), and it stops soon after you let go', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.evaluate(() => window.__app.canvas.fabricCanvas.setViewportTransform([0.5, 0, 0, 0.5, 0, 0]));
+  const drive = (dy, n) => page.evaluate(async ({ dy, n }) => {
+    const u = window.__app.canvas.fabricCanvas.upperCanvasEl, r = u.getBoundingClientRect();
+    for (let i = 0; i < n; i++) { u.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + 200, clientY: r.top + 200, deltaY: dy, deltaMode: 0, ctrlKey: true, bubbles: true, cancelable: true })); await new Promise((res) => setTimeout(res, 8)); }
+  }, { dy, n });
+  const z = async () => (await vt(page))[0];
+  const z0 = await z();
+  await drive(-30, 40); // a fast ctrl + scroll in
+  const t0 = Date.now();
+  await page.waitForTimeout(400); // the glide is over well within this
+  const zIn = await z();
+  expect(zIn).toBeGreaterThan(z0 * 1.2);
+  expect(zIn).toBeLessThan(8); // not slammed to the maximum
+  await page.waitForTimeout(100);
+  expect(await z()).toBeCloseTo(zIn, 6); // and it has stopped: nothing is still moving after you let go
+  await drive(30, 40); // and back out
+  await page.waitForTimeout(500);
+  const zOut = await z();
+  expect(zOut).toBeLessThan(zIn * 0.9);
+  expect(zOut).toBeGreaterThan(0.1);
+  expect(Date.now() - t0).toBeLessThan(5000);
+  expect(errors).toEqual([]);
+});
+
+test('the page is idle after a drag: no animation loop keeps re-drawing the plan', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.evaluate(async () => {
+    const D = await import('/js/model/document.js');
+    const room = window.__app.doc.items.find((i) => i.type === 'room');
+    window.__app.commit(D.updateItem(window.__app.doc, room.id, { x: room.x + 5 }), 'drag'); // makes the yellow notes (rooms without numbers etc.) appear
+  });
+  await page.waitForTimeout(800);
+  const renders = await page.evaluate(async () => {
+    let n = 0; const c = window.__app.canvas.fabricCanvas; c.on('after:render', () => { n++; });
+    await new Promise((r) => setTimeout(r, 1500));
+    return n;
+  });
+  expect(renders).toBeLessThanOrEqual(2); // it used to redraw ten times a second (the highlight pulse)
   expect(errors).toEqual([]);
 });
