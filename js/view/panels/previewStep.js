@@ -13,6 +13,7 @@ import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 import { createLayoutBox } from './pageLayout.js';
 import { mountPreviewScope } from './previewScope.js';
+import { createZoomSmoother, zoomFactor } from '../wheelIntent.js';
 
 const PAGE_BUTTONS = [
   ['fit', 'Fit to SVG'],
@@ -145,6 +146,7 @@ export function showPreviewStep({
     applyZoom();
   }
   let zoomOut = null;
+  const zs = createZoomSmoother({ min: 1, max: ZMAX, get: () => zoom.z, set: (z, x, y) => zoomAt(x, y, z) });
   if (svgEl) {
     const st = document.createElement('style');
     st.textContent = `
@@ -182,9 +184,9 @@ export function showPreviewStep({
     // (ctrl/cmd + wheel) zooms at the pointer. At fit, the wheel leaves the page alone.
     wrapEl.addEventListener('wheel', (e) => {
       if (page !== 'fit') return;
-      if (e.ctrlKey || e.metaKey) {
+      if (e.ctrlKey || e.metaKey) { // pinch / ctrl + scroll: eased, so a burst (or the tail of a gesture) glides
         e.preventDefault();
-        zoomAt(e.clientX, e.clientY, zoom.z * Math.exp(-e.deltaY * 0.01));
+        zs.push(zoomFactor(e, 'pinch'), e.clientX, e.clientY);
         return;
       }
       if (zoom.z === 1) return;
@@ -202,11 +204,12 @@ export function showPreviewStep({
     let down = null, pinch = null;
     const mid = () => { const v = [...pts.values()]; return { x: (v[0].x + v[1].x) / 2, y: (v[0].y + v[1].y) / 2, d: Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1 }; };
     svgEl.addEventListener('pointerdown', (e) => {
-      if (page !== 'fit' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (page !== 'fit' || (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1)) return;
+      if (e.button === 1) e.preventDefault(); // the scroll wheel pressed in grabs and drags the plan
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY, mid: e.button === 1 });
       try { svgEl.setPointerCapture(e.pointerId); } catch { /* synthetic / already released pointer */ }
       if (pts.size === 2) { pinch = mid(); if (down) down.moved = true; return; }
-      if (pts.size === 1) down = { x: e.clientX, y: e.clientY, tx: zoom.tx, ty: zoom.ty, moved: false };
+      if (pts.size === 1) down = { x: e.clientX, y: e.clientY, tx: zoom.tx, ty: zoom.ty, moved: e.button === 1 }; // a wheel press never counts as a click
     });
     svgEl.addEventListener('pointermove', (e) => {
       if (!pts.has(e.pointerId)) return;
@@ -239,6 +242,7 @@ export function showPreviewStep({
       down = null;
       if (click && page === 'fit' && zoom.z === 1) zoomAt(e.clientX, e.clientY, 2.5);
     };
+    svgEl.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no auto-scroll circle
     svgEl.addEventListener('pointerup', (e) => lift(e, false));
     svgEl.addEventListener('pointercancel', (e) => lift(e, true));
     svgEl.addEventListener('dblclick', (e) => { if (page === 'fit' && zoom.z > 1) zoomAt(e.clientX, e.clientY, zoom.z * 1.6); });
@@ -339,6 +343,7 @@ export function showPreviewStep({
   applyPage();
 
   function close() {
+    zs.cancel();
     document.removeEventListener('keydown', onKeyDown);
     if (resizeObs) resizeObs.disconnect();
     el.remove();

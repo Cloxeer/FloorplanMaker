@@ -4,7 +4,7 @@
 // pan-tool dragging, two-finger touch pan+pinch, and the tool cursor.
 // Depends on: fabric@6.7.1, the Fabric canvas and the shared `app` object.
 
-import { createWheelIntent } from './wheelIntent.js';
+import { createWheelIntent, createZoomSmoother, zoomFactor } from './wheelIntent.js';
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 
 const MIN_ZOOM = 0.1;
@@ -56,13 +56,14 @@ export function attachView(canvas, app, containerEl, render) {
     return fabric.util.transformPoint(p, fabric.util.invertTransform(canvas.viewportTransform));
   }
 
-  // deltaMode: 0=pixel (~100px/notch), 1=line (~3 lines/notch), 2=page (1/notch).
-  // Ctrl+wheel (browsers report trackpad pinch as a ctrlKey wheel event) also
-  // zooms since it goes through this same handler regardless of ctrlKey.
-  const WHEEL_UNIT = { 0: 100, 1: 3, 2: 1 };
   // Two-finger drag on a trackpad moves the map; a pinch (ctrl + wheel) and a mouse wheel notch zoom.
   // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
   const intent = createWheelIntent();
+  const smoother = createZoomSmoother({
+    min: MIN_ZOOM, max: MAX_ZOOM,
+    get: () => canvas.getZoom(),
+    set: (z, x, y) => { canvas.zoomToPoint(new fabric.Point(x, y), z); app.emit({ type: 'view' }); },
+  });
   canvas.on('mouse:wheel', (opt) => {
     const e = opt.e;
     const kind = intent(e);
@@ -73,15 +74,34 @@ export function attachView(canvas, app, containerEl, render) {
       app.emit({ type: 'view' });
       return;
     }
-    // a pinch sends small deltas (about -10..10): scale them so the zoom keeps up with the fingers
-    const factor = kind === 'pinch' ? Math.exp(-e.deltaY * 0.012) : 1.1 ** -((e.deltaY || 0) / (WHEEL_UNIT[e.deltaMode] || 100));
-    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, canvas.getZoom() * factor));
+    // pinch, ctrl + scroll and wheel notches all feed one smoother, so the zoom glides (and the tail of a
+    // gesture never jumps): it eases toward the asked-for zoom a little each frame, about the pointer
     const rect = canvas.upperCanvasEl.getBoundingClientRect();
-    canvas.zoomToPoint(new fabric.Point(e.clientX - rect.left, e.clientY - rect.top), zoom);
+    smoother.push(zoomFactor(e, kind), e.clientX - rect.left, e.clientY - rect.top);
     e.preventDefault();
     e.stopPropagation();
+  });
+
+  // the scroll wheel pressed in: grab the map and drag it (fabric does not report the middle button)
+  let grab = null;
+  const upper = canvas.upperCanvasEl;
+  on(upper, 'mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no browser auto-scroll circle
+  on(upper, 'pointerdown', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    grab = { x: e.clientX, y: e.clientY, view: getView() };
+    try { upper.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+    canvas.setCursor('grabbing');
+  });
+  on(upper, 'pointermove', (e) => {
+    if (!grab) return;
+    const z = grab.view.zoom;
+    setView({ x: grab.view.x - (e.clientX - grab.x) / z, y: grab.view.y - (e.clientY - grab.y) / z });
     app.emit({ type: 'view' });
   });
+  const endGrab = (e) => { if (!grab) return; grab = null; try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ } applyCursor(); };
+  on(upper, 'pointerup', endGrab);
+  on(upper, 'pointercancel', endGrab);
 
   // space / middle-button / pan-tool dragging
   let spaceHeld = false;
@@ -163,6 +183,7 @@ export function attachView(canvas, app, containerEl, render) {
     render();
   }
   function destroyView() {
+    smoother.cancel();
     for (const [target, type, fn, opts] of listeners) target.removeEventListener(type, fn, opts);
     listeners.length = 0;
   }

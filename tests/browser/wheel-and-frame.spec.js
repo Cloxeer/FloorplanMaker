@@ -31,7 +31,7 @@ const wheels = (page, list, gap, extra = {}) => page.evaluate(async ({ list, gap
   }
 }, { list, gap, extra });
 const vt = (page) => page.evaluate(() => [...window.__app.canvas.fabricCanvas.viewportTransform]);
-const settle = (page) => page.waitForTimeout(150);
+const settle = (page) => page.waitForTimeout(450); // zoom glides over a few frames
 
 test('two-finger drag (slow or a fast flick) moves the map; pinch and wheel notch zoom it', async ({ page }) => {
   const errors = await openStudio(page);
@@ -120,5 +120,98 @@ test('Drawing select: the frame moves with the drawing while dragging and resizi
   await expect(page.locator('.pl-pill')).toHaveCount(0);
   expect(await page.evaluate(() => window.__app._photoLayer.mode())).toBe(null);
   expect(await frame()).toMatchObject({ w: expect.any(Number) }); // still computable, but nothing draws it
+  expect(errors).toEqual([]);
+});
+
+// ---- fluid zoom + the scroll wheel pressed in
+const sampleZoom = (page, readExpr, run) => page.evaluate(async ({ readExpr, run }) => {
+  const read = new Function(`return (${readExpr})();`);
+  const frames = []; let on = true;
+  const loop = () => { frames.push(read()); if (on) requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+  await new Promise((r) => setTimeout(r, 60));
+  await (new Function(`return (${run})();`))();
+  await new Promise((r) => setTimeout(r, 900));
+  on = false; await new Promise((r) => setTimeout(r, 40));
+  return frames;
+}, { readExpr, run });
+
+test('ctrl + scroll zooms the map fluidly: a glide over many frames, no spike, and it stops when the gesture does', async ({ page }) => {
+  const errors = await openStudio(page);
+  const frames = await sampleZoom(page, '() => window.__app.canvas.fabricCanvas.getZoom()', `async () => {
+    const u = window.__app.canvas.fabricCanvas.upperCanvasEl, r = u.getBoundingClientRect();
+    for (let i = 0; i < 30; i++) { // a pinch: small deltas, ~60 per second
+      u.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + 200, clientY: r.top + 200, deltaY: -4, deltaMode: 0, ctrlKey: true, bubbles: true, cancelable: true }));
+      await new Promise((res) => setTimeout(res, 16));
+    }
+  }`);
+  const z0 = frames[0], zEnd = frames[frames.length - 1];
+  expect(zEnd).toBeGreaterThan(z0 * 1.5); // it actually zoomed in
+  const distinct = new Set(frames.map((v) => Math.round(v * 1e4))).size;
+  expect(distinct).toBeGreaterThan(10); // a glide, not one jump
+  let worst = 1;
+  for (let i = 1; i < frames.length; i++) { expect(frames[i]).toBeGreaterThanOrEqual(frames[i - 1] - 1e-9); worst = Math.max(worst, frames[i] / frames[i - 1]); }
+  expect(worst).toBeLessThan(1.35); // never a spike from one frame to the next
+  const tail = frames.slice(-20);
+  expect(Math.abs(tail[tail.length - 1] - tail[0])).toBeLessThan(1e-6); // and it has stopped
+  expect(errors).toEqual([]);
+});
+
+test('the scroll wheel pressed in grabs and drags the map', async ({ page }) => {
+  const errors = await openStudio(page);
+  const box = await page.locator('#stage canvas.upper-canvas').boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const before = await vt(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(x - 60, y + 40, { steps: 5 });
+  await expect(page.locator('#btn-hand-toggle')).toHaveClass(/oe-held/);
+  await page.mouse.move(x - 120, y + 80, { steps: 5 });
+  const during = await vt(page);
+  expect(during[4]).toBeCloseTo(before[4] - 120, 0); // follows the cursor 1:1
+  expect(during[5]).toBeCloseTo(before[5] + 80, 0);
+  expect(during[0]).toBeCloseTo(before[0], 6);
+  await page.mouse.up({ button: 'middle' });
+  await expect(page.locator('#btn-hand-toggle')).not.toHaveClass(/oe-held/);
+  const after = await vt(page);
+  await page.mouse.move(x + 30, y + 30, { steps: 3 }); // no drag after release
+  expect(await vt(page)).toEqual(after);
+  expect(errors).toEqual([]);
+});
+
+// ---- the Preview: the same two things
+test('Preview: ctrl + scroll glides, and the scroll wheel pressed in drags the plan', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.evaluate(() => window.__app.exportAll());
+  await expect(page.locator('#preview-svg-wrap svg')).toBeVisible();
+  const scaleOf = String.raw`() => { const m = /scale\(([-0-9.]+)\)/.exec(document.querySelector('#preview-svg-wrap svg').style.transform || ''); return m ? parseFloat(m[1]) : 1; }`;
+  const frames = await sampleZoom(page, scaleOf, `async () => {
+    const w = document.getElementById('preview-svg-wrap'), r = w.getBoundingClientRect();
+    for (let i = 0; i < 30; i++) {
+      w.dispatchEvent(new WheelEvent('wheel', { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, deltaY: -5, deltaMode: 0, ctrlKey: true, bubbles: true, cancelable: true }));
+      await new Promise((res) => setTimeout(res, 16));
+    }
+  }`);
+  expect(frames[frames.length - 1]).toBeGreaterThan(1.5);
+  expect(new Set(frames.map((v) => Math.round(v * 1e3))).size).toBeGreaterThan(10);
+  let worst = 1;
+  for (let i = 1; i < frames.length; i++) { expect(frames[i]).toBeGreaterThanOrEqual(frames[i - 1] - 1e-9); worst = Math.max(worst, frames[i] / frames[i - 1]); }
+  expect(worst).toBeLessThan(1.35);
+  const tail = frames.slice(-15);
+  expect(Math.abs(tail[tail.length - 1] - tail[0])).toBeLessThan(1e-6);
+
+  // wheel pressed in: the plan follows the cursor
+  const tr = () => page.evaluate(() => { const m = /translate\(([-0-9.]+)px, ([-0-9.]+)px\)/.exec(document.querySelector('#preview-svg-wrap svg').style.transform || ''); return m ? [parseFloat(m[1]), parseFloat(m[2])] : [0, 0]; });
+  const t0 = await tr();
+  const box = await page.locator('#preview-svg-wrap').boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.move(x - 40, y - 30, { steps: 4 });
+  await page.mouse.move(x - 80, y - 60, { steps: 4 });
+  await page.mouse.up({ button: 'middle' });
+  const t1 = await tr();
+  expect(t1[0]).toBeLessThan(t0[0] - 40);
+  expect(t1[1]).toBeLessThan(t0[1] - 30);
+  expect(await page.evaluate(() => (/scale\(([-0-9.]+)\)/.exec(document.querySelector('#preview-svg-wrap svg').style.transform) || [])[1])).toBeTruthy(); // a wheel press never zooms/resets
   expect(errors).toEqual([]);
 });
