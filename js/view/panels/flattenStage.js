@@ -2,7 +2,8 @@
 // The "Flattened" screen of the photo step: shows the flattened photo large,
 // two sliders (Tilt = up/down, Turn = left/right) plus a small Rotate slider
 // that re-project it live, Auto-level, a Grid toggle, and two choices:
-// Start tracing or AutoBuild. Preview runs on a <=1000 px copy; the full
+// Start tracing or AutoBuild (or, when `nextLabel` is given because this is one of several photos, a single
+// "next photo" button). Preview runs on a <=1000 px copy; the full
 // resolution image is only produced by exportAdjusted() when a choice is made.
 // Depends on: js/model/autobuild/flatten.js (applyAxes, estimateAxes).
 
@@ -60,14 +61,14 @@ function toCanvas(out) {
 }
 
 // base: flattened full-res canvas. vals: shared {tilt, turn, roll, grid} (mutated, survives Back).
-export function mountFlattenStage(el, { base, vals, corners, originalDataUrl, onBack, onStart, onAutoBuild }) {
+export function mountFlattenStage(el, { base, vals, corners, originalDataUrl, onBack, onStart, onAutoBuild, nextLabel }) {
   if (!document.getElementById('fs-style')) {
     const st = document.createElement('style'); st.id = 'fs-style'; st.textContent = STYLE; document.head.appendChild(st);
   }
   el.innerHTML = `
     <div class="fs-wrap">
       <div class="fs-imgwrap"><canvas id="fs-canvas"></canvas><div class="fs-grid"></div></div>
-      <p class="fs-caption">If walls still lean, nudge the sliders. Then pick how to continue.</p>
+      <p class="fs-caption">${nextLabel ? 'If walls still lean, nudge the sliders. Then go on.' : 'If walls still lean, nudge the sliders. Then pick how to continue.'}</p>
       <div class="fs-controls">
         ${AXES.map((a) => `<div class="fs-row${a.key === 'roll' ? ' fs-small' : ''}">
           <label for="fs-${a.key}">${a.label}</label>
@@ -80,11 +81,13 @@ export function mountFlattenStage(el, { base, vals, corners, originalDataUrl, on
         <button type="button" id="fs-grid" aria-pressed="false">Grid</button>
       </div>
       <p class="fs-status" id="fs-status" role="status"></p>
-      <div class="fs-choices">
+      ${nextLabel ? `<div class="fs-choices">
+        <button type="button" id="ps-next-photo" class="btn-primary">${nextLabel}</button>
+      </div>` : `<div class="fs-choices">
         <button type="button" id="ps-start-tracing" class="btn-primary">Start tracing</button>
         <button type="button" id="ps-autobuild" class="btn-primary" title="Build the whole plan for you">AutoBuild</button>
       </div>
-      <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
+      <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>`}
     </div>`;
   const $ = (s) => el.querySelector(s);
   const canvas = $('#fs-canvas');
@@ -151,16 +154,20 @@ export function mountFlattenStage(el, { base, vals, corners, originalDataUrl, on
     };
   }
 
-  $('#ps-start-tracing').addEventListener('click', () => { onStart(exportAdjusted().photo); });
-  const abBtn = $('#ps-autobuild');
-  abBtn.addEventListener('click', async () => {
-    abBtn.disabled = true;
-    const label = abBtn.textContent;
-    abBtn.textContent = 'Preparing…';
-    await new Promise((r) => setTimeout(r, 30)); // let the label paint
-    try { await onAutoBuild(exportAdjusted(), !isFlat()); }
-    finally { abBtn.disabled = false; abBtn.textContent = label; }
-  });
+  if (nextLabel) { // one of several photos: just keep this flattened one and move on
+    $('#ps-next-photo').addEventListener('click', () => { onStart(exportAdjusted().photo); });
+  } else {
+    $('#ps-start-tracing').addEventListener('click', () => { onStart(exportAdjusted().photo); });
+    const abBtn = $('#ps-autobuild');
+    abBtn.addEventListener('click', async () => {
+      abBtn.disabled = true;
+      const label = abBtn.textContent;
+      abBtn.textContent = 'Preparing…';
+      await new Promise((r) => setTimeout(r, 30)); // let the label paint
+      try { await onAutoBuild(exportAdjusted(), !isFlat()); }
+      finally { abBtn.disabled = false; abBtn.textContent = label; }
+    });
+  }
 
   readouts();
   draw();

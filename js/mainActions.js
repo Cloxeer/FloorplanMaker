@@ -21,7 +21,7 @@ import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
 import { mountAutoBuild } from './view/panels/autobuild.js'; import { mountLayers } from './view/panels/layers.js'; import { mountAttention } from './view/attention.js'; import { mountOverlapDot } from './view/overlapDot.js'; import { mountFixAll } from './view/fixAll.js';
-import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { mountPhotoLayer } from './view/photoLayer.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
+import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { mountPhotoLayer } from './view/photoLayer.js'; import { mountOutlinePrompt } from './view/outlinePrompt.js'; import { mountMultiPhoto } from './view/panels/multiPhoto.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
 
 export { createActions } from './docActions.js';
 
@@ -158,10 +158,7 @@ export function createStudio(app, deps) {
     btn.title = ready ? '' : 'Finish the checklist first';
   }
   function updateOverlay() {
-    const overlay = document.getElementById('start-overlay');
-    if (!overlay) return;
-    const hasFloor = !!(app.doc && app.doc.floor && app.doc.floor.points && app.doc.floor.points.length >= 3);
-    overlay.hidden = hasFloor;
+    if (app._outlinePrompt) app._outlinePrompt.update();
   }
   // where back goes: the building's floors page (or the buildings list for a project with no building)
   const buildingRoute = (project) => {
@@ -221,7 +218,7 @@ export function createStudio(app, deps) {
     validationHandle = mountValidation(document.getElementById('validation'), app);
     suggestHandle = mountSuggest(app);
     app.suggest = suggestHandle;
-    autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app); app._photoLayer = mountPhotoLayer(app);
+    autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app); app._photoLayer = mountPhotoLayer(app); app._outlinePrompt = mountOutlinePrompt(app);
     app.autoBuild = autoBuildHandle;
     const stripEl = document.getElementById('step-strip');
     if (stripEl) {
@@ -318,7 +315,7 @@ export function createStudio(app, deps) {
     if (propertiesHandle) propertiesHandle.destroy();
     if (validationHandle) validationHandle.destroy();
     if (suggestHandle) suggestHandle.destroy();
-    if (app._photoLayer) { app._photoLayer.destroy(); app._photoLayer = null; } if (app._floors) { app._floors.destroy(); app._floors = null; } if (app._outlineEdit) { app._outlineEdit.destroy(); app._outlineEdit = null; } if (app._guide) { app._guide.destroy(); app._guide = null; } if (app._fixAll) { app._fixAll.destroy(); app._fixAll = null; } if (app._ovDot) { app._ovDot.destroy(); app._ovDot = null; } if (app._attention) { app._attention.destroy(); app._attention = null; } if (app._layers) { app._layers.destroy(); app._layers = null; } if (autoBuildHandle) autoBuildHandle.destroy();
+    if (app._outlinePrompt) { app._outlinePrompt.destroy(); app._outlinePrompt = null; } if (app._photoLayer) { app._photoLayer.destroy(); app._photoLayer = null; } if (app._floors) { app._floors.destroy(); app._floors = null; } if (app._outlineEdit) { app._outlineEdit.destroy(); app._outlineEdit = null; } if (app._guide) { app._guide.destroy(); app._guide = null; } if (app._fixAll) { app._fixAll.destroy(); app._fixAll = null; } if (app._ovDot) { app._ovDot.destroy(); app._ovDot = null; } if (app._attention) { app._attention.destroy(); app._attention = null; } if (app._layers) { app._layers.destroy(); app._layers = null; } if (autoBuildHandle) autoBuildHandle.destroy();
     autoBuildHandle = null;
     app.autoBuild = null;
     if (stepStripHandle) stepStripHandle.destroy();
@@ -402,19 +399,25 @@ export function createStudio(app, deps) {
     showScreen('photoStep');
     if (app.setRoute) app.setRoute(`#/p/${project.slug}/photo`);
     if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
-    photoStepHandle = mountPhotoStep(document.getElementById('photo-step-body'), {
+    const host = document.getElementById('photo-step-body');
+    const finish = (photo, extra) => {
+      const hadContent = project.doc.items.length > 0 || !!project.doc.floor;
+      project.photo = photo;
+      project.extraPhotos = (extra && extra.extraPhotos) || project.extraPhotos || [];
+      if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
+      if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
+      enterStudio(project, { freshView: true });
+      if (app.saveView) app.saveView(); // the new photo(s) are saved right away
+      if (extra && extra.autoBuild && app.autoBuild) app.autoBuild.run(extra.pixels);
+    };
+    photoStepHandle = mountPhotoStep(host, {
       initial: existingPhoto || undefined,
       onBackToProjects: () => { if (app.setRoute) app.setRoute(buildingRoute(project)); else closeProject(); },
-      onDone: (photo, extra) => {
-        const hadContent = project.doc.items.length > 0 || !!project.doc.floor;
-        project.photo = photo;
-        project.extraPhotos = (extra && extra.extraPhotos) || project.extraPhotos || [];
-        if (!hadContent) project.doc = { ...project.doc, viewBox: { x: 0, y: 0, w: photo.width, h: photo.height } };
+      onDone: finish,
+      // several photos of one floor: flatten each, then line them up side by side (Back from the first returns here)
+      onMulti: (srcs, corners) => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }
-        enterStudio(project, { freshView: true });
-        if (app.saveView) app.saveView(); // the new photo(s) are saved right away
-        if (extra && extra.autoBuild && app.autoBuild) app.autoBuild.run(extra.pixels);
-        if (extra && extra.multi && app._photoLayer) app._photoLayer.arrange(); // several photos: arrive apart and selected
+        photoStepHandle = mountMultiPhoto(host, { srcs, firstCorners: corners, onDone: finish, onCancel: (msg) => { showPhotoStepFor(project, existingPhoto); if (msg && app.toast) app.toast(msg); } });
       },
       onSkip: () => {
         if (photoStepHandle) { photoStepHandle.destroy(); photoStepHandle = null; }

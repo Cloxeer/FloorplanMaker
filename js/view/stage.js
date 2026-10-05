@@ -17,6 +17,7 @@ import {
 } from './stageObjects.js';
 import { roomPolygon } from '../model/document.js';
 import { polygonsOverlap, bbox } from '../model/geometry.js';
+import { resetPolyTransform } from './stagePoly.js';
 import { createSnapper } from './stageSnap.js';
 import { attachView } from './stageView.js';
 import { attachEditing } from './stageEdit.js';
@@ -125,6 +126,10 @@ export function createStage(containerEl, app) {
       return;
     }
     if (prevFloor === newDoc.floor) return;
+    // the outline is reused, so it must not still be part of a selection (or carry its turn / scale) when it is
+    // re-pointed; the selection is re-applied right after (editing.reselect)
+    if (existing.group) canvas.discardActiveObject();
+    resetPolyTransform(existing);
     rebuildFloorPoints(existing, pts);
     if (existingEdge) rebuildFloorEdgePoints(existingEdge, pts);
   }

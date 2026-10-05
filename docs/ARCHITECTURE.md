@@ -217,6 +217,26 @@ point-editing recipe (`polygonPositionHandler`, `anchorWrapper`,
 `exportDialog.js`, `photoStep.js` (four-corner straighten via canvas
 homography warp), `suggest.js` (Tesseract + trace worker ghosts), `blueprint.js`.
 
+Several photos of one floor (`panels/multiPhoto.js`, `panels/mergeStage.js`,
+`model/photos.js`): picking 2+ photos runs each one through the normal corners
+-> Flatten screens (`photoStep.js` with its `multi` option: "Photo 1 of 3", one
+"next photo" button), then all of them sit side by side on a merge board where
+they are moved / sized / turned into one floor. "Start tracing" keeps separate
+layers (`normalizeToMain` makes the first photo the frame, so it keeps no
+placement); "AutoBuild" joins them into one picture first (`joinPhotos`).
+
+Turning a selection (`model/turn.js`): a multi-selection turns as one rigid
+body in quarter turns (rooms, halls and stairs stay boxes; poly rooms, outline,
+doors and staff walls turn point by point; the compass angle turns with the
+plan; the legend stays put). `stageEdit.js` commits it from the document's own
+geometry on `object:modified`; the Turn buttons in the properties panel use the
+same `turnSelection`.
+
+Deleted outline (`model/outlineRestore.js`, `view/outlinePrompt.js`): the last
+outline and where the pieces sat are remembered. The card over the stage offers
+Restore (the old outline carried to wherever the pieces are now, widened to hold
+them), Auto-outline (a fresh outline round the pieces) and Draw it again.
+
 Hotkeys: V select, R room, F floor, O door, A hallway, S stair, C compass,
 G grid, H flash photo (hold), Delete, arrows nudge, Ctrl+Z / Ctrl+Shift+Z /
 Ctrl+Y, Ctrl+C / Ctrl+V, Alt = disable magnet, Esc cancel, Enter confirm.

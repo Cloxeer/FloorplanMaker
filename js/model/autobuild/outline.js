@@ -65,7 +65,7 @@ export function extendOutline(outline, shapes, g = 5, tol = 3) {
 }
 
 // Outer boundary (largest loop) of a cell mask as a ring of grid corners.
-function cellRing(m, W, H) {
+export function cellRing(m, W, H) {
   const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H && m[y * W + x] ? 1 : 0);
   const next = new Map();
   const add = (ax, ay, bx, by) => { const k = ax + ',' + ay; if (!next.has(k)) next.set(k, []); next.get(k).push([bx, by]); };
@@ -96,7 +96,7 @@ function cellRing(m, W, H) {
 }
 
 // collapse duplicates / collinear points of an axis-parallel ring
-function rectilinearRing(pts) {
+export function rectilinearRing(pts) {
   const d = pts.filter((p, i) => { const q = pts[(i + 1) % pts.length]; return p[0] !== q[0] || p[1] !== q[1]; });
   return d.filter((p, i) => {
     const a = d[(i + d.length - 1) % d.length], b = d[(i + 1) % d.length];

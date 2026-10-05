@@ -6,7 +6,6 @@
 import { autoStraighten } from './autobuild.js';
 import { warpToCanvas } from './photoWarp.js';
 import { mountFlattenStage } from './flattenStage.js';
-import { layoutExtras } from '../../model/photos.js';
 
 const MAX_ORIGINAL = 2400;
 
@@ -46,16 +45,20 @@ function downscale(img, maxSide) {
   return { canvas, w, h };
 }
 
-export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, initial } = {}) {
+// `multi` = { index, total, vals, nextLabel, onBack } when this is one of several photos of one floor (driven
+// by multiPhoto.js): the header says which photo it is, Skip / Add multiple are gone, Back goes to the
+// previous photo (onError: a photo could not be read), and the flatten screen ends in one "next photo" button. `onMulti(srcs, corners)` is called
+// when several photos are picked, so the caller can run the several-photo flow.
+export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, onMulti, initial, multi } = {}) {
   containerEl.innerHTML = `
     <div class="ps-wrap">
       <div class="ps-drop" id="ps-drop">
         <p class="ps-navrow"><button type="button" class="ps-back" id="ps-back-projects">&larr; Back to projects</button></p>
-        <p>Drag a photo here, or</p>
+        <p>Drag a photo here (or several photos of the same floor), or</p>
         <label class="btn btn-secondary" for="ps-file">Choose a photo</label>
         <input type="file" id="ps-file" accept="image/*" hidden>
         <p id="ps-error" style="color:#b3261e; display:none"></p>
-        <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button> <button type="button" id="ps-multi-initial" title="One photo per floor is best. Use this only if the plan needs several photos.">Add multiple photos</button></p>
+        <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button> <button type="button" id="ps-multi-initial" title="One photo per floor is best. Use this only if the plan needs several photos: you flatten each one, then line them up side by side.">Add multiple photos</button></p>
         <input type="file" id="ps-multi-file" accept="image/*" multiple hidden>
         <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
       </div>
@@ -116,6 +119,10 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
   const flatEl = containerEl.querySelector('#ps-flat');
   const flatBody = containerEl.querySelector('#ps-flat-body');
   const headerEl = document.querySelector('.photo-step-header');
+  const MHEAD = multi && {
+    corners: [`Photo ${multi.index + 1} of ${multi.total}: flatten it`, 'Drag the four corners onto the corners of the map and press Flatten. You will line the photos up together afterwards.'],
+    flat: [`Photo ${multi.index + 1} of ${multi.total}: check it`, 'Check the walls look straight, then go on to the next photo.'],
+  };
   const HEADERS = {
     drop: ['Add your floor plan photo', 'Drop in a photo of the plan. You will straighten it next.'],
     corners: ['Flatten the photo', 'Took the photo at an angle? Drag the four corners onto the corners of the map and press Flatten, so rooms line up.'],
@@ -130,8 +137,9 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     editorEl.hidden = next !== 'corners';
     flatEl.hidden = next !== 'flat';
     if (headerEl) {
-      headerEl.querySelector('h2').textContent = HEADERS[next][0];
-      headerEl.querySelector('p').textContent = HEADERS[next][1];
+      const [h, t] = (MHEAD && MHEAD[next]) || HEADERS[next];
+      headerEl.querySelector('h2').textContent = h;
+      headerEl.querySelector('p').textContent = t;
     }
     if (next === 'corners') fitToViewport();
   }
@@ -244,20 +252,15 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     drawOverlay();
   }
 
-  // Several photos for one floor: read them all, keep the straight-on one as the main photo (the current photo
-  // when one is already open, else the first), put the others beside it and go straight to arranging them.
-  async function readPhoto(file) {
-    const img = await loadImage(await fileToDataUrl(file));
-    const { canvas: c, w, h } = downscale(img, MAX_ORIGINAL);
-    return { dataUrl: c.toDataURL('image/jpeg', 0.9), width: w, height: h };
-  }
+  // Several photos for one floor: hand them to the several-photo flow (flatten each one, then line them up side by
+  // side). The photo already open, if any, comes first with the corners the user placed.
   async function addMultiple(files, fromEditor) {
     try {
-      const picked = await Promise.all([...files].filter((f) => /^image\//.test(f.type || 'image/')).map(readPhoto));
-      const main = fromEditor && originalDataUrl ? { dataUrl: originalDataUrl, width: displayImg.width, height: displayImg.height } : picked.shift();
-      if (!main) return;
-      if (!picked.length && !fromEditor) { fileToDataUrl(files[0]).then(loadFromDataUrl).catch(showError); return; } // one photo: the normal flow
-      if (onDone) onDone(main, { multi: true, extraPhotos: layoutExtras(main, picked) });
+      const srcs = await Promise.all([...files].filter((f) => /^image\//.test(f.type || 'image/')).map(fileToDataUrl));
+      if (!srcs.length) return;
+      if (fromEditor && originalDataUrl) srcs.unshift(originalDataUrl);
+      if (srcs.length < 2) { loadFromDataUrl(srcs[0]).catch(showError); return; } // one photo: the normal flow
+      if (onMulti) onMulti(srcs, fromEditor ? corners.map((p) => [...p]) : null);
     } catch (err) { showError(err); }
   }
   const multiFile = containerEl.querySelector('#ps-multi-file');
@@ -284,7 +287,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
   dropEl.addEventListener('drop', onDrop);
 
   if (initial && initial.originalDataUrl) {
-    loadFromDataUrl(initial.originalDataUrl).catch(showError);
+    loadFromDataUrl(initial.originalDataUrl).catch((err) => { if (multi) multi.onError(err); else showError(err); });
   }
 
   function unmountStage() { if (stage) { stage.destroy(); stage = null; } }
@@ -309,7 +312,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     if (!corners || !displayImg) return;
     const key = JSON.stringify(corners.map((p) => p.map(Math.round)));
     if (!flat || flat.key !== key) {
-      flat = { key, base: warpToCanvas(displayImg, corners), vals: { tilt: 0, turn: 0, roll: 0, grid: false } };
+      flat = { key, base: warpToCanvas(displayImg, corners), vals: (multi && multi.vals) || { tilt: 0, turn: 0, roll: 0, grid: false } };
     }
     unmountStage();
     stage = mountFlattenStage(flatBody, {
@@ -317,12 +320,14 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
       onBack: backToCorners,
       onStart: (photo) => { if (onDone) onDone(photo); },
       onAutoBuild: runAutoBuild,
+      nextLabel: multi && multi.nextLabel,
     });
     show('flat');
   });
 
   function backToCorners() { unmountStage(); show('corners'); }
   function backToDrop() {
+    if (multi) { multi.onBack(); return; }
     unmountStage();
     initial = null; flat = null; displayImg = null; originalDataUrl = null; corners = null; cornersTouched = false;
     fileInput.value = '';
@@ -339,6 +344,11 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
   }
   document.addEventListener('keydown', onKey);
   show('drop');
+  if (multi) {
+    skipBtn.hidden = true;
+    containerEl.querySelector('#ps-multi').hidden = true;
+    containerEl.querySelector('#ps-back-corners').innerHTML = '&larr; Back';
+  }
 
   skipBtn.addEventListener('click', () => {
     if (onSkip) onSkip();

@@ -39,10 +39,20 @@ export function attachView(canvas, app, containerEl, render) {
     canvas.setViewportTransform([zoom, 0, 0, zoom, -x * zoom, -y * zoom]);
     render();
   }
-  function zoomTo(fit = true) {
-    const doc = getDoc();
-    if (!doc || !fit) return;
+  // The plan's box: its viewBox, grown to hold every photo (a floor made of several photos reaches past the first).
+  function planBox() {
+    const doc = getDoc && getDoc();
+    if (!doc || !doc.viewBox) return null;
     const vb = doc.viewBox;
+    let box = { x: vb.x, y: vb.y, w: vb.w, h: vb.h };
+    const ph = app.project && [app.project.photo, ...((app.project && app.project.extraPhotos) || [])].filter((p) => p && p.dataUrl);
+    const u = ph && ph.length ? unionBox(ph) : null;
+    if (u) { const x0 = Math.min(box.x, u.x), y0 = Math.min(box.y, u.y); box = { x: x0, y: y0, w: Math.max(box.x + box.w, u.x + u.w) - x0, h: Math.max(box.y + box.h, u.y + u.h) - y0 }; }
+    return box;
+  }
+  function zoomTo(fit = true) {
+    const vb = planBox();
+    if (!vb || !fit) return;
     const margin = 24;
     const availW = Math.max(1, canvas.getWidth() - margin * 2);
     const availH = Math.max(1, canvas.getHeight() - margin * 2);
@@ -60,13 +70,8 @@ export function attachView(canvas, app, containerEl, render) {
   // A two-finger drag can never carry the plan (or its photos) completely out of sight: at least a strip of it
   // stays on screen, so one stray flick cannot lose the work.
   function keepPlanInView() {
-    const doc = getDoc && getDoc();
-    if (!doc || !doc.viewBox) return;
-    const vb = doc.viewBox;
-    let box = { x: vb.x, y: vb.y, w: vb.w, h: vb.h };
-    const ph = app.project && [app.project.photo, ...((app.project && app.project.extraPhotos) || [])].filter((p) => p && p.dataUrl);
-    const u = ph && ph.length ? unionBox(ph) : null;
-    if (u) { const x0 = Math.min(box.x, u.x), y0 = Math.min(box.y, u.y); box = { x: x0, y: y0, w: Math.max(box.x + box.w, u.x + u.w) - x0, h: Math.max(box.y + box.h, u.y + u.h) - y0 }; }
+    const box = planBox();
+    if (!box) return;
     const v = canvas.viewportTransform, z = v[0] || 1, W = canvas.getWidth(), H = canvas.getHeight();
     const keep = 80; // screen px of the plan that must stay visible
     const left = box.x * z + v[4], right = (box.x + box.w) * z + v[4], top = box.y * z + v[5], bottom = (box.y + box.h) * z + v[5];

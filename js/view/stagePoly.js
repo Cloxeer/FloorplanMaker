@@ -25,6 +25,21 @@ export function polyPoints(poly) {
   return poly.points.map((p) => [p.x + dx, p.y + dy]);
 }
 
+// Plan coordinates of a polygon's points through its FULL transform (its own and, inside a multi-selection that
+// was moved / turned / scaled, the selection's), [[x,y], ...].
+export function absPolyPoints(poly) {
+  const m = poly.calcTransformMatrix();
+  return poly.points.map((p) => {
+    const q = fabric.util.transformPoint({ x: p.x - poly.pathOffset.x, y: p.y - poly.pathOffset.y }, m);
+    return [q.x, q.y];
+  });
+}
+
+// Back to an untransformed polygon (scene space == plan space), as setPolyPoints expects.
+export function resetPolyTransform(poly) {
+  poly.set({ angle: 0, scaleX: 1, scaleY: 1, skewX: 0, skewY: 0 });
+}
+
 // Replace the points (absolute plan coords) and re-anchor the object so the
 // drawn shape lands exactly on those coordinates.
 export function setPolyPoints(poly, pts) {

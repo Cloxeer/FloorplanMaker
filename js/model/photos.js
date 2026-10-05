@@ -71,9 +71,9 @@ export function unionBox(photos) {
 // Gives each extra photo a spot to the right of the one before it, with a gap, and a size that matches the
 // first photo's height (within 0.5x..2x), so they arrive apart and about the same size.
 // -> new array of extras with .t set (the inputs are not changed)
-export function layoutExtras(primary, extras) {
+export function layoutExtras(primary, extras, gapOverride) {
   const base = primary && primary.height ? primary.height * tOf(primary).s : 1000;
-  const gap = Math.max(80, ((primary && primary.width) || 1000) * 0.06);
+  const gap = gapOverride != null ? gapOverride : Math.max(80, ((primary && primary.width) || 1000) * 0.06);
   let right = primary ? photoCorners(primary)[1][0] : 0;
   return (extras || []).map((e) => {
     const s = e.height ? Math.max(0.5, Math.min(2, base / e.height)) : 1;
@@ -133,4 +133,19 @@ export function scaleDoc(doc, f, ox, oy, grid = 5) {
   });
   const floor = doc.floor && Array.isArray(doc.floor.points) ? { ...doc.floor, points: doc.floor.points.map((p) => (ok(p[0]) && ok(p[1]) ? pt(p) : p)) } : doc.floor;
   return { ...doc, floor, items };
+}
+
+// ---- one photo is the plan's frame: express the others in the first photo's own pixels, so the first photo
+// ends up with no placement at all (identity) and the others keep their exact look. A placement maps a photo's
+// pixel p to  t.xy + t.s * R(t.a) * p  on the plan. -> new array (the inputs are not changed)
+export function normalizeToMain(photos) {
+  if (!photos || !photos.length) return [];
+  const m = tOf(photos[0]);
+  const c = Math.cos(rad(-m.a)), s = Math.sin(rad(-m.a));
+  const into = (x, y) => { const dx = x - m.x, dy = y - m.y; return [(dx * c - dy * s) / m.s, (dx * s + dy * c) / m.s]; };
+  return photos.map((p, i) => {
+    if (i === 0) { const { t, ...rest } = p; void t; return rest; }
+    const t = tOf(p), [x, y] = into(t.x, t.y);
+    return { ...p, t: { x, y, s: t.s / m.s, a: (((t.a - m.a) % 360) + 360) % 360 } };
+  });
 }

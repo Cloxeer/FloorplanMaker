@@ -118,3 +118,31 @@ test('scaleDoc: one factor both ways, on the 5-grid, shared edges stay shared, c
   const c2 = scaleDoc(doc, 2, 400, 200);
   assert.deepEqual(c2.floor.points[2], [400, 200]);
 });
+
+// ---- normalizeToMain: the first photo becomes the frame, the others keep their exact place relative to it
+import { normalizeToMain, photoCorners as corners4, layoutExtras as lay } from '../js/model/photos.js';
+test('normalizeToMain: the first photo ends with no placement and every other photo keeps its place relative to it', () => {
+  const list = [
+    { width: 800, height: 600, t: { x: 40, y: 30, s: 1.25, a: 20 } },
+    { width: 500, height: 700, t: { x: 900, y: -50, s: 0.8, a: 75 } },
+    { width: 300, height: 300, t: { x: 0, y: 500, s: 2, a: 350 } },
+  ];
+  const out = normalizeToMain(list);
+  assert.equal(out[0].t, undefined);
+  // map the original corners into the first photo's own pixel frame by hand, then compare
+  const m = list[0].t, a = (-m.a * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  const into = ([x, y]) => { const dx = x - m.x, dy = y - m.y; return [(dx * c - dy * s) / m.s, (dx * s + dy * c) / m.s]; };
+  for (const i of [1, 2]) {
+    const want = corners4(list[i]).map(into), got = corners4(out[i]);
+    want.forEach((w, k) => { assert.ok(Math.abs(w[0] - got[k][0]) < 1e-6 && Math.abs(w[1] - got[k][1]) < 1e-6, `photo ${i} corner ${k}`); });
+  }
+  assert.deepEqual(list[0].t, { x: 40, y: 30, s: 1.25, a: 20 }, 'input untouched');
+  assert.deepEqual(normalizeToMain([]), []);
+});
+
+test('layoutExtras: a smaller gap puts photos closer, side by side', () => {
+  const main = { width: 1000, height: 800 };
+  const [e] = lay(main, [{ width: 500, height: 800 }], 20);
+  assert.equal(e.t.x, 1020);
+  assert.equal(e.t.y, 0);
+});

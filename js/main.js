@@ -218,6 +218,10 @@ app.setHint = function setHint(text) {
   const el = document.getElementById('hint');
   if (el) el.textContent = text || '';
 };
+// Back to the current tool's own hint (after a temporary one such as "Turning the selection...").
+app.resetHint = function resetHint() {
+  app.setHint(HINT_OVERRIDES[app.toolName] || (app.tool && app.tool.hint) || '');
+};
 app.snap = function snap(pt, opts = {}) {
   if (!app.doc) return { x: pt.x, y: pt.y, guides: [] };
   const grid = app.gridOn ? STD.grid : null;

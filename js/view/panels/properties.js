@@ -5,6 +5,7 @@
 
 import { getItem, updateItem, removeItems, NUMBER_RE, compassBearing } from '../../model/document.js';
 import { rectToPoints, dist } from '../../model/geometry.js';
+import { turnSelection } from '../../model/turn.js';
 
 const CLASS_OPTIONS = [
   { key: 'room', cls: 'room', label: 'Room' },
@@ -49,7 +50,7 @@ export function mountProperties(el, app) {
       el.innerHTML = '<p class="section-title">Nothing selected</p><p style="color:var(--muted)">Pick a tool, or click an item on the plan to edit it.</p>';
       return;
     }
-    if (items.length === 1) {
+    if (items.length === 1 && app.selection.size === 1) {
       renderSingle(items[0]);
       return;
     }
@@ -341,7 +342,13 @@ export function mountProperties(el, app) {
   function renderMulti(items) {
     const rooms = items.filter((it) => it.type === 'room');
     el.innerHTML = `
-      <div class="section-title">${items.length} items selected</div>
+      <div class="section-title">${app.selection.size} items selected</div>
+      <div class="section-title" style="margin-top:6px">Turn together</div>
+      <div class="form-row-inline">
+        <button type="button" id="p-turn-ccw" title="Turn the whole selection a quarter turn left">&#10226; 90&deg;</button>
+        <button type="button" id="p-turn-cw" title="Turn the whole selection a quarter turn right">&#10227; 90&deg;</button>
+      </div>
+      <p style="color:var(--muted);margin:2px 0 8px">Or drag the round handle above the selection. It turns the group as one piece, a quarter turn at a time, so rooms stay square.</p>
       ${rooms.length >= 2 ? `
       <div class="align-grid">
         <button type="button" data-align="left" title="Align left">&#8676;</button>
@@ -360,6 +367,9 @@ export function mountProperties(el, app) {
     el.querySelectorAll('[data-align]').forEach((btn) => {
       btn.addEventListener('click', () => runAlign(btn.dataset.align, rooms));
     });
+    const turn = (q, label) => () => app.commit(turnSelection(app.doc, [...app.selection], q, app.gridOn ? 5 : 1), label);
+    el.querySelector('#p-turn-cw').addEventListener('click', turn(1, 'Turn right'));
+    el.querySelector('#p-turn-ccw').addEventListener('click', turn(3, 'Turn left'));
     el.querySelector('#p-delete').addEventListener('click', () => {
       app.commit(removeItems(app.doc, items.map((it) => it.id)), 'Delete');
       app.setSelection([]);

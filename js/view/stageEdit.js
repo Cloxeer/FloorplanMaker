@@ -9,7 +9,8 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { updateItem, removeItems, setFloor, STD, compassBearing } from '../model/document.js';
 import { snapToGrid } from '../model/geometry.js';
-import { polyPoints, insertVertex, nearestEdge } from './stagePoly.js';
+import { turnSelection } from '../model/turn.js';
+import { polyPoints, absPolyPoints, resetPolyTransform, insertVertex, nearestEdge } from './stagePoly.js';
 import { absBox } from './stageSnap.js';
 import { LEGEND_PX } from './stageObjects.js';
 
@@ -134,6 +135,14 @@ export function attachEditing(ctx) {
       app.setSelection(wanted);
     });
   }
+  // A group turns as ONE rigid piece, a quarter turn at a time (rooms, halls and stairs are straight-sided
+  // boxes, so they can only turn by 90 degrees and stay boxes): the handle snaps to quarter turns live.
+  function quarterSnap() {
+    const a = canvas.getActiveObject();
+    if (a && a.type === 'activeselection') { a.snapAngle = 90; a.snapThreshold = 45; }
+  }
+  canvas.on('selection:created', quarterSnap);
+  canvas.on('selection:updated', quarterSnap);
   canvas.on('selection:created', onSelectionEvent);
   canvas.on('selection:updated', onSelectionEvent);
   canvas.on('selection:cleared', onSelectionEvent);
@@ -149,6 +158,10 @@ export function attachEditing(ctx) {
   // Say which way the compass points while it's being turned.
   canvas.on('object:rotating', (opt) => {
     const t = opt.target;
+    if (t && t.type === 'activeselection' && app.setHint) {
+      app.setHint('Turning the selection together, a quarter turn at a time — let go to set it.');
+      return;
+    }
     if (!t || t.itemType !== 'compass' || !app.setHint) return;
     app.setHint(`Compass: north points ${compassBearing(t.angle)} — let go to set it.`);
   });
@@ -237,20 +250,37 @@ export function attachEditing(ctx) {
   });
 
   // ------------------------------------------------------ commit changes --
-  function patchFor(obj, doc) {
+  // A door in a moved / resized multi-selection: its two ends and its label, through the full transform.
+  function doorPatch(obj) {
+    const [line, label] = obj.getObjects();
+    const m = line.calcTransformMatrix();
+    const p = line.calcLinePoints();
+    const a = fabric.util.transformPoint({ x: p.x1, y: p.y1 }, m);
+    const b = fabric.util.transformPoint({ x: p.x2, y: p.y2 }, m);
+    const c = label.getCenterPoint();
+    const r = Math.round;
+    return { x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y), label: { x: r(c.x), y: r(c.y) } };
+  }
+
+  // `inGroup`: obj sits in a multi-selection, so left / top / angle are relative to it; read them through the
+  // full transform instead.
+  function patchFor(obj, doc, inGroup) {
     const item = doc.items.find((it) => it.id === obj.itemId);
     if (!item) return null;
+    const dec = fabric.util.qrDecompose(obj.calcTransformMatrix());
     if (item.type === 'compass') {
-      return { x: Math.round(obj.left), y: Math.round(obj.top), deg: Math.round(obj.angle || 0) };
+      const deg = inGroup ? (((Math.round(dec.angle) % 360) + 360) % 360) : Math.round(obj.angle || 0);
+      return inGroup ? { x: Math.round(dec.translateX), y: Math.round(dec.translateY), deg } : { x: Math.round(obj.left), y: Math.round(obj.top), deg };
     }
     if (item.type === 'legend') {
-      const scale = Math.round(obj.scaleX * LEGEND_PX * 100) / 100;
-      return { x: Math.round(obj.left), y: Math.round(obj.top), scale: Math.max(0.1, scale) };
+      const box = absBox(obj);
+      const scale = Math.round(dec.scaleX * LEGEND_PX * 100) / 100;
+      return { x: Math.round(box.x), y: Math.round(box.y), scale: Math.max(0.1, scale) };
     }
     if (item.type === 'room' && item.shape === 'poly') {
       return { points: polyPoints(obj).map(([x, y]) => [grid(x), grid(y)]) };
     }
-    if (item.type === 'door') return null;
+    if (item.type === 'door') return inGroup ? doorPatch(obj) : null;
     if (item.type === 'authwall') {
       const box = absBox(obj);
       const ox = Math.min(item.x1, item.x2);
@@ -288,6 +318,7 @@ export function attachEditing(ctx) {
     clearDragColors();
     setGuides([]);
     snapper.invalidate();
+    if (app.resetHint) app.resetHint(); // drop a temporary "turning..." hint
     const doc = app.doc;
     if (!doc) return;
     if (t.itemType === 'floor') {
@@ -295,17 +326,39 @@ export function attachEditing(ctx) {
       app.commit(setFloor(doc, pts), 'Edit outline');
       return;
     }
-    const targets = t.itemId ? [t] : (t.getObjects ? t.getObjects() : []);
+    const group = !t.itemId && t.getObjects;
+    const targets = t.itemId ? [t] : (group ? [...t.getObjects()] : []);
     let next = doc;
     let changed = false;
-    for (const obj of targets) {
-      if (!obj.itemId || obj.itemId === 'floor') continue;
-      const patch = patchFor(obj, doc);
-      if (!patch) continue;
-      next = updateItem(next, obj.itemId, patch);
-      changed = true;
+    const turned = !!group && Math.abs(((t.angle || 0) + 180) % 360 - 180) > 0.5;
+    if (turned) {
+      // The group was turned. Apply that as one rigid turn of the whole selection about its middle, from the
+      // document's own geometry (never from each piece's rotated box, which would spin them one by one).
+      const turns = Math.round((((t.angle % 360) + 360) % 360) / 90) % 4;
+      const ids = targets.map((o) => o.itemId).filter(Boolean);
+      if (turns && ids.length) { next = turnSelection(doc, ids, turns, app.gridOn ? STD.grid : 1); changed = true; }
+    } else {
+      for (const obj of targets) {
+        if (!obj.itemId) continue;
+        if (obj.itemId === 'floor') { // the outline travels with a moved / resized selection
+          if (group) { next = setFloor(next, absPolyPoints(obj).map(([x, y]) => [grid(x), grid(y)])); changed = true; }
+          continue;
+        }
+        const patch = patchFor(obj, doc, !!group);
+        if (!patch) continue;
+        next = updateItem(next, obj.itemId, patch);
+        changed = true;
+      }
     }
-    if (changed) app.commit(next, 'Move');
+    if (group) {
+      // Let go of the selection first: every piece gets its own plain transform back, and the outline (which is
+      // reused, not rebuilt) must not keep the selection's turn or scale.
+      syncing = true;
+      canvas.discardActiveObject();
+      syncing = false;
+      for (const obj of targets) if (obj.itemId === 'floor') resetPolyTransform(obj);
+    }
+    if (changed) app.commit(next, turned ? 'Turn' : 'Move');
     else render();
   }
 
@@ -412,6 +465,13 @@ export function attachEditing(ctx) {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       deleteSelection();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) { // select every piece (and the outline), not the page text
+      e.preventDefault();
+      const all = app.doc ? app.doc.items.map((it) => it.id) : [];
+      if (app.doc && app.doc.floor) all.push('floor');
+      app.setSelection(all);
       return;
     }
     const step = e.shiftKey ? 10 : 1;

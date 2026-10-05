@@ -370,6 +370,13 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
   pointer-events: none;
 }
 .start-overlay-card button { pointer-events: auto; }
+.start-overlay-btns [hidden] { display: none; }
+.start-overlay-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+/* The outline was taken away but the plan is still there: a light banner at the top, the plan stays visible. */
+.start-overlay.has-plan { align-items: flex-start; background: none; }
+.start-overlay.has-plan .start-overlay-card { margin-top: 8px; max-width: 520px; padding: 8px 16px 10px; }
+.start-overlay.has-plan .start-overlay-card h3 { margin-bottom: 2px; font-size: 14px; }
+.start-overlay.has-plan .start-overlay-card p { margin-bottom: 8px; }
 .start-overlay-card h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.3; }
 .start-overlay-card p { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 

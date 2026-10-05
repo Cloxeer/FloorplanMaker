@@ -99,9 +99,13 @@
       <canvas id="canvas"></canvas>
       <div id="start-overlay" class="start-overlay" hidden>
         <div class="start-overlay-card">
-          <h3>Start by outlining the building</h3>
-          <p>Click the corners of the building on the photo.</p>
-          <button id="btn-overlay-draw" class="btn btn-primary" type="button">Draw outline</button>
+          <h3 id="overlay-title">Start by outlining the building</h3>
+          <p id="overlay-text">Click the corners of the building on the photo.</p>
+          <div class="start-overlay-btns">
+            <button id="btn-overlay-restore" class="btn btn-primary" type="button" hidden>Restore outline</button>
+            <button id="btn-overlay-auto" class="btn btn-secondary" type="button" hidden>Auto-outline</button>
+            <button id="btn-overlay-draw" class="btn btn-primary" type="button">Draw outline</button>
+          </div>
         </div>
       </div>
       <button id="btn-hand-toggle" class="hand-toggle" type="button" title="Pan (touch)" aria-pressed="false">&#9995;</button>

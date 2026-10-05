@@ -1,36 +1,9 @@
 // tests/browser/photos-multi.spec.js
-// Several photos for one floor: import >= 2 photos (first = main, the rest beside it, straight to arrange mode),
-// drag / size / turn an extra, persistence across a reload, View > Select (Photo / Drawing), Remove, three files.
+// Several photos for one floor: import >= 2 photos, each goes through corners + Flatten, then they meet side by side on the
+// merge board (drag / size / turn / see-through), then trace. Photos are arranged again later with View > Select > Photo.
 
-import { deflateSync } from 'node:zlib';
 import { test, expect } from '@playwright/test';
-
-// ---- a tiny PNG encoder (solid colour with a darker border and a diagonal, so the pictures are distinguishable)
-const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-function crc32(buf) { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
-function chunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
-  return Buffer.concat([len, td, crc]);
-}
-function png(w, h, [r, g, b]) {
-  const raw = Buffer.alloc((w * 3 + 1) * h);
-  for (let y = 0; y < h; y++) {
-    raw[y * (w * 3 + 1)] = 0;
-    for (let x = 0; x < w; x++) {
-      const edge = x < 6 || y < 6 || x >= w - 6 || y >= h - 6 || Math.abs(x - y) < 4;
-      const o = y * (w * 3 + 1) + 1 + x * 3;
-      raw[o] = edge ? r >> 1 : r; raw[o + 1] = edge ? g >> 1 : g; raw[o + 2] = edge ? b >> 1 : b;
-    }
-  }
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
-const IMG = (name, w, h, rgb) => ({ name, mimeType: 'image/png', buffer: png(w, h, rgb) });
-const A = () => IMG('a.png', 800, 600, [230, 120, 90]);
-const B = () => IMG('b.png', 500, 700, [90, 160, 230]);
-const C = () => IMG('c.png', 600, 600, [110, 200, 120]);
+import { A, B, C } from './png.helpers.js';
 
 let errors = [];
 let ids = [];
@@ -59,10 +32,24 @@ async function startProject(page) {
   await expect(page.locator('#ps-multi-initial')).toBeVisible();
   ids.push(await page.evaluate(() => window.__app.project && window.__app.project.id));
 }
+// each photo goes through corners -> Flatten -> next, then they meet on the merge board
+async function runWizard(page, count) {
+  for (let i = 0; i < count; i++) {
+    await expect(page.locator('#ps-straighten')).toBeVisible({ timeout: 15000 });
+    await page.click('#ps-straighten');
+    await page.click('#ps-next-photo');
+  }
+  await expect(page.locator('#ms-svg')).toBeVisible({ timeout: 15000 });
+}
+// import, go through the wizard, Start tracing, then open the photo arrange mode (View > Select > Photo)
 async function importMulti(page, files) {
   await startProject(page);
   await page.setInputFiles('#ps-multi-file', files);
+  await runWizard(page, files.length);
+  await page.click('#ms-trace');
   await expect(page.locator('#studio')).toBeVisible({ timeout: 30000 });
+  await expect.poll(() => page.evaluate(() => !!window.__app._photoLayer)).toBe(true);
+  await page.evaluate(() => window.__app._photoLayer.arrange());
   await expect(page.locator('.pl-pill')).toBeVisible({ timeout: 15000 });
   await expect.poll(() => page.evaluate(() => window.__app.canvas.fabricCanvas.getObjects().filter((o) => /^image$/i.test(o.type)).length)).toBeGreaterThanOrEqual(1);
 }
@@ -100,12 +87,12 @@ async function flushSave(page) {
   await page.evaluate(async () => { const { saveNow } = await import('/js/store/autosave.js'); await saveNow(window.__app.project); });
 }
 
-test('importing two photos opens the studio in arrange mode, extra beside the main photo', async ({ page }) => {
+test('importing two photos: flatten each, merge side by side, then the extra sits beside the main photo', async ({ page }) => {
   await importMulti(page, [A(), B()]);
   const p = await proj(page);
-  expect(p.photo).toMatchObject({ width: 800, height: 600 });
+  expect(p.photo).toMatchObject({ width: expect.any(Number) });
   expect(p.extra.length).toBe(1);
-  expect(p.extra[0]).toMatchObject({ width: 500, height: 700 });
+  expect(p.extra[0]).toMatchObject({ width: expect.any(Number), height: expect.any(Number) });
   // starts to the right of the main photo, with a gap
   expect(p.extra[0].t.x).toBeGreaterThan(p.photo.width);
   expect(p.extra[0].t.a).toBe(0);
@@ -189,7 +176,7 @@ test('placement survives a reload (extra fabric image present)', async ({ page }
   await page.waitForFunction((i) => window.__app.project && window.__app.project.id === i && !document.getElementById('studio').hidden, id);
   await expect.poll(async () => (await proj(page)).extra.length).toBe(1);
   expect((await proj(page)).extra[0].t).toEqual(want);
-  expect((await proj(page)).extra[0]).toMatchObject({ width: 500, height: 700 });
+  expect((await proj(page)).extra[0]).toMatchObject({ width: expect.any(Number), height: expect.any(Number) });
   await expect.poll(() => imageObjs(page), { timeout: 15000 }).toBe(1); // the extra (the main photo is the background image)
 });
 
@@ -225,7 +212,7 @@ test('View > Select: Photo re-enters arrange mode, Drawing moves the whole drawi
   await expect(page.locator('.pl-pill')).toContainText('Drawing selected');
   await expect(selDraw).toHaveAttribute('aria-pressed', 'true').catch(() => {}); // popover closes; attribute still set
   // fit the canvas so that the drag is on-screen
-  await dragPlan(page, [300, 500], [370, 530]);
+  await dragPlan(page, [300, 300], [370, 330]);
   await expect.poll(async () => (await snap()).room).toEqual({ x: s0.room.x + 70, y: s0.room.y + 30 });
   const s1 = await snap();
   expect(s1.pts).toEqual(s0.pts.map(([x, y]) => [x + 70, y + 30]));
@@ -291,7 +278,7 @@ test('three files at once: main + two extras, all separate and outlined', async 
   await importMulti(page, [A(), B(), C()]);
   const p = await proj(page);
   expect(p.extra.length).toBe(2);
-  expect(p.photo).toMatchObject({ width: 800, height: 600 });
+  expect(p.photo).toMatchObject({ width: expect.any(Number) });
   expect(p.extra[0].t.x).toBeGreaterThan(p.photo.width);
   expect(p.extra[1].t.x).toBeGreaterThan(p.extra[0].t.x + p.extra[0].width * p.extra[0].t.s);
   await expect.poll(() => imageObjs(page)).toBe(2);
@@ -317,10 +304,10 @@ test('several files dropped at once on the drop screen', async ({ page }) => {
     target.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
     target.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, [A(), B()].map((f) => ({ name: f.name, b64: f.buffer.toString('base64') })));
+  await runWizard(page, 2);
+  await page.click('#ms-trace');
   await expect(page.locator('#studio')).toBeVisible({ timeout: 30000 });
-  await expect(page.locator('.pl-pill')).toBeVisible({ timeout: 15000 });
   expect((await proj(page)).extra.length).toBe(1);
-  await page.click('.pl-done');
 });
 
 test('Drawing select: a corner handle resizes everything 1:1 (one undo step); every photo shares one opacity; Done clears the outlines', async ({ page }) => {
