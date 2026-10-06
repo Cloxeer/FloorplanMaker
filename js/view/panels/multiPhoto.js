@@ -48,7 +48,7 @@ export function mountMultiPhoto(host, { srcs, firstCorners, onDone, onCancel }) 
       layout: same ? kept.layout : null,
       onBack: () => { kept = { urls: photos.map((p) => p.dataUrl), layout: cur.layout() }; step(n - 1); },
       onTrace: (main, extras) => onDone(main, { extraPhotos: extras }),
-      onAutoBuild: ({ photo, pixels }) => onDone(photo, { autoBuild: true, pixels, extraPhotos: [] }),
+      onAutoBuild: (full) => onDone(full[0].orig, { autoBuildMulti: full, arranged: full.arranged, extraPhotos: full.slice(1).map((f) => ({ dataUrl: f.photo.dataUrl, width: f.photo.width, height: f.photo.height, t: f.board.t })) }),
     });
   }
 

@@ -1,0 +1,28 @@
+{
+ "slug": "cb-21",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 20 rooms · hallways filled in (5 pieces) · Compass placed · 6 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read",
+  "R204BNumber R204B needed character repairs; check it",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable."
+ ]
+}

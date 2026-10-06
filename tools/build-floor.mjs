@@ -15,7 +15,7 @@ const arg = process.argv[2];
 const spec = existsSync(arg) ? JSON.parse(readFileSync(arg, 'utf8')) : JSON.parse(arg);
 const outDir = resolve(process.argv[3] || 'tools/out');
 mkdirSync(outDir, { recursive: true });
-const slug = `${spec.code.toLowerCase()}-${spec.floor}`;
+const slug = spec.slug || `${spec.code.toLowerCase()}-${spec.floor}`;
 const log = { slug, steps: [], console: [] };
 const step = (s) => { log.steps.push(s); if (process.env.VERBOSE) console.log(`[${slug}] ${s}`); };
 
@@ -92,11 +92,14 @@ try {
   writeFileSync(`${outDir}/${slug}.overlay.png`, Buffer.from(overlay.split(',')[1], 'base64'));
   writeFileSync(`${outDir}/${slug}.svg`, out.svg);
   writeFileSync(`${outDir}/${slug}.floorplan.json`, out.json);
+  log.multi = await page.evaluate(() => { const m = window.__app._lastMulti; if (!m) return null; return { transforms: m.transforms, notes: m.notes, report: m.report, plans: m.results.map((r) => ({ scale: r.scale, viewW: r.viewW, viewH: r.viewH, floor: r.floor && r.floor.points, halls: r.items.filter((i) => i.type === 'hall').map((h) => [h.x, h.y, h.w, h.h]), compass: r.items.find((i) => i.type === 'compass') || null, rooms: r.items.filter((i) => i.type === 'room' && i.number).map((q) => q.number) })) }; });
+  try { const r = await page.evaluate(() => window.__multiResults || null); if (r) writeFileSync(`${outDir}/${slug}.results.json`, JSON.stringify(r)); } catch { /* none */ }
   log.toast = out.toast; log.review = out.review; log.validation = out.validation;
   await page.locator('#stage').screenshot({ path: `${outDir}/${slug}.plan.png` });
   step('saved');
 } catch (e) {
   log.error = String(e && e.stack || e);
+  try { const r = await page.evaluate(() => window.__multiResults || null); if (r) writeFileSync(`${outDir}/${slug}.results.json`, JSON.stringify(r)); } catch { /* page gone */ }
   await page.screenshot({ path: `${outDir}/${slug}.error.png` }).catch(() => {});
 }
 writeFileSync(`${outDir}/${slug}.log.json`, JSON.stringify(log, null, 1));

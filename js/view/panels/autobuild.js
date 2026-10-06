@@ -8,6 +8,7 @@
 
 import { setFloor } from '../../model/document.js';
 import { ensureTraceStyle, createOutlineTrace, askOutline } from './autobuildTrace.js';
+import { buildMany } from './autobuildMulti.js';
 
 const STYLE = `
 .ab-overlay { position:absolute; inset:0; z-index:30; display:flex; align-items:flex-start; justify-content:center; pointer-events:none; }
@@ -318,11 +319,54 @@ export function mountAutoBuild(app) {
       }
     };
     worker.onerror = () => { hideCard(); worker = null; app.toast('AutoBuild could not start.'); };
-    worker.postMessage({ kind: 'build', width: pixels.width, height: pixels.height, data: copy }, [copy]);
+    worker.postMessage({ kind: 'build', width: pixels.width, height: pixels.height, data: copy, floor: app.doc && app.doc.meta ? app.doc.meta.floor : undefined }, [copy]);
+  }
+
+  // Several photos of one floor: each is built on its own, the plans are joined, the photos are placed to match.
+  // list: [{ pixels, photo, board }] (see autobuildMulti.js). The first photo stays the project's photo.
+  async function runMulti(list) {
+    if (!list || !list.length || !app.project) return;
+    if (list.length === 1) return run(list[0].pixels);
+    const had = app.doc.items.length > 0 || !!app.doc.floor;
+    if (had && !(await app.confirm('AutoBuild will replace what is on the plan now. (You can undo it.) Continue?'))) return;
+    cancelled = false;
+    let cancelWorker = null;
+    showCard();
+    app.setHint('AutoBuild is reading the photos…');
+    let m;
+    try {
+      m = await buildMany(list, { floor: app.doc.meta && app.doc.meta.floor, onProgress: setProgress, onWorker: (c) => { cancelWorker = c; } });
+    } catch (err) {
+      hideCard();
+      if (!cancelled) app.toast(`AutoBuild failed: ${err.message}`);
+      return;
+    }
+    if (cancelled) { if (cancelWorker) cancelWorker(); return; }
+    app._lastMulti = m; // read by tools/ (debugging) and the tests
+    const vw = m.viewW, vh = m.viewH;
+    try { await rescalePhoto(m.results[0].viewW, m.results[0].viewH); } catch { /* keep the old photo */ }
+    // the other photos sit where the plan says; the first one too (it may have moved to keep everything on the page)
+    const main = { ...app.project.photo, t: m.layout[0].t };
+    app.project.photo = main;
+    app.project.extraPhotos = list.slice(1).map((l, i) => ({ dataUrl: l.photo.dataUrl, width: l.photo.width, height: l.photo.height, t: m.layout[i + 1].t }));
+    const base = { ...app.doc, items: [], floor: null, viewBox: { x: 0, y: 0, w: vw, h: vh } };
+    app.canvas.setPhoto(app.project.photo);
+    if (app._photoLayer && app._photoLayer.refresh) app._photoLayer.refresh();
+    const out = await reveal({ ...m, outlineInfo: null, hallAdded: [], hallExtended: [], hallBefore: {} }, base);
+    if (!out) return;
+    hideCard();
+    if (out.stopped) { app.commit(out.doc, 'AutoBuild outline'); app.canvas.zoomTo(true); return; }
+    app.commit(out.doc, 'AutoBuild');
+    app.canvas.zoomTo(true);
+    const rooms = m.items.filter((it) => it.type === 'room').length;
+    app.toast(`AutoBuild joined ${list.length} photos: ${rooms} rooms${m.notes.length ? ` · ${m.notes[0]}` : ''}${m.review.length ? ` · ${m.review.length} need a look` : ''}`);
+    app.setHint('Review what AutoBuild drew, then refine.');
+    showReview(m);
   }
 
   return {
     run,
+    runMulti,
     destroy() {
       if (worker) { worker.terminate(); worker = null; }
       hideCard();

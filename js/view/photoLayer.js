@@ -337,6 +337,7 @@ export function mountPhotoLayer(app) {
     setMode,
     // right after importing several photos: separated, outlined and ready to move
     async arrange() { await sync(); watchBg(); setMode('photo'); },
+    refresh() { sync(); watchBg(); }, // photos were replaced (e.g. several photos placed by AutoBuild)
     destroy() {
       alive = false; unsub(); clearInterval(poll); if (raf) cancelAnimationFrame(raf); if (preview) cancelAnimationFrame(preview);
       try { upper.removeEventListener('pointerdown', onDown, true); upper.removeEventListener('pointermove', onMove, true); upper.removeEventListener('pointerup', onUp, true); upper.removeEventListener('pointercancel', onUp, true); canvas.off('after:render', draw); } catch (e) { /* disposed */ }

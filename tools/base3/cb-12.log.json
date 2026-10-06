@@ -1,0 +1,31 @@
+{
+ "slug": "cb-12",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 22 rooms · hallways filled in (4 pieces) · No compass found - add it from the palette · 5 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "130Number 130 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room ida86rjcc falls outside its shape.",
+  "label-in-other-room: The label for room 130 sits inside smaller room idk2o5nci, so the parser would give it that room.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 130 and idk2o5nci overlap."
+ ]
+}

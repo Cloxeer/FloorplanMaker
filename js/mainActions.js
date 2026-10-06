@@ -409,6 +409,7 @@ export function createStudio(app, deps) {
       enterStudio(project, { freshView: true });
       if (app.saveView) app.saveView(); // the new photo(s) are saved right away
       if (extra && extra.autoBuild && app.autoBuild) app.autoBuild.run(extra.pixels);
+      if (extra && extra.autoBuildMulti && app.autoBuild) { extra.autoBuildMulti.arranged = extra.arranged; app.autoBuild.runMulti(extra.autoBuildMulti); }
     };
     photoStepHandle = mountPhotoStep(host, {
       initial: existingPhoto || undefined,

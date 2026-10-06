@@ -1,0 +1,63 @@
+{
+ "slug": "cb-23",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 26 rooms · hallways filled in (12 pieces) · Compass placed · 25 need a look"
+ ],
+ "review": [
+  "W234Number W234 was read only once; check it",
+  "W280Number W280 needed character repairs; check it",
+  "W282Number W282 needed character repairs; check it",
+  "W287Number W287 was read only once; check it",
+  "W288Number W288 needed character repairs; check it",
+  "239Number 239 was read only once; check it",
+  "W230Number W230 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W296Number W296 needed character repairs; check it",
+  "293Number 293 was read only once; check it",
+  "W295Number W295 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "R275BNumber R275B needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W283Number W283 needed character repairs; check it",
+  "W285Number W285 needed character repairs; check it",
+  "W277Number W277 was read only once; check it",
+  "W279Number W279 needed character repairs; check it",
+  "W281Number W281 was read only once; check it",
+  "RoomText in this room could not be read",
+  "W275Number W275 needed character repairs; check it",
+  "W278Number W278 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "292Read as 192 but this is floor 2: changed to 292"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms idr2yb790 and W285 overlap.",
+  "room-unreachable: Room W234 is not reachable from an entrance.",
+  "room-unreachable: Room W287 is not reachable from an entrance.",
+  "room-unreachable: Room 239 is not reachable from an entrance.",
+  "room-unreachable: Room idagk4iap is not reachable from an entrance.",
+  "room-unreachable: Room R275B is not reachable from an entrance.",
+  "room-unreachable: Room idn1p5eg6 is not reachable from an entrance.",
+  "room-unreachable: Room idqvwe54r is not reachable from an entrance.",
+  "room-unreachable: Room W280 is not reachable from an entrance.",
+  "room-unreachable: Room W282 is not reachable from an entrance.",
+  "room-unreachable: Room W278 is not reachable from an entrance.",
+  "room-unreachable: Room W288 is not reachable from an entrance.",
+  "room-unreachable: Room W230 is not reachable from an entrance.",
+  "room-unreachable: Room R275A is not reachable from an entrance.",
+  "room-unreachable: Room idhwi4s12 is not reachable from an entrance."
+ ]
+}

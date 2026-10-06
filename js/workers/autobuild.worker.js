@@ -71,6 +71,7 @@ self.onmessage = async (e) => {
       const result = await buildFromPlan(img, {
         ocr: pool ? (im, o) => pool.ocr(im, o) : null,
         concurrency: 3,
+        floor: msg.floor,
         onProgress: (frac, label) => self.postMessage({ kind: 'progress', frac, label }),
       });
       if (pool) await pool.close();

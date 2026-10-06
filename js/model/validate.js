@@ -8,6 +8,7 @@
 
 import { isOnOutline, dist, pointInPolygon, polygonsOverlap, polygonArea } from './geometry.js';
 import { roomPolygon, labelPos, NUMBER_RE, NUMBERED_CLASSES } from './document.js';
+import { floorLead, wrongFloor } from './autobuild/floorRule.js';
 
 function roomLabel(item) {
   return item.number || item.id;
@@ -91,6 +92,16 @@ export function validate(doc) {
             });
           } else {
             numbersSeen.set(item.number, item.id);
+          }
+          // a room number starts with its floor: 131 cannot be on floor 3
+          const lead = floorLead(doc.meta && doc.meta.floor);
+          if (lead && wrongFloor(item.number, lead).wrong) {
+            warnings.push({
+              level: 'warning',
+              code: 'number-wrong-floor',
+              message: `Room ${item.number} does not belong on floor ${doc.meta.floor}: its number should start with ${lead}.`,
+              itemId: item.id,
+            });
           }
         }
       } else if (isVoid && (item.number || item.name)) {

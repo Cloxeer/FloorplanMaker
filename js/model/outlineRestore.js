@@ -95,7 +95,7 @@ const holdsAll = (ring, shapes) => shapes.every((s) => {
 
 // Join separate blobs of a 0/1 mask to the biggest one with a thick L-shaped corridor, so a far-off piece
 // becomes part of the outline instead of being dropped.
-function joinBlobs(m, W, H) {
+export function joinBlobs(m, W, H) {
   const lab = new Int32Array(W * H);
   const blobs = [];
   for (let i = 0; i < m.length; i++) {

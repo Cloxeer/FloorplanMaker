@@ -155,7 +155,7 @@ export function mountFlattenStage(el, { base, vals, corners, originalDataUrl, on
   }
 
   if (nextLabel) { // one of several photos: just keep this flattened one and move on
-    $('#ps-next-photo').addEventListener('click', () => { onStart(exportAdjusted().photo); });
+    $('#ps-next-photo').addEventListener('click', () => { const x = exportAdjusted(); onStart(x.photo, x.canvas, !isFlat()); });
   } else {
     $('#ps-start-tracing').addEventListener('click', () => { onStart(exportAdjusted().photo); });
     const abBtn = $('#ps-autobuild');

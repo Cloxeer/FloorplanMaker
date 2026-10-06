@@ -11,6 +11,7 @@ import { cleanRing } from '../fixOverlaps.js';
 import { nearestPointOnPolyline, pointInPolygon } from '../geometry.js';
 import { extendOutline } from './outline.js';
 import { measureOutline, pullGaps } from './outlineFit.js';
+import { floorLead, fixForFloor } from './floorRule.js';
 
 const LABEL = () => ({ pinned: false, x: null, y: null, fontSize: null });
 
@@ -51,6 +52,7 @@ function reasonFor(r, floorDigit, odd) {
     if (r.guess) return `Number unclear (best guess ${r.guess}); left blank, please check`;
     return r.unlabeled ? 'Walled-in space with no readable number' : 'Text in this room could not be read';
   }
+  if (r.floorFixed) return `Read as ${r.floorFixed} but this is floor ${floorDigit}: changed to ${r.number}`;
   if (r.inferred) return 'Number inferred from the rooms beside it';
   if (r.near) return `Read as ${r.number} but one character was unclear`;
   if (r.altered) return `Same number was read on two rooms; this one took its next best reading (${r.number})`;
@@ -72,7 +74,8 @@ export function assemble(ctx) {
 
   const sure = kept.filter((r) => r.number && r.votes >= 2 && !r.near).map((r) => r.number);
   const odd = new Set(flagOutliers(sure).map((x) => (typeof x === 'string' ? x : x.number)));
-  const priorAll = floorPrior(sure);
+  const lead = floorLead(opts.floor);
+  const priorAll = lead && lead.length === 1 ? { digit: lead, share: 1, n: 99 } : floorPrior(sure);
   const floorDigit = priorAll ? priorAll.digit : '';
   const isOdd = (n) => flagOutliers([n], priorAll).length > 0;
 
@@ -81,6 +84,8 @@ export function assemble(ctx) {
     const cls = r.kind === 'void' ? 'void' : r.kind === 'restroom' || r.kind === 'elevator' ? 'core' : 'room';
     let number = cls === 'room' ? r.number : '';
     let guess = r.guess;
+    let floorFixed = '';
+    if (number && lead) { const fx = fixForFloor(number, r.ranked, lead, used); number = fx.number; floorFixed = fx.number ? fx.from : ''; if (fx.from && !fx.number) guess = fx.from; }
     // a number that breaks the floor's own pattern and was not read firmly is wrong more often than right: blank it, keep the guess for the note
     if (number && (odd.has(number) || isOdd(number)) && r.votes < 6) { guess = number; number = ''; }
     if (number && used.has(number)) number = ''; // a number never leaves twice
@@ -99,7 +104,7 @@ export function assemble(ctx) {
       ? (ring ? { ...base, shape: 'poly', points: ring } : { ...base, shape: 'rect', ...pbox })
       : { ...base, shape: 'rect', x: S(r.x), y: S(r.y), w: Math.max(5, S(r.x + r.w) - S(r.x)), h: Math.max(5, S(r.y + r.h) - S(r.y)) };
     items.push(item);
-    const why = reasonFor({ ...r, number, guess }, floorDigit, odd);
+    const why = reasonFor({ ...r, number, guess, floorFixed }, floorDigit, odd);
     if (why && cls === 'room') review.push({ id: item.id, reason: why });
   }
   for (const el of elevators) {

@@ -318,7 +318,15 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     stage = mountFlattenStage(flatBody, {
       base: flat.base, vals: flat.vals, corners, originalDataUrl,
       onBack: backToCorners,
-      onStart: (photo) => { if (onDone) onDone(photo); },
+      onStart: async (photo, cv, adjusted) => {
+        if (!onDone) return;
+        // one of several photos: straighten it with the plan's own walls too, unless the user set the corners or sliders
+        if (multi && cv && !adjusted && !cornersTouched) {
+          const built = await autoStraighten(cv, originalDataUrl);
+          if (built) { onDone({ ...built.photo, corners: corners.map((p) => [...p]), originalDataUrl }); return; }
+        }
+        onDone(photo);
+      },
       onAutoBuild: runAutoBuild,
       nextLabel: multi && multi.nextLabel,
     });

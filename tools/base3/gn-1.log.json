@@ -1,0 +1,54 @@
+{
+ "slug": "gn-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 59 rooms · hallways filled in (15 pieces) · Compass placed · 18 need a look"
+ ],
+ "review": [
+  "132JNumber 132J needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "167BNumber 167B needed character repairs; check it",
+  "112Read as 512 but this is floor 1: changed to 112",
+  "169Number 169 needed character repairs; check it",
+  "115JNumber 115J needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "138Number 138 was read only once; check it",
+  "RoomText in this room could not be read",
+  "116Number 116 was read only once; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 172 and idn03cs8d overlap.",
+  "overlapping-rooms: Rooms 169 and 170 overlap.",
+  "overlapping-rooms: Rooms 173 and idn03cs8d overlap.",
+  "overlapping-rooms: Rooms 168 and 170 overlap.",
+  "room-unreachable: Room 132J is not reachable from an entrance.",
+  "room-unreachable: Room 136 is not reachable from an entrance.",
+  "room-unreachable: Room 170 is not reachable from an entrance.",
+  "room-unreachable: Room 141 is not reachable from an entrance."
+ ]
+}

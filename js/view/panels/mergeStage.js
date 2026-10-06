@@ -7,6 +7,7 @@
 // "AutoBuild" first joins them into one picture. The first photo is the plan's frame (it ends up unmoved).
 // Depends on: js/model/photos.js (placement maths).
 
+import { pixelsOf } from './autobuildMulti.js';
 import { tOf, T0, photoCorners, hitPhoto, unionBox, moved, scaledBy, turnedBy, snapPhoto, layoutExtras, normalizeToMain } from '../../model/photos.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -44,7 +45,7 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
   if (!document.getElementById('ms-style')) { const st = document.createElement('style'); st.id = 'ms-style'; st.textContent = STYLE; document.head.appendChild(st); }
   // `layout`: placements kept from an earlier visit (same photos), so Back and forward does not undo the lining up
   let list = layout && layout.length === photos.length ? photos.map((p, i) => ({ ...p, t: layout[i] })) : sideBySide(photos);
-  let sel = list.length > 1 ? 1 : 0, see = false, guides = [], destroyed = false;
+  let sel = list.length > 1 ? 1 : 0, see = false, guides = [], destroyed = false, arranged = false; // arranged: the user moved / sized / turned something
   let vb = { x: 0, y: 0, w: 1000, h: 1000 };
 
   host.innerHTML = `
@@ -60,11 +61,11 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
         <button type="button" id="ms-fit">Fit</button>
       </div>
       <div class="ms-view"><svg id="ms-svg" xmlns="${NS}"></svg></div>
-      <p class="ms-tip">Drag a photo to move it; its edges catch on the other photos. Match the Size and Turn so walls and rooms line up where the photos meet, and turn on See through to check the overlap. Scroll to zoom, drag the background to pan, arrow keys nudge, hold Alt while dragging to skip the snapping. Photo 1 is the frame of the plan: it can be moved, but turn and size the others to match it. AutoBuild joins the photos into one picture first.</p>
+      <p class="ms-tip">Drag a photo to move it; its edges catch on the other photos. Match the Size and Turn so walls and rooms line up where the photos meet, and turn on See through to check the overlap. Scroll to zoom, drag the background to pan, arrow keys nudge, hold Alt while dragging to skip the snapping. Photo 1 is the frame of the plan: it can be moved, but turn and size the others to match it. AutoBuild builds every photo, then joins the plans by the rooms and hallways they share; this board is only used for a photo that shares nothing.</p>
       <div class="ms-actions">
         <button type="button" class="ms-back" id="ms-back">&larr; Back</button>
         <button type="button" class="btn-primary" id="ms-trace">Start tracing</button>
-        <button type="button" class="btn-primary" id="ms-auto" title="Join the photos into one picture and build the plan for you">AutoBuild</button>
+        <button type="button" class="btn-primary" id="ms-auto" title="Build every photo, join the plans where they share rooms or a hallway, and place the photos to match">AutoBuild</button>
       </div>
     </div>`;
   const $ = (s) => host.querySelector(s);
@@ -139,13 +140,13 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
   });
 
   // ---- sliders and buttons act on the picked photo
-  const put = (next) => { list = list.map((p, i) => (i === sel ? next : p)); draw(); };
+  const put = (next) => { arranged = true; list = list.map((p, i) => (i === sel ? next : p)); draw(); };
   $('#ms-size').addEventListener('input', (e) => { const v = parseFloat(e.target.value) / 100; if (v > 0) put(scaledBy(list[sel], v / tOf(list[sel]).s)); });
   $('#ms-turn').addEventListener('input', (e) => put(turnedBy(list[sel], parseFloat(e.target.value) - signed(tOf(list[sel]).a))));
   $('#ms-turn-l').addEventListener('click', () => put(turnedBy(list[sel], -90)));
   $('#ms-turn-r').addEventListener('click', () => put(turnedBy(list[sel], 90)));
   $('#ms-see').addEventListener('click', () => { see = !see; draw(); });
-  $('#ms-reset').addEventListener('click', () => { list = sideBySide(list.map((p) => ({ ...p }))); fit(); });
+  $('#ms-reset').addEventListener('click', () => { arranged = false; list = sideBySide(list.map((p) => ({ ...p }))); fit(); });
   $('#ms-fit').addEventListener('click', fit);
 
   // ---- pointer: drag a photo, or pan the board; wheel zooms
@@ -170,6 +171,7 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
     const cand = moved(drag.orig, p[0] - drag.start[0], p[1] - drag.start[1]);
     const s = e.altKey ? { dx: 0, dy: 0, guides: [] } : snapPhoto(cand, list.filter((_, i) => i !== drag.i), 12 * pxs());
     guides = s.guides;
+    arranged = true;
     list = list.map((q, i) => (i === drag.i ? moved(cand, s.dx, s.dy) : q));
     draw();
   });
@@ -205,10 +207,13 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
   });
   $('#ms-auto').addEventListener('click', async (ev) => {
     const btn = ev.currentTarget, label = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Joining…';
+    btn.disabled = true; btn.textContent = 'Preparing…';
     try {
-      const joined = await joinPhotos(list);
-      if (!destroyed) await onAutoBuild(joined);
+      // every photo is built on its own and the plans joined by what they share; the board is the fallback
+      const out = normalizeToMain(list);
+      const full = await Promise.all(out.map(async (p, i) => ({ pixels: await pixelsOf(p.dataUrl), photo: { dataUrl: p.dataUrl, width: p.width, height: p.height }, board: i ? { t: p.t } : null, orig: p })));
+      full.arranged = arranged;
+      if (!destroyed) await onAutoBuild(full);
     } finally { btn.disabled = false; btn.textContent = label; }
   });
 
