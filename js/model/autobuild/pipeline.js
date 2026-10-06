@@ -11,6 +11,7 @@ import { analyze } from './layers.js';
 import { extractFaces, footprint, traceOuter, simplifyRing, orthogonalize } from './faces.js';
 import { estimateTextHeight, findGlyphs, buildLines, renderLine, titleCase, repairRuns, floorPrior, inferFormat } from './text.js';
 import { readLines, interpret } from './reading.js';
+import { renderCrop } from './ocrRender.js';
 import { resolveProfile } from './profile.js';
 import { assemble } from './assemble.js';
 import { unionBody } from './outline.js';
@@ -159,7 +160,7 @@ export async function buildFromPlan(img, opts = {}) {
   const jobs = [];
   accepted.forEach((c) => c.lines.forEach((l) => jobs.push(l)));
   if (opts.ocr) {
-    await readLines(jobs, opts.ocr, (l, th) => renderLine(layers.gray, ink8.labels, w, h, l, th), prof, (done, n) => {
+    await readLines(jobs, opts.ocr, (l, th, kind) => (kind === 'old' ? renderLine(layers.gray, ink8.labels, w, h, l, th) : renderCrop(layers.gray, w, h, l, { height: th, mode: 'binary' })), prof, (done, n) => {
       prog(0.2 + 0.65 * (done / Math.max(1, n)), `Reading room numbers ${done}/${n}`);
     }, opts.concurrency || 3);
   }
@@ -298,9 +299,11 @@ export async function buildFromPlan(img, opts = {}) {
     inside: ([x, y]) => !!bodyMask[Math.max(0, Math.min(h - 1, Math.round(y))) * w + Math.max(0, Math.min(w - 1, Math.round(x)))],
   }).map(([x, y]) => [x, y]);
 
+  const keptRaw = opts.debug ? kept.map((r) => ({ number: r.number, x: r.x, y: r.y, w: r.w, h: r.h, pts: r.points })) : null;
   alignShapes([...kept, ...halls, { points: polyRing }], Math.max(4, e * 3 + 1));
   snapToWalls(kept, layers.wallInk || layers.ink, w, h, Math.max(3, e * 3));
   resolveOverlaps(kept);
+  const keptFinal = opts.debug ? kept.map((r) => ({ number: r.number, x: r.x, y: r.y, w: r.w, h: r.h, pts: r.points })) : null;
 
   prog(0.91, 'Laying out the plan');
   const out = assemble({ w, h, L, textH, kept, halls, elevators, stairs, exits, compass, footFinal: bodyMask, polyRing, ink: wallInk, prof, opts });
@@ -315,6 +318,6 @@ export async function buildFromPlan(img, opts = {}) {
     items,
     hallPass: pass.hallPass,
     stats: { w, h, textH, rooms: kept.length, accepted: accepted.length, halls: halls.length, stairs: stairs.length, exits: exits.length, elevators: elevators.length, elevDensity: elevators.map((q) => +q.density.toFixed(2)), lines: jobs.length },
-    debug: { compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels },
+    debug: { compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels, keptRaw, keptFinal },
   };
 }

@@ -1,0 +1,38 @@
+{
+ "slug": "cb-13",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 17 rooms · hallways filled in (14 pieces) · Compass placed · 15 need a look"
+ ],
+ "review": [
+  "W187Number W187 needed character repairs; check it",
+  "W191Number W191 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W192Number W192 needed character repairs; check it",
+  "W196Number W196 needed character repairs; check it",
+  "W193Number W193 needed character repairs; check it",
+  "184Number 184 was read only once; check it",
+  "W188Number W188 needed character repairs; check it",
+  "W186Number W186 needed character repairs; check it",
+  "W190Number W190 needed character repairs; check it",
+  "W194Number W194 needed character repairs; check it",
+  "W195Number W195 needed character repairs; check it",
+  "W185Number W185 needed character repairs; check it",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomNumber hidden under the You-Are-Here pin"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-unreachable: Room W195 is not reachable from an entrance.",
+  "room-unreachable: Room W194 is not reachable from an entrance."
+ ]
+}

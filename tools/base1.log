@@ -1,0 +1,43 @@
+ok hh-1 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 37 rooms · hallways filled in (2 pieces) · Compass placed · 25 need a look
+validation: 29
+ok hh-2 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 22 rooms · hallways filled in (1 piece) · Compass placed · 11 need a look
+validation: 14
+ok cb-11 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 38 rooms · hallways filled in (21 pieces) · Compass placed · 13 need a look
+validation: 12
+ok cb-12 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 22 rooms · hallways filled in (4 pieces) · No compass found - add it from the palette · 5 need a look
+validation: 31
+ok cb-13 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 17 rooms · hallways filled in (14 pieces) · Compass placed · 15 need a look
+validation: 6
+FAILED cb-14: page.waitForFunction: Timeout 240000ms exceeded.
+ok cb-21 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 20 rooms · hallways filled in (5 pieces) · Compass placed · 6 need a look
+validation: 6
+ok cb-22 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 20 rooms · hallways filled in (13 pieces) · Compass placed · 6 need a look
+validation: 4
+ok cb-23 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 26 rooms · hallways filled in (12 pieces) · Compass placed · 25 need a look
+validation: 32
+ok cb-31 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 33 rooms · hallways filled in (15 pieces) · No compass found - add it from the palette · 19 need a look
+validation: 17
+ok cb-32 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 28 rooms · hallways filled in (21 pieces) · Compass placed · 21 need a look
+validation: 21
+ok gn-1 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 59 rooms · hallways filled in (15 pieces) · Compass placed · 27 need a look
+validation: 31
+ok gn-2 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 44 rooms · hallways filled in (17 pieces) · Compass placed · 15 need a look
+validation: 29
+ok bx-1 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 12 rooms · hallways filled in (4 pieces) · Compass placed · 6 need a look
+validation: 7
+ok rh-1 -> C:\Users\sebastian\Desktop\Coding\Tools\FloorplanMaker\tools\base1
+AutoBuild placed 12 rooms · Compass placed · 2 need a look
+validation: 4

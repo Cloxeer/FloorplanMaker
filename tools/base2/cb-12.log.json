@@ -1,0 +1,53 @@
+{
+ "slug": "cb-12",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 22 rooms · hallways filled in (4 pieces) · No compass found - add it from the palette · 5 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "130Number 130 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room ida5zdqfw falls outside its shape.",
+  "label-in-other-room: The label for room 130 sits inside smaller room idkgrihwo, so the parser would give it that room.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 130 and idkgrihwo overlap.",
+  "room-unreachable: Room id9z5vdyy is not reachable from an entrance.",
+  "room-unreachable: Room ida5zdqfw is not reachable from an entrance.",
+  "room-unreachable: Room R142 is not reachable from an entrance.",
+  "room-unreachable: Room 143 is not reachable from an entrance.",
+  "room-unreachable: Room 141 is not reachable from an entrance.",
+  "room-unreachable: Room 130 is not reachable from an entrance.",
+  "room-unreachable: Room idkgrihwo is not reachable from an entrance.",
+  "room-unreachable: Room 134 is not reachable from an entrance.",
+  "room-unreachable: Room 133 is not reachable from an entrance.",
+  "room-unreachable: Room 132 is not reachable from an entrance.",
+  "room-unreachable: Room 128 is not reachable from an entrance.",
+  "room-unreachable: Room 127 is not reachable from an entrance.",
+  "room-unreachable: Room 129 is not reachable from an entrance.",
+  "room-unreachable: Room 125 is not reachable from an entrance.",
+  "room-unreachable: Room 126 is not reachable from an entrance.",
+  "room-unreachable: Room 137 is not reachable from an entrance.",
+  "room-unreachable: Room 138 is not reachable from an entrance.",
+  "room-unreachable: Room 140 is not reachable from an entrance.",
+  "room-unreachable: Room idliry19j is not reachable from an entrance.",
+  "room-unreachable: Room 144 is not reachable from an entrance.",
+  "room-unreachable: Room idm9aufpl is not reachable from an entrance.",
+  "room-unreachable: Room idjkhi8ic is not reachable from an entrance."
+ ]
+}

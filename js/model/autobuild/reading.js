@@ -56,12 +56,13 @@ export async function readLines(lines, ocr, render, prof, tick = () => {}, concu
   await mapLimit(lines, concurrency, async (l) => {
     l.reads = [];
     for (let i = 0; i < prof.attempts.length; i++) {
-      const [th, psm] = prof.attempts[i];
-      try { l.reads.push(await ocr(render(l, th), { psm })); } catch { /* skip this rendering */ }
+      const [th, psm, kind] = prof.attempts[i];
+      try { l.reads.push(await ocr(render(l, th, kind), { psm })); } catch { /* skip this rendering */ }
       const rs = l.reads.map((r) => r.text || '');
-      if (rs.length >= 2 && i === 1 && rs.every((t) => !norm(t))) break; // two blank readings: nothing to read here
+      if (rs.length >= 3 && i === 2 && rs.every((t) => !norm(t))) break; // three blank readings: nothing to read here
       const agree = (a, b) => norm(a) && norm(a) === norm(b) && agreeOk(a);
-      if (rs.length >= 2 && (i === 1 || i === 2) && rs.some((a, x) => rs.some((b, y) => x < y && agree(a, b)))) break;
+      // two grammar-valid readings agree: done (small labels give a different answer per size, so it takes a few tries)
+      if (rs.length >= 2 && i >= 1 && rs.some((a, x) => rs.some((b, y) => x < y && agree(a, b)))) break;
     }
     done++;
     tick(done, lines.length);

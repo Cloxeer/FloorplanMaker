@@ -1,0 +1,9 @@
+{
+ "slug": "cb-14",
+ "steps": [
+  "project created",
+  "autobuild started"
+ ],
+ "console": [],
+ "error": "page.waitForFunction: Timeout 240000ms exceeded.\n    at C:\\Users\\sebastian\\Desktop\\Coding\\Tools\\FloorplanMaker\\tools\\build-floor.mjs:61:14"
+}

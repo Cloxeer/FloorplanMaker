@@ -14,7 +14,8 @@ export const PROFILES = {
     roomAspectMax: 3.4, roomAreaMax: 0.08, // unnumbered cells must look like a room
     hallMaxShort: 0.14, hallMinLong: 7, // corridor limits: share of the long side / text heights
     prefixes: 'RSTMJEH', // letters that may start a room number
-    attempts: [[44, '7'], [64, '8'], [44, '8'], [64, '7']], // [text height, tesseract psm] renderings per label
+    // [text height px, tesseract psm, rendering] tried in turn until two valid readings agree; 'old' = the masked bold crop
+    attempts: [[48, '7', 'crisp'], [32, '7', 'crisp'], [48, '8', 'crisp'], [40, '8', 'crisp'], [56, '7', 'crisp'], [36, '8', 'crisp'], [44, '7', 'old'], [64, '8', 'crisp']],
     lowVotes: 2, lowCost: 0.6, // a reading with fewer agreeing renderings / more repair cost is flagged
     useFormat: true, // vote with the number format inferred from the confident reads (other schools)
     nearMiss: true, // a token one character off a valid number becomes a flagged room number

@@ -1,0 +1,42 @@
+{
+ "slug": "cb-11",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 38 rooms · hallways filled in (21 pieces) · Compass placed · 13 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "104BNumber 104B needed character repairs; check it",
+  "104DNumber 104D needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "112BNumber 112B needed character repairs; check it",
+  "R118Number R118 was read only once; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "102Walls unclear here; check the room shape",
+  "111Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-unreachable: Room 104D is not reachable from an entrance.",
+  "room-unreachable: Room idhd261j3 is not reachable from an entrance.",
+  "room-unreachable: Room idjnucbhh is not reachable from an entrance.",
+  "room-unreachable: Room id8i4eucz is not reachable from an entrance.",
+  "room-unreachable: Room 104G is not reachable from an entrance."
+ ]
+}

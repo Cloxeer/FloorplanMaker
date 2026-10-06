@@ -1,0 +1,27 @@
+{
+ "slug": "cb-22",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "toast": [
+  "AutoBuild placed 20 rooms · hallways filled in (13 pieces) · Compass placed · 6 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "W292Number W292 needed character repairs; check it",
+  "W290Number W290 needed character repairs; check it",
+  "W293Number W293 needed character repairs; check it",
+  "W289Number W289 needed character repairs; check it"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-unreachable: Room W293 is not reachable from an entrance."
+ ]
+}
