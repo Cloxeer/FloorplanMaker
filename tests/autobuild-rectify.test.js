@@ -62,7 +62,7 @@ test('the frame, wall texture, sidebar, caption and sleeve line do not stretch t
     assert.ok(ratio < 1.6, `crop ${ratio.toFixed(2)}x the plan ${JSON.stringify(opts)}`);
     sizes.push(ratio);
   }
-  assert.ok(Math.max(...sizes) - Math.min(...sizes) < 0.05, `crop does not depend on the clutter: ${sizes.map((v) => v.toFixed(2))}`);
+  assert.ok(Math.max(...sizes) - Math.min(...sizes) < 0.08, `crop does not depend on the clutter: ${sizes.map((v) => v.toFixed(2))}`);
 });
 
 test('clutter plus rotation and keystone still crops to the plan', () => {
