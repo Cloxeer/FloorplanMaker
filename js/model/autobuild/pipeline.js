@@ -12,6 +12,7 @@ import { extractFaces, footprint, traceOuter, simplifyRing, orthogonalize } from
 import { estimateTextHeight, findGlyphs, buildLines, renderLine, titleCase, repairRuns, floorPrior, inferFormat } from './text.js';
 import { readLines, interpret } from './reading.js';
 import { renderCrop } from './ocrRender.js';
+import { maskPosterChrome } from './chrome.js';
 import { resolveProfile } from './profile.js';
 import { assemble } from './assemble.js';
 import { unionBody } from './outline.js';
@@ -76,8 +77,9 @@ function walledIn(ink, w, h, cx, cy, r, textH) {
   return sides >= 4;
 }
 
-export async function buildFromPlan(img, opts = {}) {
+export async function buildFromPlan(img0, opts = {}) {
   const prog = opts.onProgress || (() => {});
+  const img = opts.chrome === false ? img0 : maskPosterChrome(img0).img; // the legend sidebar and the caption band are not the building
   const { width: w, height: h } = img;
   const L = Math.max(w, h);
   const prof = resolveProfile(opts.profile);

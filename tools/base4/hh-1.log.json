@@ -1,0 +1,42 @@
+{
+ "slug": "hh-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 37 rooms · hallways filled in (2 pieces) · Compass placed · 8 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "190BNumber 190B was read only once; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber unclear (best guess 513); left blank, please check",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "102Walls unclear here; check the room shape",
+  "109Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 101 and 102 overlap.",
+  "overlapping-rooms: Rooms 102 and 103 overlap.",
+  "overlapping-rooms: Rooms 102 and 104 overlap.",
+  "room-unreachable: Room id13cjxr3p is not reachable from an entrance.",
+  "room-unreachable: Room id14nxru8n is not reachable from an entrance.",
+  "room-unreachable: Room 131 is not reachable from an entrance."
+ ]
+}

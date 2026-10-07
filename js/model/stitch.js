@@ -93,35 +93,59 @@ export function alignByLabels(a, b) {
     const m = rb.get(digits(it.number));
     if (m) P.push({ a: centre(it), b: centre(m), ba: boxOf(it), bb: boxOf(m) });
   }
-  if (P.length < 2) return null;
+  if (!P.length) return [];
   const hint = compassTurn(a, b);
-  let best = null;
+  const out = [];
+  const tolOf = (p) => 0.6 * Math.min(p.ba.w, p.ba.h, 150);
+  const consider = (q, s, tx, ty, why) => {
+    const B = P.map((p) => spin(p.b[0], p.b[1], q));
+    const pairs = [];
+    P.forEach((p, k) => { if (Math.hypot(s * B[k][0] + tx - p.a[0], s * B[k][1] + ty - p.a[1]) <= tolOf(p)) pairs.push([p.a[0], p.a[1], p.b[0], p.b[1]]); });
+    if (!pairs.length) return;
+    out.push({ q, s, tx, ty, inl: pairs.length, pairs, why });
+  };
+  for (const q of [0, 1, 2, 3]) {
+    if (hint != null && q !== hint) continue; // the compasses say which way; only a lot of agreeing rooms can overrule them (below)
+    // seed: one shared room (the compass fixes the turn, the room's size the scale)
+    for (const p of P) {
+      const [rw, rh] = q % 2 ? [p.bb.h, p.bb.w] : [p.bb.w, p.bb.h];
+      const s = Math.max(0.7, Math.min(1.4, Math.sqrt((p.ba.w * p.ba.h) / Math.max(1, rw * rh))));
+      const [bx, by] = spin(p.b[0], p.b[1], q);
+      consider(q, s, p.a[0] - s * bx, p.a[1] - s * by, 'one');
+    }
+  }
+  // seed: two shared rooms (fixes turn, scale and shift by itself); any turn
   for (const q of [0, 1, 2, 3]) {
     const B = P.map((p) => spin(p.b[0], p.b[1], q));
     for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
       const vax = P[j].a[0] - P[i].a[0], vay = P[j].a[1] - P[i].a[1], vbx = B[j][0] - B[i][0], vby = B[j][1] - B[i][1];
       const la = Math.hypot(vax, vay), lb = Math.hypot(vbx, vby);
       if (la < 60 || lb < 60) continue;
-      const s = la / lb;
-      if (s < 0.55 || s > 1.9) continue;
-      const cos = (vax * vbx + vay * vby) / (la * lb);
-      if (cos < 0.97) continue; // the two pairs must point the same way once turned
-      const tx = P[i].a[0] - s * B[i][0], ty = P[i].a[1] - s * B[i][1];
-      let inl = 0;
-      const pairs = [];
-      P.forEach((p, k) => { const d = Math.hypot(s * B[k][0] + tx - p.a[0], s * B[k][1] + ty - p.a[1]); if (d <= 0.6 * Math.min(p.ba.w, p.ba.h, 150)) { inl++; pairs.push([p.a[0], p.a[1], p.b[0], p.b[1]]); } });
-      const score = inl * (hint != null && q !== hint ? 0.7 : 1);
-      if (inl >= 2 && (!best || score > best.score)) best = { q, s, tx, ty, inl, pairs, score };
+      const sc = la / lb;
+      if (sc < 0.55 || sc > 1.9 || (vax * vbx + vay * vby) / (la * lb) < 0.97) continue;
+      consider(q, sc, P[i].a[0] - sc * B[i][0], P[i].a[1] - sc * B[i][1], 'two');
     }
   }
-  if (!best) return null;
-  const fit = fitScaleShift(best.pairs, best.q);
-  return { q: best.q, s: fit.s, tx: fit.tx, ty: fit.ty, n: best.inl, labelled: best.inl, rms: fit.rms, score: 3 * best.inl, how: 'rooms' };
+  // best first; a turn against the compasses is kept only with 4+ agreeing rooms
+  const keep = out.filter((c) => hint == null || c.q === hint || c.inl >= 4).sort((x, y) => y.inl - x.inl || (x.why === 'two' ? -1 : 1));
+  const res = [];
+  for (const c of keep) {
+    if (res.length >= 4) break;
+    if (res.some((r) => r.q === c.q && Math.hypot(r.tx - c.tx, r.ty - c.ty) < 40)) continue;
+    const fit = c.pairs.length >= 2 ? fitScaleShift(c.pairs, c.q) : { s: c.s, tx: c.tx, ty: c.ty, rms: 0 };
+    res.push({ q: c.q, s: fit.s, tx: fit.tx, ty: fit.ty, n: c.inl, labelled: c.inl, rms: fit.rms, score: 3 * c.inl, how: 'rooms' });
+  }
+  return res;
 }
 
-export function alignByShape(a, b, opts = {}) {
+export function alignByShape(a, b) {
   const byLabel = alignByLabels(a, b);
-  if (byLabel && byLabel.n >= 2) return byLabel;
+  if (byLabel.length) return byLabel;
+  const one = alignShapeOnly(a, b);
+  return one ? [one] : [];
+}
+
+function alignShapeOnly(a, b) {
   const ra = a.items.filter((it) => it.type === 'room' && it.cls !== 'void' && ok(it.x ?? (it.points && it.points[0][0]))).map((it) => ({ it, b: boxOf(it), c: centre(it) }));
   const rb = b.items.filter((it) => it.type === 'room' && it.cls !== 'void' && ok(it.x ?? (it.points && it.points[0][0]))).map((it) => ({ it, b: boxOf(it), c: centre(it) }));
   if (!ra.length || !rb.length) return null;
@@ -263,6 +287,30 @@ export function alignByHallways(a, b) {
   return best;
 }
 
+// rooms of plan b (placed by tb) that land ON rooms of plan a (placed by ta) without being the same room: a join that stacks the photos
+export function stackConflicts(a, ta, b, tb) {
+  const box = (it, t) => {
+    const bx = boxOf(it), [x0, y0] = apply(t, bx.x, bx.y), [x1, y1] = apply(t, bx.x + bx.w, bx.y + bx.h);
+    return { x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
+  };
+  const A = a.items.filter((it) => it.type === 'room' && it.cls !== 'void' && (it.points || (ok(it.x) && ok(it.w)))).map((it) => ({ it, b: box(it, ta) }));
+  let n = 0;
+  for (const it of b.items) {
+    if (it.type !== 'room' || it.cls === 'void' || !(it.points || (ok(it.x) && ok(it.w)))) continue;
+    const r = box(it, tb);
+    for (const p of A) {
+      const ox = Math.max(0, Math.min(r.x1, p.b.x1) - Math.max(r.x0, p.b.x0)), oy = Math.max(0, Math.min(r.y1, p.b.y1) - Math.max(r.y0, p.b.y0));
+      const small = Math.min((r.x1 - r.x0) * (r.y1 - r.y0), (p.b.x1 - p.b.x0) * (p.b.y1 - p.b.y0));
+      if (small <= 0 || ox * oy < 0.45 * small) continue;
+      const same = it.number && p.it.number && digits(it.number) === digits(p.it.number);
+      const c0 = [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2], c1 = [(p.b.x0 + p.b.x1) / 2, (p.b.y0 + p.b.y1) / 2];
+      const close = Math.hypot(c0[0] - c1[0], c0[1] - c1[1]) < 0.4 * Math.min(r.x1 - r.x0, r.y1 - r.y0, p.b.x1 - p.b.x0, p.b.y1 - p.b.y0);
+      if (!same && !close) n++;
+    }
+  }
+  return n;
+}
+
 // ---- all plans into plan 0's frame
 // -> { tfs, roots }: tfs[i] maps plan i into the frame of ITS group's root plan (roots[0] = 0 is the reference); a group
 // that nothing connects to the first one has its own root, and the caller decides where that group goes (placeBeside).
@@ -273,24 +321,33 @@ export function alignPlans(plans) {
   const edges = [];
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     if (i === j) continue;
-    const num = alignByShape(plans[i], plans[j]); // maps j into i
-    if (num) edges.push({ from: i, to: j, t: num, weight: 10 * num.score + 50 * num.labelled });
-    else {
+    const cands = alignByShape(plans[i], plans[j]); // each maps j into i, best first
+    cands.forEach((t, k) => edges.push({ from: i, to: j, k, t, weight: 10 * t.score + 50 * (t.labelled || 0) - k }));
+    if (!cands.length) {
       const hall = alignByHallways(plans[i], plans[j]);
-      if (hall) edges.push({ from: i, to: j, t: hall, weight: 1 - hall.cost });
+      if (hall) edges.push({ from: i, to: j, k: 0, t: hall, weight: 1 - hall.cost });
     }
   }
+  const rejected = new Set();
   const grow = (root) => {
     tfs[root] = { q: 0, s: 1, tx: 0, ty: 0, how: root === 0 ? 'reference' : 'group root', n: 0, rms: 0, root };
     roots.push(root);
     for (;;) {
-      let pick = null;
-      for (const e of edges) if (tfs[e.from] && tfs[e.from].root === root && !tfs[e.to] && (!pick || e.weight > pick.weight)) pick = e;
-      if (!pick) break;
-      const A = tfs[pick.from], T = pick.t;
-      // p_from = T(p_to); p_root = A(p_from)
-      const [tx, ty] = apply(A, T.tx, T.ty);
-      tfs[pick.to] = { q: (A.q + T.q) % 4, s: A.s * T.s, tx, ty, how: T.how, n: T.n || 0, rms: T.rms || 0, labelled: T.labelled || 0, root };
+      // the strongest link into the group that does not put the new photo on top of the ones already there
+      const cands = edges.filter((e) => tfs[e.from] && tfs[e.from].root === root && !tfs[e.to] && !rejected.has(`${e.from}>${e.to}#${e.k}`)).sort((a, b) => b.weight - a.weight);
+      let took = false;
+      for (const pick of cands) {
+        const A = tfs[pick.from], T = pick.t;
+        // p_from = T(p_to); p_root = A(p_from)
+        const [tx, ty] = apply(A, T.tx, T.ty);
+        const cand = { q: (A.q + T.q) % 4, s: A.s * T.s, tx, ty, how: T.how, n: T.n || 0, rms: T.rms || 0, labelled: T.labelled || 0, root };
+        const bad = plans.reduce((c, p, k) => (tfs[k] && tfs[k].root === root ? c + stackConflicts(p, tfs[k], plans[pick.to], cand) : c), 0);
+        if (bad > Math.max(2, 0.12 * rooms(plans[pick.to]).length)) { rejected.add(`${pick.from}>${pick.to}#${pick.k}`); continue; }
+        tfs[pick.to] = cand;
+        took = true;
+        break;
+      }
+      if (!took) break;
     }
   };
   grow(0);

@@ -65,9 +65,17 @@ export async function buildMany(list, opts) {
     compass: (() => { const c = m.items.find((it) => it.type === 'compass'); return c ? { x: c.x, y: c.y, deg: c.deg } : null; })(),
   }));
   opts.onProgress(0.94, 'Joining the photos');
-  const { tfs, roots } = alignPlans(plans);
   const notes = [];
   const boards = list.map((l) => l.board || null);
+  let { tfs, roots } = alignPlans(plans);
+  // placements fixed by hand: the user arranged the merge board, or a tool passed them (window.__forceTransforms)
+  const forced = (typeof window !== 'undefined' && window.__forceTransforms) || null;
+  if (forced) { tfs = plans.map((_, i) => ({ ...forced[i], how: 'given', root: 0, final: true, n: 0, rms: 0 })); roots = [0]; }
+  else if (list.arranged && plans.every((_, i) => boardTransform(i, results, boards) || i === 0)) {
+    tfs = plans.map((_, i) => ({ ...(i === 0 ? { q: 0, s: 1, tx: 0, ty: 0 } : boardTransform(i, results, boards)), how: 'board', root: 0, final: true, n: 0, rms: 0 }));
+    roots = [0];
+    notes.push('Photos placed as you arranged them on the board.');
+  }
   // a group of photos that nothing links to the first goes where the board says (when the user arranged it) or beside the rest
   for (const root of roots.slice(1)) {
     const group = tfs.map((t, i) => (t.root === root ? i : -1)).filter((i) => i >= 0);

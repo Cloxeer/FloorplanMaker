@@ -25,8 +25,8 @@
    {
     "q": 1,
     "s": 1,
-    "tx": 2315,
-    "ty": 742.5,
+    "tx": 3710,
+    "ty": -555.5,
     "how": "beside",
     "n": 0,
     "rms": 0,
@@ -35,20 +35,20 @@
    },
    {
     "q": 0,
-    "s": 1,
-    "tx": 1655,
-    "ty": 97.5,
-    "how": "hallway",
-    "n": 0,
+    "s": 1.0485881160098263,
+    "tx": 1449.5160738042287,
+    "ty": 90.04503548707669,
+    "how": "rooms",
+    "n": 1,
     "rms": 0,
-    "labelled": 0,
+    "labelled": 1,
     "root": 1,
     "final": true
    }
   ],
   "notes": [
    "Photo 2 and Photo 3 share no room numbers or hallway with the others, so they were placed beside them. Check how it joins.",
-   "Photo 3: joined by hallway; check the join."
+   "Photo 3: joined by rooms; check the join."
   ],
   "report": {
    "placed": [
@@ -66,12 +66,14 @@
     },
     {
      "id": "photo 3",
-     "how": "hallway",
-     "n": 0,
+     "how": "rooms",
+     "n": 1,
      "rms": 0
     }
    ],
-   "dropped": [],
+   "dropped": [
+    "W239"
+   ],
    "unplaced": []
   },
   "plans": [
@@ -298,7 +300,7 @@
      ]
     ],
     "compass": {
-     "id": "idwob45db",
+     "id": "idw1zci3h",
      "type": "compass",
      "x": 1263,
      "y": 882,
@@ -553,7 +555,7 @@
      ]
     ],
     "compass": {
-     "id": "idyzyskpx",
+     "id": "idyg9lg64",
      "type": "compass",
      "x": 263,
      "y": 803,
@@ -738,7 +740,7 @@
      ]
     ],
     "compass": {
-     "id": "idw4h67vf",
+     "id": "idw75dhpb",
      "type": "compass",
      "x": 1618,
      "y": 62,
@@ -768,7 +770,7 @@
   ]
  },
  "toast": [
-  "AutoBuild joined 3 photos: 66 rooms · Photo 2 and Photo 3 share no room numbers or hallway with the others, so they were placed beside them. Check how it joins. · 38 need a look"
+  "AutoBuild joined 3 photos: 65 rooms · Photo 2 and Photo 3 share no room numbers or hallway with the others, so they were placed beside them. Check how it joins. · 38 need a look"
  ],
  "review": [
   "R204BNumber R204B needed character repairs; check it",
@@ -789,7 +791,6 @@
   "W282Number W282 needed character repairs; check it",
   "RoomNumber hidden under the You-Are-Here pin",
   "W288Number W288 was read only once; check it",
-  "W239Number W239 was read only once; check it",
   "W230Number W230 needed character repairs; check it",
   "RoomText in this room could not be read",
   "W256Number W256 needed character repairs; check it",
@@ -811,9 +812,8 @@
   "RoomNumber hidden under the You-Are-Here pin"
  ],
  "validation": [
-  "label-outside-shape: The label for room idsft5t0i falls outside its shape.",
-  "label-in-other-room: The label for room 292 sits inside smaller room ide4wzupc, so the parser would give it that room.",
-  "door-off-outline: A door is not positioned on the floor outline.",
+  "label-outside-shape: The label for room idsnutjei falls outside its shape.",
+  "label-in-other-room: The label for room 292 sits inside smaller room 241, so the parser would give it that room.",
   "room-no-number: A room shape has no room number, so it will not be searchable.",
   "room-no-number: A room shape has no room number, so it will not be searchable.",
   "room-no-number: A room shape has no room number, so it will not be searchable.",
@@ -830,20 +830,31 @@
   "room-no-number: A room shape has no room number, so it will not be searchable.",
   "room-no-number: A room shape has no room number, so it will not be searchable.",
   "room-no-number: A room shape has no room number, so it will not be searchable.",
-  "overlapping-rooms: Rooms 231A and W275 overlap.",
-  "overlapping-rooms: Rooms idknwof8b and idn6zpf8e overlap.",
-  "overlapping-rooms: Rooms idknwof8b and idhjsyxgx overlap.",
-  "overlapping-rooms: Rooms idp8ahczc and W277 overlap.",
-  "overlapping-rooms: Rooms idp8ahczc and W275 overlap.",
-  "overlapping-rooms: Rooms idc1li2ra and 292 overlap.",
-  "overlapping-rooms: Rooms idn6zpf8e and idq6lnaop overlap.",
-  "overlapping-rooms: Rooms idsft5t0i and W285 overlap.",
+  "overlapping-rooms: Rooms R239 and idancujun overlap.",
+  "overlapping-rooms: Rooms R239 and W230 overlap.",
+  "overlapping-rooms: Rooms id6m5poki and W293 overlap.",
+  "overlapping-rooms: Rooms idancujun and W292 overlap.",
+  "overlapping-rooms: Rooms idancujun and ids09i7j5 overlap.",
+  "overlapping-rooms: Rooms idancujun and 240 overlap.",
+  "overlapping-rooms: Rooms idcst7ycx and 292 overlap.",
+  "overlapping-rooms: Rooms idcst7ycx and 241 overlap.",
+  "overlapping-rooms: Rooms idsnutjei and W285 overlap.",
+  "overlapping-rooms: Rooms W293 and W288 overlap.",
+  "overlapping-rooms: Rooms W292 and W288 overlap.",
+  "overlapping-rooms: Rooms ids09i7j5 and W230 overlap.",
+  "overlapping-rooms: Rooms W230 and 227 overlap.",
+  "overlapping-rooms: Rooms W230 and 240 overlap.",
+  "overlapping-rooms: Rooms 227 and 292 overlap.",
+  "overlapping-rooms: Rooms 240 and 292 overlap.",
+  "overlapping-rooms: Rooms 292 and 225 overlap.",
   "overlapping-rooms: Rooms 292 and W256 overlap.",
   "overlapping-rooms: Rooms 292 and W295 overlap.",
-  "overlapping-rooms: Rooms 292 and ide4wzupc overlap.",
-  "overlapping-rooms: Rooms idhjsyxgx and idq6lnaop overlap.",
-  "room-unreachable: Room idp8ahczc is not reachable from an entrance.",
-  "room-unreachable: Room W293 is not reachable from an entrance.",
-  "room-unreachable: Room W292 is not reachable from an entrance."
+  "overlapping-rooms: Rooms 292 and ide4rjhsi overlap.",
+  "overlapping-rooms: Rooms 241 and ide4rjhsi overlap.",
+  "room-unreachable: Room R239 is not reachable from an entrance.",
+  "room-unreachable: Room W289 is not reachable from an entrance.",
+  "room-unreachable: Room W292 is not reachable from an entrance.",
+  "room-unreachable: Room 241 is not reachable from an entrance.",
+  "room-unreachable: Room W295 is not reachable from an entrance."
  ]
 }

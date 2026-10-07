@@ -6,6 +6,7 @@
 import { autoStraighten } from './autobuild.js';
 import { warpToCanvas } from './photoWarp.js';
 import { mountFlattenStage } from './flattenStage.js';
+import { posterRoi } from '../../model/autobuild/chrome.js';
 
 const MAX_ORIGINAL = 2400;
 
@@ -320,10 +321,20 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
       onBack: backToCorners,
       onStart: async (photo, cv, adjusted) => {
         if (!onDone) return;
-        // one of several photos: straighten it with the plan's own walls too, unless the user set the corners or sliders
-        if (multi && cv && !adjusted && !cornersTouched) {
+        // one of several photos: cut it down to the floor plan itself (no wall, frame, legend sidebar or caption), by
+        // straightening it on the plan's own walls; failing that, by the poster's sidebar and caption
+        if (multi && cv) {
           const built = await autoStraighten(cv, originalDataUrl);
           if (built) { onDone({ ...built.photo, corners: corners.map((p) => [...p]), originalDataUrl }); return; }
+          const g = cv.getContext('2d'), px = g.getImageData(0, 0, cv.width, cv.height);
+          const roi = posterRoi({ width: cv.width, height: cv.height, data: px.data });
+          if (roi) {
+            const c = document.createElement('canvas');
+            c.width = roi.x1 - roi.x0 + 1; c.height = roi.y1 - roi.y0 + 1;
+            c.getContext('2d').drawImage(cv, roi.x0, roi.y0, c.width, c.height, 0, 0, c.width, c.height);
+            onDone({ dataUrl: c.toDataURL('image/jpeg', 0.88), width: c.width, height: c.height, corners: corners.map((p) => [...p]), originalDataUrl });
+            return;
+          }
         }
         onDone(photo);
       },

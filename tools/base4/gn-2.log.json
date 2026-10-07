@@ -1,0 +1,25 @@
+{
+ "slug": "gn-2",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 39 rooms · hallways filled in (28 pieces) · Compass placed · 4 need a look"
+ ],
+ "review": [
+  "224Number 224 was read only once; check it",
+  "252Read as 125Z but this is floor 2: changed to 252",
+  "259BNumber 259B needed character repairs; check it",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room 252 falls outside its shape.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-unreachable: Room 223 is not reachable from an entrance."
+ ]
+}

@@ -1,0 +1,24 @@
+{
+ "slug": "rh-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 12 rooms · Compass placed · 2 need a look"
+ ],
+ "review": [
+  "111Number 111 needed character repairs; check it",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 111 and 114 overlap.",
+  "room-unreachable: Room M117 is not reachable from an entrance.",
+  "room-unreachable: Room R115 is not reachable from an entrance."
+ ]
+}

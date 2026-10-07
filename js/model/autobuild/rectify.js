@@ -9,12 +9,13 @@
 // Pure; { width, height, data } RGBA in and out.
 // Depends on: js/model/autobuild/{raster,layers,rectifyFit,rectifyRegion,rectifyTilt,rectifyQuality}.js
 
-import { downscale, warpSharp } from './raster.js';
+import { downscale, warpSharp, components } from './raster.js';
 import { analyze, inkOnPaper } from './layers.js';
 import { mul, inv, apply, buildHc, fitHomography, fitResidual, residual, RAD } from './rectifyFit.js';
 import { findPlanRegion } from './rectifyRegion.js';
 import { tiltSamples } from './rectifyTilt.js';
 import { buildQuality, failQuality, polyArea } from './rectifyQuality.js';
+import { posterRoi } from './chrome.js';
 
 const KEYSTONE_MAX = 0.6, SHEAR_MAX = 0.35;
 
@@ -57,7 +58,61 @@ function cropRect(mask, ww, wh, box, Hc, cx0, cy0) {
 
 // Always returns an object: { ok, image, H, corners, tilt, fit, cost, quality }. ok is false (and image null)
 // when no plan could be found; quality then says why.
+// The straightening is only trusted when it looks right: a plan found, a decent score, a crop about the size of the
+// plan. Otherwise the poster's own furniture (maroon sidebar, caption band) gives the plan area, the photo is cut to it
+// and straightened again: wall texture and sleeve edges can no longer pull the crop off the plan.
+const looksWrong = (r) => !r.ok || r.quality.score < 0.85 || r.quality.cropFrac > 1.0 || r.quality.cropFrac < 0.22;
+
+// The biggest bright, unsaturated patch of the picture, cut out as it is. -> a rectify result or null
+function paperCrop(img) {
+  const { width: w, height: h } = img;
+  const layers = analyze(img);
+  const { labels, comps } = components(layers.paper, w, h, 1);
+  if (!comps.length) return null;
+  comps.sort((a, b) => b.area - a.area);
+  const c = comps[0];
+  const pad = Math.round(0.01 * Math.max(w, h));
+  const x0 = Math.max(0, c.x0 + pad), y0 = Math.max(0, c.y0 + pad), x1 = Math.min(w - 1, c.x1 - pad), y1 = Math.min(h - 1, c.y1 - pad);
+  void labels;
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+  if (cw < 0.4 * w || ch < 0.4 * h) return null;
+  const out = new Uint8ClampedArray(cw * ch * 4);
+  for (let y = 0; y < ch; y++) out.set(img.data.subarray(((y0 + y) * w + x0) * 4, ((y0 + y) * w + x0 + cw) * 4), y * cw * 4);
+  return {
+    ok: true, image: { width: cw, height: ch, data: out }, H: null, tilt: { h: [], v: [] }, fit: [0, 0, 0, 0], cost: 0,
+    corners: [[x0, y0], [x1 + 1, y0], [x1 + 1, y1 + 1], [x0, y1 + 1]],
+    quality: { score: 0.6, planFound: true, residualTiltDeg: null, cropFrac: (cw * ch) / (w * h), warnings: ['plain-paper-crop'] },
+  };
+}
+
+// Straightening, in order of trust: (1) the poster's plan area (between its sidebar and caption) straightened on its own walls;
+// (2) the whole photo straightened; (3) the biggest bright patch of the plan area, cut as it is. The first one that looks right wins.
 export function rectifyDetailed(img, opts = {}) {
+  let roi = null;
+  if (!opts.noAnchor) { try { roi = posterRoi(img); } catch { roi = null; } }
+  const cut = (r) => {
+    const cw = r.x1 - r.x0 + 1, ch = r.y1 - r.y0 + 1, crop = new Uint8ClampedArray(cw * ch * 4);
+    for (let y = 0; y < ch; y++) crop.set(img.data.subarray(((r.y0 + y) * img.width + r.x0) * 4, ((r.y0 + y) * img.width + r.x0 + cw) * 4), y * cw * 4);
+    return { width: cw, height: ch, data: crop };
+  };
+  const back = (res) => {
+    res.corners = res.corners.map(([x, y]) => [x + roi.x0, y + roi.y0]); // corners are in the whole photo
+    res.quality = { ...res.quality, warnings: [...res.quality.warnings, 'cut-to-poster-furniture'] };
+    return res;
+  };
+  let roiImg = null, a = null;
+  if (roi) { roiImg = cut(roi); a = rectifyDetailed1(roiImg, opts); if (a.ok && !looksWrong(a)) return back(a); }
+  const b = rectifyDetailed1(img, opts);
+  if (!looksWrong(b)) return b;
+  if (roi) {
+    const pc = paperCrop(roiImg);
+    if (pc && (!b.ok || pc.quality.cropFrac > 0.3)) return back(pc);
+    if (a && a.ok && (!b.ok || a.quality.score >= b.quality.score)) return back(a);
+  }
+  return b;
+}
+
+export function rectifyDetailed1(img, opts = {}) {
   const maxOut = opts.maxOut || 2400;
   const W = img && img.width, Hh = img && img.height;
   if (!img || !Number.isFinite(W) || !Number.isFinite(Hh) || W < 32 || Hh < 32 || !img.data || img.data.length < W * Hh * 4) {

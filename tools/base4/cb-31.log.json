@@ -1,0 +1,56 @@
+{
+ "slug": "cb-31",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 24 rooms · hallways filled in (6 pieces) · Compass placed · 14 need a look"
+ ],
+ "review": [
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable."
+ ]
+}

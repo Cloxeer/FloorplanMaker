@@ -1,0 +1,24 @@
+{
+ "slug": "cb-12",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 18 rooms · hallways filled in (2 pieces) · No compass found - add it from the palette · 2 need a look"
+ ],
+ "review": [
+  "130Number 130 needed character repairs; check it",
+  "RoomNumber hidden under the You-Are-Here pin"
+ ],
+ "validation": [
+  "label-in-other-room: The label for room 130 sits inside smaller room idggnvimh, so the parser would give it that room.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable."
+ ]
+}

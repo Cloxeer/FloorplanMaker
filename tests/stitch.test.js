@@ -1,7 +1,7 @@
 // tests/stitch.test.js: joining the plans of several photos of one floor (js/model/stitch.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alignByNumbers, alignByHallways, alignPlans, mergePlans, placeItem, apply } from '../js/model/stitch.js';
+import { alignByShape, alignByHallways, alignPlans, mergePlans, placeItem, apply } from '../js/model/stitch.js';
 
 const room = (n, x, y, w, h) => ({ id: `r${n}`, type: 'room', cls: 'room', shape: 'rect', number: n, x, y, w, h, label: {} });
 const hall = (x, y, w, h) => ({ id: `h${x}-${y}`, type: 'hall', x, y, w, h });
@@ -22,7 +22,7 @@ test('shared room numbers fix the shift between two photos', () => {
   const a = A(), b = B(-400, 50);
   // in B, rooms 103/104 sit at x = 400..., in A at 400... : make the shift explicit
   b.items = [room('103', 0, 50, 200, 100), room('104', 200, 50, 200, 100), room('109', 400, 50, 200, 100), room('110', 600, 50, 200, 100), hall(0, 150, 800, 100)];
-  const t = alignByNumbers(a, b);
+  const t = alignByShape(a, b)[0];
   assert.equal(t.q, 0); assert.equal(t.n, 2);
   assert.ok(Math.abs(t.tx - 400) < 1 && Math.abs(t.ty + 50) < 1 && Math.abs(t.s - 1) < 0.01, JSON.stringify(t));
 });
@@ -30,7 +30,7 @@ test('shared room numbers fix the shift between two photos', () => {
 test('a plan photographed turned a quarter is turned back, and a different scale is found', () => {
   const a = A();
   const turned = { id: 'T', compass: { x: 0, y: 0, deg: 90 }, items: a.items.filter((i) => i.type === 'room' && ['101', '102', '105', '106'].includes(i.number)).map((r) => placeItem(r, { q: 1, s: 0.8, tx: 300, ty: 40 })), floor: null };
-  const t = alignByNumbers(a, turned);
+  const t = alignByShape(a, turned)[0];
   // a -> turned is q=1, s=0.8; so turned -> a is q=3, s=1.25
   assert.equal(t.q, 3);
   assert.ok(Math.abs(t.s - 1.25) < 0.02, String(t.s));
