@@ -1,0 +1,625 @@
+{
+ "slug": "cb-2",
+ "steps": [
+  "project created",
+  "photo 1 flattened",
+  "photo 2 flattened",
+  "photo 3 flattened",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": {
+  "transforms": [
+   {
+    "q": 0,
+    "s": 1,
+    "tx": 0,
+    "ty": 0,
+    "how": "reference",
+    "n": 0,
+    "rms": 0,
+    "root": 0
+   },
+   {
+    "q": 1,
+    "s": 1.055929880708662,
+    "tx": 3996.438645620079,
+    "ty": -115.4649403543309,
+    "how": "rooms",
+    "n": 1,
+    "rms": 0,
+    "labelled": 1,
+    "root": 0
+   },
+   {
+    "q": 0,
+    "s": 1,
+    "tx": 1300,
+    "ty": 67.5,
+    "how": "hallway",
+    "n": 0,
+    "rms": 0,
+    "labelled": 0,
+    "root": 0
+   }
+  ],
+  "notes": [
+   "Photo 2 was joined by a single shared room; check the join.",
+   "Photo 3 was joined to the others by its hallway; check the join."
+  ],
+  "report": {
+   "placed": [
+    {
+     "id": "photo 1",
+     "how": "reference",
+     "n": 0,
+     "rms": 0
+    },
+    {
+     "id": "photo 2",
+     "how": "rooms",
+     "n": 1,
+     "rms": 0
+    },
+    {
+     "id": "photo 3",
+     "how": "hallway",
+     "n": 0,
+     "rms": 0
+    }
+   ],
+   "dropped": [
+    "W289",
+    "253",
+    "R275A"
+   ],
+   "unplaced": []
+  },
+  "plans": [
+   {
+    "scale": 1.5,
+    "viewW": 1493,
+    "viewH": 920,
+    "floor": [
+     [
+      1175,
+      60
+     ],
+     [
+      1220,
+      60
+     ],
+     [
+      1220,
+      70
+     ],
+     [
+      1405,
+      70
+     ],
+     [
+      1405,
+      180
+     ],
+     [
+      1315,
+      180
+     ],
+     [
+      1315,
+      310
+     ],
+     [
+      1390,
+      310
+     ],
+     [
+      1390,
+      340
+     ],
+     [
+      1410,
+      340
+     ],
+     [
+      1410,
+      820
+     ],
+     [
+      230,
+      820
+     ],
+     [
+      230,
+      310
+     ],
+     [
+      1225,
+      310
+     ],
+     [
+      1225,
+      230
+     ],
+     [
+      1125,
+      230
+     ],
+     [
+      1125,
+      160
+     ],
+     [
+      230,
+      160
+     ],
+     [
+      230,
+      70
+     ],
+     [
+      890,
+      70
+     ],
+     [
+      890,
+      65
+     ],
+     [
+      935,
+      65
+     ],
+     [
+      935,
+      70
+     ],
+     [
+      1175,
+      70
+     ]
+    ],
+    "halls": [
+     [
+      480,
+      600,
+      165,
+      70
+     ],
+     [
+      230,
+      510,
+      1180,
+      75
+     ],
+     [
+      975,
+      585,
+      55,
+      105
+     ],
+     [
+      1030,
+      585,
+      95,
+      85
+     ],
+     [
+      530,
+      585,
+      70,
+      15
+     ]
+    ],
+    "compass": null,
+    "rooms": [
+     "214",
+     "H200A",
+     "219",
+     "215",
+     "211",
+     "216",
+     "217",
+     "218",
+     "213",
+     "201",
+     "205",
+     "R204B",
+     "203",
+     "202",
+     "204"
+    ]
+   },
+   {
+    "scale": 1.75,
+    "viewW": 1474,
+    "viewH": 943,
+    "floor": [
+     [
+      0,
+      10
+     ],
+     [
+      715,
+      10
+     ],
+     [
+      715,
+      65
+     ],
+     [
+      755,
+      65
+     ],
+     [
+      755,
+      145
+     ],
+     [
+      1020,
+      145
+     ],
+     [
+      1020,
+      70
+     ],
+     [
+      1140,
+      70
+     ],
+     [
+      1140,
+      145
+     ],
+     [
+      1415,
+      145
+     ],
+     [
+      1415,
+      940
+     ],
+     [
+      0,
+      940
+     ]
+    ],
+    "halls": [
+     [
+      0,
+      655,
+      430,
+      125
+     ],
+     [
+      360,
+      10,
+      270,
+      135
+     ],
+     [
+      0,
+      830,
+      430,
+      110
+     ],
+     [
+      570,
+      640,
+      85,
+      300
+     ],
+     [
+      205,
+      780,
+      225,
+      50
+     ],
+     [
+      1365,
+      145,
+      50,
+      495
+     ],
+     [
+      0,
+      430,
+      185,
+      130
+     ],
+     [
+      185,
+      430,
+      210,
+      85
+     ],
+     [
+      755,
+      430,
+      610,
+      85
+     ],
+     [
+      395,
+      430,
+      360,
+      85
+     ],
+     [
+      680,
+      515,
+      75,
+      140
+     ],
+     [
+      490,
+      515,
+      100,
+      125
+     ],
+     [
+      1090,
+      515,
+      275,
+      45
+     ],
+     [
+      0,
+      560,
+      110,
+      95
+     ],
+     [
+      140,
+      560,
+      45,
+      95
+     ],
+     [
+      185,
+      430,
+      10,
+      85
+     ]
+    ],
+    "compass": {
+     "id": "idsnjjw0n",
+     "type": "compass",
+     "x": -68,
+     "y": 938,
+     "deg": 283
+    },
+    "rooms": [
+     "228",
+     "229",
+     "227",
+     "231",
+     "225",
+     "236",
+     "241",
+     "238",
+     "240",
+     "R239",
+     "235",
+     "234",
+     "W292",
+     "W290",
+     "W293",
+     "W289"
+    ]
+   },
+   {
+    "scale": 2.25,
+    "viewW": 2014,
+    "viewH": 954,
+    "floor": [
+     [
+      270,
+      75
+     ],
+     [
+      1380,
+      75
+     ],
+     [
+      1380,
+      250
+     ],
+     [
+      2000,
+      250
+     ],
+     [
+      2000,
+      700
+     ],
+     [
+      1465,
+      700
+     ],
+     [
+      1465,
+      815
+     ],
+     [
+      1380,
+      815
+     ],
+     [
+      1380,
+      885
+     ],
+     [
+      270,
+      885
+     ],
+     [
+      270,
+      870
+     ],
+     [
+      165,
+      870
+     ],
+     [
+      165,
+      640
+     ],
+     [
+      125,
+      640
+     ],
+     [
+      125,
+      575
+     ],
+     [
+      130,
+      575
+     ],
+     [
+      130,
+      520
+     ],
+     [
+      110,
+      520
+     ],
+     [
+      110,
+      405
+     ],
+     [
+      270,
+      405
+     ]
+    ],
+    "halls": [
+     [
+      490,
+      440,
+      385,
+      80
+     ],
+     [
+      270,
+      250,
+      85,
+      190
+     ],
+     [
+      110,
+      440,
+      330,
+      80
+     ],
+     [
+      355,
+      250,
+      105,
+      190
+     ],
+     [
+      460,
+      315,
+      305,
+      125
+     ],
+     [
+      875,
+      440,
+      195,
+      80
+     ],
+     [
+      1070,
+      440,
+      20,
+      80
+     ]
+    ],
+    "compass": {
+     "id": "idypjlayy",
+     "type": "compass",
+     "x": 1789,
+     "y": 56,
+     "deg": 11
+    },
+    "rooms": [
+     "W284",
+     "W280",
+     "W287",
+     "W288",
+     "W289",
+     "W230",
+     "W296",
+     "253",
+     "292",
+     "W285",
+     "W254",
+     "275A",
+     "R275B",
+     "W283",
+     "W277",
+     "W279",
+     "W275",
+     "R275A",
+     "W278"
+    ]
+   }
+  ]
+ },
+ "toast": [
+  "AutoBuild joined 3 photos: 55 rooms · Photo 2 was joined by a single shared room; check the join. · 31 need a look"
+ ],
+ "review": [
+  "R204BNumber R204B needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W292Number W292 needed character repairs; check it",
+  "W290Number W290 needed character repairs; check it",
+  "W293Number W293 needed character repairs; check it",
+  "W289Number W289 needed character repairs; check it",
+  "W284Number W284 needed character repairs; check it",
+  "W280Number W280 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W287Read as 127 but this is floor 2: changed to W287",
+  "W288Number W288 needed character repairs; check it",
+  "W230Number W230 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W296Number W296 needed character repairs; check it",
+  "292Read as 192 but this is floor 2: changed to 292",
+  "W285Number W285 needed character repairs; check it",
+  "W254Number W254 was read only once; check it",
+  "275ARead as 175A but this is floor 2: changed to 275A",
+  "R275BNumber R275B needed character repairs; check it",
+  "W283Number W283 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W277Number W277 needed character repairs; check it",
+  "W279Number W279 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W275Number W275 needed character repairs; check it",
+  "W278Number W278 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomNumber hidden under the You-Are-Here pin"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room idte21cn8 falls outside its shape.",
+  "label-in-other-room: The label for room W290 sits inside smaller room W230, so the parser would give it that room.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms idb77szf2 and W289 overlap.",
+  "overlapping-rooms: Rooms 292 and W293 overlap.",
+  "overlapping-rooms: Rooms 292 and W292 overlap.",
+  "overlapping-rooms: Rooms idte21cn8 and idk8z3rrd overlap.",
+  "overlapping-rooms: Rooms W230 and W289 overlap.",
+  "overlapping-rooms: Rooms W230 and W290 overlap."
+ ]
+}

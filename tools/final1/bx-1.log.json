@@ -1,0 +1,25 @@
+{
+ "slug": "bx-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 9 rooms · hallways filled in (1 piece) · Compass placed · 3 need a look"
+ ],
+ "review": [
+  "100Number 100 was read only once; check it",
+  "103BNumber 103B needed character repairs; check it",
+  "R100BNumber R100B needed character repairs; check it"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room 103 falls outside its shape.",
+  "room-unreachable: Room 103A is not reachable from an entrance.",
+  "room-unreachable: Room 103C is not reachable from an entrance.",
+  "room-unreachable: Room 103B is not reachable from an entrance."
+ ]
+}

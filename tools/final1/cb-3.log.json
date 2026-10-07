@@ -1,0 +1,429 @@
+{
+ "slug": "cb-3",
+ "steps": [
+  "project created",
+  "photo 1 flattened",
+  "photo 2 flattened",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": {
+  "transforms": [
+   {
+    "q": 0,
+    "s": 1,
+    "tx": 0,
+    "ty": 0,
+    "how": "reference",
+    "n": 0,
+    "rms": 0,
+    "root": 0
+   },
+   {
+    "q": 3,
+    "s": 0.9746794344808963,
+    "tx": 155.0961696557311,
+    "ty": 2609.296379238018,
+    "how": "rooms",
+    "n": 1,
+    "rms": 0,
+    "labelled": 1,
+    "root": 0
+   }
+  ],
+  "notes": [
+   "Photo 2 was joined by a single shared room; check the join."
+  ],
+  "report": {
+   "placed": [
+    {
+     "id": "photo 1",
+     "how": "reference",
+     "n": 0,
+     "rms": 0
+    },
+    {
+     "id": "photo 2",
+     "how": "rooms",
+     "n": 1,
+     "rms": 0
+    }
+   ],
+   "dropped": [
+    "W374",
+    "(unnumbered)",
+    "(unnumbered)"
+   ],
+   "unplaced": []
+  },
+  "plans": [
+   {
+    "scale": 1.75,
+    "viewW": 1363,
+    "viewH": 975,
+    "floor": [
+     [
+      510,
+      0
+     ],
+     [
+      540,
+      0
+     ],
+     [
+      540,
+      30
+     ],
+     [
+      1360,
+      30
+     ],
+     [
+      1360,
+      970
+     ],
+     [
+      540,
+      970
+     ],
+     [
+      540,
+      615
+     ],
+     [
+      515,
+      615
+     ],
+     [
+      515,
+      945
+     ],
+     [
+      380,
+      945
+     ],
+     [
+      380,
+      730
+     ],
+     [
+      155,
+      730
+     ],
+     [
+      155,
+      30
+     ],
+     [
+      505,
+      30
+     ],
+     [
+      505,
+      10
+     ],
+     [
+      510,
+      10
+     ]
+    ],
+    "halls": [
+     [
+      420,
+      535,
+      605,
+      80
+     ],
+     [
+      440,
+      615,
+      75,
+      115
+     ],
+     [
+      380,
+      730,
+      60,
+      25
+     ]
+    ],
+    "compass": {
+     "id": "idw9wnj94",
+     "type": "compass",
+     "x": 119,
+     "y": 859,
+     "deg": 283
+    },
+    "rooms": [
+     "329",
+     "327",
+     "325",
+     "336",
+     "338",
+     "334",
+     "335",
+     "341",
+     "340",
+     "R339",
+     "W376",
+     "W374",
+     "W377",
+     "320",
+     "328"
+    ]
+   },
+   {
+    "scale": 2,
+    "viewW": 1982,
+    "viewH": 980,
+    "floor": [
+     [
+      1350,
+      75
+     ],
+     [
+      1350,
+      225
+     ],
+     [
+      1895,
+      225
+     ],
+     [
+      1895,
+      600
+     ],
+     [
+      1440,
+      600
+     ],
+     [
+      1440,
+      700
+     ],
+     [
+      1365,
+      700
+     ],
+     [
+      1365,
+      910
+     ],
+     [
+      135,
+      910
+     ],
+     [
+      135,
+      580
+     ],
+     [
+      75,
+      580
+     ],
+     [
+      75,
+      75
+     ]
+    ],
+    "halls": [
+     [
+      480,
+      400,
+      870,
+      50
+     ],
+     [
+      1350,
+      375,
+      365,
+      45
+     ],
+     [
+      335,
+      225,
+      85,
+      80
+     ],
+     [
+      210,
+      305,
+      15,
+      295
+     ],
+     [
+      225,
+      305,
+      35,
+      145
+     ],
+     [
+      260,
+      420,
+      220,
+      30
+     ],
+     [
+      480,
+      375,
+      125,
+      25
+     ],
+     [
+      555,
+      600,
+      330,
+      60
+     ],
+     [
+      555,
+      790,
+      330,
+      120
+     ],
+     [
+      625,
+      450,
+      70,
+      150
+     ],
+     [
+      810,
+      660,
+      75,
+      130
+     ],
+     [
+      810,
+      375,
+      505,
+      25
+     ],
+     [
+      1440,
+      420,
+      180,
+      30
+     ],
+     [
+      1350,
+      420,
+      90,
+      30
+     ],
+     [
+      1620,
+      420,
+      95,
+      30
+     ],
+     [
+      1715,
+      420,
+      180,
+      30
+     ],
+     [
+      1280,
+      450,
+      70,
+      250
+     ],
+     [
+      335,
+      200,
+      90,
+      30
+     ],
+     [
+      335,
+      305,
+      180,
+      70
+     ],
+     [
+      1715,
+      375,
+      180,
+      45
+     ]
+    ],
+    "compass": {
+     "id": "id10zgj433",
+     "type": "compass",
+     "x": 1732,
+     "y": 106,
+     "deg": 9
+    },
+    "rooms": [
+     "W350C",
+     "W364",
+     "W3504",
+     "W372",
+     "W373",
+     "W374",
+     "W363",
+     "W359",
+     "353",
+     "W380",
+     "W365",
+     "W357A",
+     "W365A",
+     "W362",
+     "W357"
+    ]
+   }
+  ]
+ },
+ "toast": [
+  "AutoBuild joined 2 photos: 44 rooms · Photo 2 was joined by a single shared room; check the join. · 28 need a look"
+ ],
+ "review": [
+  "W376Number W376 needed character repairs; check it",
+  "W374Number W374 needed character repairs; check it",
+  "W377Number W377 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "320Read as 120 but this is floor 3: changed to 320",
+  "RoomText in this room could not be read",
+  "W350CNumber W350C needed character repairs; check it",
+  "W364Number W364 needed character repairs; check it",
+  "W3504Number W3504 needed character repairs; check it",
+  "W372Number W372 needed character repairs; check it",
+  "W373Number W373 was read only once; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "W363Number W363 needed character repairs; check it",
+  "W359Number W359 needed character repairs; check it",
+  "353Read as 353 but one character was unclear",
+  "RoomText in this room could not be read",
+  "W380Number W380 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W365Number W365 needed character repairs; check it",
+  "W357ANumber W357A needed character repairs; check it",
+  "W365ANumber W365A needed character repairs; check it",
+  "W362Number W362 needed character repairs; check it",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "W357Number W357 needed character repairs; check it"
+ ],
+ "validation": [
+  "bad-number-format: Room W3504 has a number \"W3504\" that doesn't match the expected format.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms W374 and W373 overlap.",
+  "overlapping-rooms: Rooms W377 and idk0wkd2h overlap."
+ ]
+}

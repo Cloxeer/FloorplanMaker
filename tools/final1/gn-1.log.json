@@ -1,0 +1,49 @@
+{
+ "slug": "gn-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 62 rooms · hallways filled in (9 pieces) · Compass placed · 15 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "132JSame number was read on two rooms; this one took its next best reading (132J)",
+  "100Read as 000 but this is floor 1: changed to 100",
+  "167BNumber 167B needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "169Number 169 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "151Number 151 was read only once; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "124Number 124 was read only once; check it",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "label-in-other-room: The label for room 126 sits inside smaller room 126A, so the parser would give it that room.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 164A and 167C overlap.",
+  "overlapping-rooms: Rooms id1cd17vko and 116 overlap.",
+  "room-unreachable: Room 132J is not reachable from an entrance.",
+  "room-unreachable: Room 136 is not reachable from an entrance.",
+  "room-unreachable: Room 141 is not reachable from an entrance.",
+  "room-unreachable: Room id17fnran3 is not reachable from an entrance."
+ ]
+}

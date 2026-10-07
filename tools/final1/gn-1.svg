@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2290 1250" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif">
+  <!--
+    Gardiner Hall (bldg 188) - FLOOR 1
+    Traced from the posted "Emergency Evacuation Plan" photo. Coordinates use the
+    photo's own pixel positions, so any shape can be checked against the photo.
+    One wall weight for outside walls, one for inside walls; nothing in between.
+  -->
+  <style>
+    .floor { fill: #ffffff; stroke: #3a3d42; stroke-width: 6; stroke-linejoin: round; }
+    .room  { fill: #eef1f4; stroke: #8f959c; stroke-width: 2; }
+    .ours  { fill: #f5e3ea; stroke: #8f959c; stroke-width: 2; }
+    .core  { fill: #dfe3e8; stroke: #8f959c; stroke-width: 2; }
+    .void  { fill: #f7f7f8; stroke: #b5bac0; stroke-width: 2; stroke-dasharray: 10 8; }
+    .dim   { fill: #8a8f96; text-anchor: middle; dominant-baseline: middle; }
+    .stair { stroke: #8f959c; stroke-width: 2; }
+    .hall  { fill: #d7dbe0; stroke: none; }
+    .hall-lbl { fill: #6b7280; font-size: 18px; text-anchor: middle; dominant-baseline: middle; }
+    .authwall { stroke: #7c3aed; stroke-width: 6; stroke-dasharray: 10 8; }
+    .door  { stroke: #ffffff; stroke-width: 10; }
+    .lbl   { fill: #2b2e33; font-size: 24px; text-anchor: middle; dominant-baseline: middle; }
+    .lblS  { fill: #2b2e33; font-size: 19px; text-anchor: middle; dominant-baseline: middle; }
+    .name  { fill: #1d1f23; font-size: 30px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    .exit  { fill: #1a7f37; font-size: 20px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    .compass-letter { font-size: 22px; font-weight: 600; fill: #8a8690; text-anchor: middle; }
+    .compass-north  { fill: #8C0B42; }
+    .floor-edge { fill:none; stroke:#3a3d42; stroke-width:6; stroke-linejoin:round; }
+  </style>
+
+  <!-- OUTSIDE WALLS -->
+  <polygon class="floor" points="135,90 860,90 860,560 910,560 910,670 2170,670 2170,870 2135,870 2135,1080 1035,1080 1035,1040 895,1040 895,1120 855,1120 855,1155 850,1155 850,1165 125,1165 125,1040 110,1040 110,1075 50,1075 50,1040 0,1040 0,990 -10,990 -10,865 0,865 0,300 135,300"/>
+
+  <!-- HALLWAYS -->
+  <rect class="hall" x="135" y="90" width="85" height="285"/>
+  <rect class="hall" x="300" y="300" width="450" height="75"/>
+  <rect class="hall" x="340" y="375" width="40" height="490"/>
+  <rect class="hall" x="135" y="560" width="130" height="110"/>
+  <rect class="hall" x="135" y="865" width="85" height="290"/>
+  <rect class="hall" x="300" y="865" width="690" height="75"/>
+  <rect class="hall" x="110" y="300" width="25" height="565"/>
+  <rect class="hall" x="135" y="375" width="50" height="115"/>
+  <rect class="hall" x="135" y="670" width="130" height="70"/>
+  <rect class="hall" x="135" y="740" width="50" height="125"/>
+  <rect class="hall" x="910" y="940" width="200" height="100"/>
+  <rect class="hall" x="265" y="590" width="75" height="40"/>
+  <rect class="hall" x="110" y="490" width="75" height="70"/>
+  <rect class="hall" x="110" y="865" width="25" height="125"/>
+  <rect class="hall" x="110" y="990" width="25" height="50"/>
+  <text class="hall-lbl" transform="rotate(-90 148 668)" x="148" y="668">Hallway</text>
+  <text class="hall-lbl" x="603" y="903">Hallway</text>
+  <text class="hall-lbl" x="523" y="338">Hallway</text>
+
+  <!-- ROOMS -->
+  <polygon class="room" points="460,90 565,90 565,300 460,300"/><text class="lbl" x="513" y="195">106</text>
+  <polygon class="room" points="0,300 110,300 110,375 0,375"/>
+  <polygon class="room" points="220,300 300,300 300,375 220,375"/><text class="lbl" x="260" y="338">103</text>
+  <polygon class="room" points="185,375 300,375 300,440 240,460 185,460"/><text class="lbl" x="240" y="415">102</text>
+  <polygon class="room" points="585,375 690,375 690,460 670,460 670,490 585,490"/><text class="lbl" x="635" y="430">135</text>
+  <polygon class="room" points="535,375 535,490 380,490 380,460 400,460 380,440 380,375"/><text class="lbl" x="458" y="432">132</text>
+  <polygon class="room" points="185,460 240,460 240,490 265,560 185,560"/><text class="lbl" x="217" y="514">101</text>
+  <polygon class="room" points="380,490 400,490 400,560 440,490 515,490 515,560 380,560"/><text class="lbl" x="453" y="527">132A</text>
+  <polygon class="room" points="850,560 850,670 750,670 750,560"/><text class="lbl" x="800" y="615">R109A</text>
+  <polygon class="room" points="915,740 850,740 850,745 915,745"/><text class="lblS" x="883" y="743">100</text>
+  <polygon class="room" points="1860,730 1860,745 1840,745 1840,730"/><text class="lblS" x="1850" y="738">164A</text>
+  <polygon class="room" points="1255,740 1255,865 1150,865 1150,740"/><text class="lbl" x="1203" y="803">171A</text>
+  <polygon class="room" points="2135,740 2135,865 2050,865 2050,740"/><text class="lbl" x="2093" y="803">163</text>
+  <polygon class="room" points="1490,740 1490,865 1400,865 1400,740"/><text class="lbl" x="1445" y="803">169</text>
+  <polygon class="room" points="1860,740 1860,865 1770,865 1770,740"/><text class="lbl" x="1815" y="803">167C</text>
+  <polygon class="room" points="690,740 690,865 480,865 480,740"/><text class="lbl" x="585" y="803">142</text>
+  <polygon class="room" points="380,740 480,740 480,865 380,865"/><text class="lbl" x="430" y="803">144</text>
+  <polygon class="room" points="915,745 990,740 990,865 850,865 850,745"/><text class="lbl" x="920" y="804">173</text>
+  <polygon class="room" points="185,740 300,740 300,940 220,940 220,865 185,865"/><text class="lbl" x="248" y="832">125</text>
+  <polygon class="room" points="1190,940 1190,990 1110,990 1110,940"/><text class="lblS" x="1150" y="965">151</text>
+  <polygon class="room" points="220,940 300,940 300,990 220,990"/><text class="lblS" x="260" y="965">123</text>
+  <polygon class="room" points="1225,940 1305,940 1305,1080 1225,1080"/><text class="lbl" x="1265" y="1010">R153</text>
+  <polygon class="room" points="1400,940 1400,1080 1305,1080 1305,940"/><text class="lbl" x="1353" y="1010">R154</text>
+  <polygon class="room" points="1675,940 1675,1075 1585,1075 1585,940"/><text class="lbl" x="1630" y="1008">157</text>
+  <polygon class="room" points="1860,940 1860,1075 1770,1075 1770,940"/>
+  <polygon class="room" points="1950,940 1950,1075 1860,1075 1860,940"/><text class="lbl" x="1905" y="1008">160</text>
+  <polygon class="room" points="2030,940 2030,1075 1950,1075 1950,940"/><text class="lbl" x="1990" y="1008">161</text>
+  <polygon class="room" points="1190,940 1225,940 1225,1075 1150,1075 1150,990 1190,990"/><text class="lbl" x="1192" y="1018">R152</text>
+  <polygon class="room" points="380,940 400,940 400,1155 220,1155 220,990 380,990"/><text class="lbl" x="313" y="1069">120</text>
+  <polygon class="room" points="110,990 110,1075 50,1075 50,990"/>
+  <polygon class="room" points="690,375 750,375 750,865 690,865 690,740 565,740 565,560 690,560"/><text class="lbl" x="680" y="633">140A</text>
+  <polygon class="room" points="990,740 1035,740 1035,865 2050,865 2050,940 950,940 910,865 990,865"/><text class="lbl" x="1460" y="896">124</text>
+  <rect class="room" x="220" y="90" width="240" height="210"/><text class="lbl" x="340" y="195">104</text>
+  <rect class="room" x="565" y="90" width="285" height="210"/><text class="lbl" x="708" y="195">108</text>
+  <rect class="room" x="535" y="375" width="50" height="65"/><text class="lblS" x="560" y="408">134</text>
+  <rect class="room" x="750" y="375" width="100" height="185"/><text class="lbl" x="800" y="468">109</text>
+  <rect class="room" x="0" y="490" width="110" height="255"/>
+  <rect class="room" x="535" y="490" width="50" height="70"/><text class="lblS" x="560" y="525">132J</text>
+  <rect class="room" x="585" y="490" width="105" height="70"/><text class="lbl" x="638" y="525">136</text>
+  <rect class="room" x="380" y="560" width="205" height="180"/><text class="lbl" x="483" y="650">131</text>
+  <rect class="room" x="1035" y="730" width="115" height="135"/><text class="lbl" x="1093" y="798">172</text>
+  <rect class="room" x="50" y="740" width="60" height="5"/>
+  <rect class="room" x="185" y="740" width="115" height="5"/><text class="lblS" x="243" y="743">126</text>
+  <rect class="room" x="220" y="740" width="80" height="5"/><text class="lblS" x="260" y="743">126A</text>
+  <rect class="room" x="585" y="740" width="105" height="5"/><text class="lblS" x="638" y="743">141</text>
+  <rect class="room" x="750" y="740" width="100" height="5"/><text class="lblS" x="800" y="743">R108</text>
+  <rect class="room" x="750" y="740" width="100" height="5"/>
+  <rect class="room" x="1255" y="740" width="145" height="125"/><text class="lbl" x="1328" y="803">171</text>
+  <rect class="room" x="1400" y="740" width="90" height="5"/><text class="lblS" x="1445" y="743">170</text>
+  <rect class="room" x="1490" y="740" width="185" height="125"/><text class="lbl" x="1583" y="803">168</text>
+  <rect class="room" x="1675" y="740" width="95" height="5"/><text class="lblS" x="1723" y="743">167B</text>
+  <rect class="room" x="1860" y="740" width="190" height="125"/><text class="lbl" x="1955" y="803">164</text>
+  <rect class="room" x="-10" y="865" width="120" height="125"/>
+  <rect class="room" x="2135" y="865" width="35" height="5"/>
+  <rect class="room" x="400" y="940" width="290" height="215"/><text class="lbl" x="545" y="1048">118</text>
+  <rect class="room" x="690" y="940" width="220" height="100"/>
+  <rect class="room" x="690" y="940" width="165" height="215"/><text class="lbl" x="773" y="1048">116</text>
+  <rect class="room" x="1400" y="940" width="90" height="135"/><text class="lbl" x="1445" y="1008">155</text>
+  <rect class="room" x="1490" y="940" width="95" height="135"/><text class="lbl" x="1538" y="1008">156</text>
+  <rect class="room" x="1675" y="940" width="95" height="135"/><text class="lbl" x="1723" y="1008">158</text>
+  <polygon class="core" points="1675,745 1740,745 1740,865 1675,865"/>
+  <g class="icon" transform="translate(1688,786) scale(1.625)"><path d="m16 18c0 1.608-2.065 4-5 4-.774 0-1.446.44-1.778 1.084-.277.536-.779.916-1.381.916h-3.34c-.828 0-1.5-.672-1.5-1.5v-13c0-.829.672-1.5 1.5-1.5s1.5.671 1.5 1.5v7.5h8.999c1 0 1 1 1 1zm.5-13c1.381 0 2.5-1.119 2.5-2.5s-1.119-2.5-2.5-2.5-2.5 1.119-2.5 2.5 1.119 2.5 2.5 2.5zm3.162 8.514c-.514-.357-1.143-.514-1.769-.514h-3.727s1.256-3.232 1.256-3.232l2.567 2.34c.611.557 1.559.516 2.119-.098.559-.612.515-1.561-.098-2.119l-4.641-4.231s-.011-.005-.016-.009c-.512-.475-1.23-.742-2.044-.623-.884.129-1.608.779-1.932 1.611l-2.122 5.457c-.453.976-.303 2.12.417 2.959.546.636 1.385.945 2.223.945.137-.001 6.102 0 6.102 0l-1.281 6.121c-.235.937.497 1.912 1.455 1.879.693 0 1.317-.485 1.466-1.191l1.296-6.148c.25-1.185-.218-2.416-1.273-3.148z" fill="#5f6368"/></g>
+  <rect class="core" x="1065" y="1040" width="45" height="40"/>
+  <g class="icon" transform="translate(1076,1048) scale(1)"><path d="m21 16-3-3h6zm0-8-3 3h6zm-12-8h-6c-1.654 0-3 1.346-3 3v21h9zm11 6.171v-3.171c0-1.654-1.346-3-3-3h-6v24h9v-6.171l-4-4v-3.657l4-4z" fill="#5f6368"/></g>
+
+  <rect class="core" x="285" y="670" width="35" height="60"/>
+  <g class="stair"><line x1="294" y1="670" x2="294" y2="730"/><line x1="312" y1="670" x2="312" y2="730"/></g>
+  <rect class="core" x="2095" y="955" width="40" height="120"/>
+  <g class="stair"><line x1="2104" y1="955" x2="2104" y2="1075"/><line x1="2122" y1="955" x2="2122" y2="1075"/></g>
+  <polygon class="floor-edge" points="135,90 860,90 860,560 910,560 910,670 2170,670 2170,870 2135,870 2135,1080 1035,1080 1035,1040 895,1040 895,1120 855,1120 855,1155 850,1155 850,1165 125,1165 125,1040 110,1040 110,1075 50,1075 50,1040 0,1040 0,990 -10,990 -10,865 0,865 0,300 135,300"/>
+  <line class="door" x1="860" y1="318" x2="860" y2="354"/><text class="exit" x="805" y="336">EXIT</text>
+  <line class="door" x1="0" y1="639" x2="0" y2="603"/><text class="exit" x="55" y="621">EXIT</text>
+  <line class="door" x1="998" y1="670" x2="1034" y2="670"/><text class="exit" x="1016" y="725">EXIT</text>
+  <line class="door" x1="2135" y1="891" x2="2135" y2="927"/><text class="exit" x="2080" y="909">EXIT</text>
+  <line class="door" x1="1017" y1="1040" x2="981" y2="1040"/><text class="exit" x="999" y="985">EXIT</text>
+  <line class="door" x1="963" y1="1040" x2="927" y2="1040"/><text class="exit" x="945" y="985">EXIT</text>
+  <line class="door" x1="125" y1="1165" x2="125" y2="1129"/><text class="exit" x="180" y="1147">EXIT</text>
+  <!-- Which way the building really faces; matches the compass on the posted evacuation map. -->
+  <g class="compass" transform="translate(2078,1180) rotate(102)">
+    <circle r="80" fill="#ffffff" stroke="#1d1f23" stroke-width="3"/>
+    <circle r="49" fill="none" stroke="#f0f0f3" stroke-width="2"/>
+    <path d="M0,-38 L11,0 L-11,0 Z" fill="#8C0B42"/>
+    <path d="M0,38 L11,0 L-11,0 Z" fill="#c7c7cc"/>
+    <circle r="4.5" fill="#ffffff" stroke="#8a8690" stroke-width="2"/>
+    <text class="compass-letter compass-north" x="0" y="-52">N</text>
+    <text class="compass-letter" x="0" y="62">S</text>
+    <text class="compass-letter" x="57" y="6">E</text>
+    <text class="compass-letter" x="-57" y="6">W</text>
+  </g>
+</svg>

@@ -139,7 +139,11 @@ export function assemble(ctx) {
     const near = nearestPointOnPolyline([ex.cx * scale, ex.cy * scale], outline, true);
     if (!near || near.dist > reach) continue;
     const door = doorFor(outline, { x: ex.cx * scale, y: ex.cy * scale });
-    if (door) items.push({ id: newId(), type: 'door', ...door, kind: 'EXIT' });
+    if (!door) continue;
+    // one doorway per exit sign: a sign seen twice (or two signs beside one door) must not give two doors on top of each other
+    const mx = (door.x1 + door.x2) / 2, my = (door.y1 + door.y2) / 2;
+    if (items.some((d) => d.type === 'door' && Math.hypot((d.x1 + d.x2) / 2 - mx, (d.y1 + d.y2) / 2 - my) < 60)) continue;
+    items.push({ id: newId(), type: 'door', ...door, kind: 'EXIT' });
   }
   if (compass) {
     // the compass graphic is big; slide it away from the building until it clears
@@ -153,6 +157,8 @@ export function assemble(ctx) {
       const dx = cx - ccx, dy = cy - ccy, n = Math.hypot(dx, dy) || 1;
       cx += (dx / n) * 8; cy += (dy / n) * 8;
     }
+    // and it stays on the page (the compass graphic is about 130 units across)
+    cx = Math.max(75, Math.min(w * scale - 75, cx)); cy = Math.max(75, Math.min(h * scale - 75, cy));
     items.push({ id: newId(), type: 'compass', x: Math.round(cx), y: Math.round(cy), deg: compass.deg });
   }
   // honest report: which stretches of the outline have a wall behind them in the photo
