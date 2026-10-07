@@ -108,7 +108,7 @@ export function createActions(app, deps) {
     app.validation = results;
     app.emit({ type: 'validation' });
     if (results.some((r) => r.level === 'error')) {
-      app.toast('Fix the errors listed in Validation before exporting.');
+      app.toast('Finish the checklist on the right first (the items still marked ○ or listed under "Worth a look"), then you can preview and export.');
       return;
     }
     const svgText = exportSvg(doc);

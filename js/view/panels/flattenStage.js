@@ -19,7 +19,7 @@ const AXES = [
 
 const STYLE = `
 .fs-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; }
-.fs-imgwrap { position:relative; display:inline-block; max-width:100%; background:#fff; border:1px solid var(--border,#dfe3e8); border-radius:8px; overflow:hidden; line-height:0; }
+.fs-imgwrap { position:relative; display:flex; align-items:center; justify-content:center; min-height:200px; max-width:100%; background:#fff; border:1px solid var(--border,#dfe3e8); border-radius:8px; overflow:hidden; line-height:0; }
 .fs-imgwrap canvas { display:block; max-width:100%; max-height:calc(100vh - 480px); min-height:200px; width:auto; height:auto; margin:0 auto; }
 .fs-grid { position:absolute; inset:0; pointer-events:none; display:none;
   background-image:linear-gradient(to right, rgba(47,111,235,.35) 1px, transparent 1px), linear-gradient(to bottom, rgba(47,111,235,.35) 1px, transparent 1px);

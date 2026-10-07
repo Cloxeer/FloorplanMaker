@@ -59,6 +59,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
         <label class="btn btn-secondary" for="ps-file">Choose a photo</label>
         <input type="file" id="ps-file" accept="image/*" hidden>
         <p id="ps-error" style="color:#b3261e; display:none"></p>
+        <p id="ps-busy" class="ps-tip" style="display:none" role="status"></p>
         <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button> <button type="button" id="ps-multi-initial" title="One photo per floor is best. Use this only if the plan needs several photos: you flatten each one, then line them up side by side.">Add multiple photos</button></p>
         <input type="file" id="ps-multi-file" accept="image/*" multiple hidden>
         <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
@@ -255,14 +256,17 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
 
   // Several photos for one floor: hand them to the several-photo flow (flatten each one, then line them up side by
   // side). The photo already open, if any, comes first with the corners the user placed.
+  const busyEl = containerEl.querySelector('#ps-busy');
+  const busy = (t) => { if (busyEl) { busyEl.textContent = t || ''; busyEl.style.display = t ? '' : 'none'; } };
   async function addMultiple(files, fromEditor) {
+    busy('Reading your photos…');
     try {
       const srcs = await Promise.all([...files].filter((f) => /^image\//.test(f.type || 'image/')).map(fileToDataUrl));
       if (!srcs.length) return;
       if (fromEditor && originalDataUrl) srcs.unshift(originalDataUrl);
       if (srcs.length < 2) { loadFromDataUrl(srcs[0]).catch(showError); return; } // one photo: the normal flow
       if (onMulti) onMulti(srcs, fromEditor ? corners.map((p) => [...p]) : null);
-    } catch (err) { showError(err); }
+    } catch (err) { showError(err); } finally { busy(''); }
   }
   const multiFile = containerEl.querySelector('#ps-multi-file');
   const pickMore = (fromEditor) => { multiFile.dataset.from = fromEditor ? 'editor' : 'drop'; multiFile.value = ''; multiFile.click(); };

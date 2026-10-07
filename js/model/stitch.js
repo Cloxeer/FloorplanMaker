@@ -449,7 +449,10 @@ export function placeBeside(plans, group, tfs, placed) {
   const members = group.map((i) => placeItem0(plans[i], tfs[i])).flat();
   const mine = members.filter((it) => it.type === 'room' && it.number).map((it) => numOf(it.number)).filter((v) => v != null);
   const theirs = placed.filter((it) => it.type === 'room' && it.number).map((it) => numOf(it.number)).filter((v) => v != null);
-  const after = !mine.length || !theirs.length || Math.min(...mine) >= Math.max(...theirs) - 20;
+  const wShare = (list) => { const n = list.filter((it) => it.type === 'room' && it.number); return n.length ? n.filter((it) => isW(it.number)).length / n.length : 0; };
+  // W-numbered rooms are the west wing: a group of them goes to the left of the others (and the other way round); otherwise the numbers decide
+  const wm = wShare(members), wp = wShare(placed);
+  const after = wm - wp > 0.5 ? false : wp - wm > 0.5 ? true : (!mine.length || !theirs.length || Math.min(...mine) >= Math.max(...theirs) - 20);
   const rot = { q, s: 1, tx: 0, ty: 0 };
   const turned = members.map((it) => placeItem(it, rot));
   const bb = (list) => { const bs = list.filter((it) => (it.type === 'room' || it.type === 'hall' || it.type === 'stair') && (it.points || (ok(it.x) && ok(it.w)))).map(boxOf); return bs.length ? { x0: Math.min(...bs.map((b) => b.x)), y0: Math.min(...bs.map((b) => b.y)), x1: Math.max(...bs.map((b) => b.x + b.w)), y1: Math.max(...bs.map((b) => b.y + b.h)) } : { x0: 0, y0: 0, x1: 0, y1: 0 }; };
@@ -457,8 +460,19 @@ export function placeBeside(plans, group, tfs, placed) {
   const gap = 60;
   let tx = after ? B.x1 + gap - M.x0 : B.x0 - gap - M.x1;
   let ty = B.y0 - M.y0;
-  const h1 = mainHall(placed), h2 = mainHall(turned);
-  if (h1 && h2 && h1.w >= h1.h === h2.w >= h2.h) ty = (h1.y + h1.h / 2) - (h2.y + h2.h / 2);
+  // corridors meet end to end: the placed corridor that reaches furthest towards the newcomer and the newcomer's corridor that
+  // reaches furthest back are put on one line, touching (when that does not put rooms on rooms)
+  const long = (list) => list.filter((it) => it.type === 'hall' && ok(it.w) && it.w >= 1.6 * it.h && it.w >= 150);
+  const hp = long(placed), hn = long(turned);
+  if (hp.length && hn.length) {
+    const a = after ? hp.reduce((m, h) => (h.x + h.w > m.x + m.w ? h : m)) : hp.reduce((m, h) => (h.x < m.x ? h : m));
+    const b = after ? hn.reduce((m, h) => (h.x < m.x ? h : m)) : hn.reduce((m, h) => (h.x + h.w > m.x + m.w ? h : m));
+    const dty = a.y + a.h / 2 - (b.y + b.h / 2), dtx = after ? a.x + a.w - b.x : a.x - (b.x + b.w);
+    const trial = { q, s: 1, tx: dtx, ty: dty };
+    const bad = stackConflicts({ items: placed }, { q: 0, s: 1, tx: 0, ty: 0 }, { items: members }, trial);
+    if (bad === 0 && Math.abs(a.h - b.h) <= 0.6 * Math.max(a.h, b.h)) return { ...trial, how: 'beside', n: 0, rms: 0 };
+    ty = dty; // the corridors at least on one line
+  }
   return { q, s: 1, tx, ty, how: 'beside', n: 0, rms: 0 };
 }
 const placeItem0 = (plan, t) => plan.items.map((it) => placeItem(it, t));

@@ -54,17 +54,17 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
         <div class="ms-chips" id="ms-chips" role="group" aria-label="Photos"></div>
         <label>Size <input type="range" id="ms-size" min="20" max="300" step="0.5"><output id="ms-size-out"></output></label>
         <label>Turn <input type="range" id="ms-turn" min="-180" max="180" step="0.1"><output id="ms-turn-out"></output></label>
-        <button type="button" id="ms-turn-l" title="Turn this photo a quarter turn left">&#10226; 90&deg;</button>
-        <button type="button" id="ms-turn-r" title="Turn this photo a quarter turn right">&#10227; 90&deg;</button>
+        <button type="button" id="ms-turn-l" title="Turn this photo a quarter turn to the left">&#10226; Turn left</button>
+        <button type="button" id="ms-turn-r" title="Turn this photo a quarter turn to the right">&#10227; Turn right</button>
         <button type="button" id="ms-see" aria-pressed="false" title="See through the photos, to check where they overlap">See through</button>
         <button type="button" id="ms-reset" title="Put the photos back side by side">Side by side</button>
         <button type="button" id="ms-fit">Fit</button>
       </div>
       <div class="ms-view"><svg id="ms-svg" xmlns="${NS}"></svg></div>
-      <p class="ms-tip">Drag a photo to move it; its edges catch on the other photos. Match the Size and Turn so walls and rooms line up where the photos meet, and turn on See through to check the overlap. Scroll to zoom, drag the background to pan, arrow keys nudge, hold Alt while dragging to skip the snapping. Photo 1 is the frame of the plan: it can be moved, but turn and size the others to match it. AutoBuild builds every photo, then joins the plans by the rooms and hallways they share; this board is only used for a photo that shares nothing.</p>
+      <p class="ms-tip"><b>Quickest:</b> press AutoBuild; it joins the photos by the rooms and hallways they share. To line them up yourself, drag a photo (its edges catch on the others), use Turn / Size, and See through to check the overlap. Scroll zooms, dragging the background pans.</p>
       <div class="ms-actions">
         <button type="button" class="ms-back" id="ms-back">&larr; Back</button>
-        <button type="button" class="btn-primary" id="ms-trace">Start tracing</button>
+        <button type="button" id="ms-trace" title="Keep the photos as separate layers and trace the plan by hand">Start tracing by hand</button>
         <button type="button" class="btn-primary" id="ms-auto" title="Build every photo, join the plans where they share rooms or a hallway, and place the photos to match">AutoBuild</button>
       </div>
     </div>`;
@@ -207,7 +207,7 @@ export function mountMergeStage(host, { photos, layout, onBack, onTrace, onAutoB
   });
   $('#ms-auto').addEventListener('click', async (ev) => {
     const btn = ev.currentTarget, label = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Preparing…';
+    btn.disabled = true; btn.textContent = 'Reading the photos…';
     try {
       // every photo is built on its own and the plans joined by what they share; the board is the fallback
       const out = normalizeToMain(list);

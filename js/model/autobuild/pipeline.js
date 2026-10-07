@@ -120,13 +120,13 @@ export async function buildFromPlan(img0, opts = {}) {
   const LEVELS = prof.levels;
   const accepted = []; // { f, lines, F, r, level }
   const takenGlyphs = new Set();
-  let F1 = null, lines1 = null;
+  let F1 = null, lines1 = null, glyphs1 = null;
   for (const r of LEVELS) {
     const F = extractFaces(img, layers, { closeR: r, foot });
     if (r === 1) F1 = F;
     const { glyphs } = findGlyphs(ink8, w, h, F.labels, F.outsideIds, textH, r + 3);
     const lines = buildLines(glyphs, textH);
-    if (r === 1) lines1 = lines;
+    if (r === 1) { lines1 = lines; glyphs1 = glyphs; }
     const byId = new Map(F.faces.map((f) => [f.id, f]));
     for (const [faceId, all] of lines) {
       const ls = all.filter((l) => !inIcon(l) && !takenGlyphs.has(l.glyphs[0].id)).slice(0, prof.maxLinesPerRoom);
@@ -142,6 +142,20 @@ export async function buildFromPlan(img0, opts = {}) {
     }
     prog(0.12 + 0.06 * (r / LEVELS.length), 'Finding walls and rooms');
   }
+
+  // numbers that sit OUTSIDE every closed wall cell (rooms whose walls are drawn open, or that lie beyond the outline) are still rooms:
+  // their text lines are read like the others and the room is boxed by growing from the label until walls stop it
+  const orphans = [];
+  if (glyphs1 && opts.orphans !== false) {
+    const loose = glyphs1.filter((g) => !g.face && !g.dot && !takenGlyphs.has(g.id)).map((g) => ({ ...g, face: -1 }));
+    const olines = (buildLines(loose, textH).get(-1) || []).filter((l) => {
+      const hs = l.glyphs.map((g) => g.bh);
+      return l.glyphs.length >= 3 && l.glyphs.length <= 7 && l.h >= textH * 0.7 && l.h <= textH * 1.7 && Math.max(...hs) <= 1.7 * Math.min(...hs) && !inIcon(l)
+        && (l.x1 - l.x0 + 1) <= textH * 9 && (l.x1 - l.x0 + 1) >= textH * 1.6;
+    });
+    for (const l of olines.slice(0, 120)) orphans.push(l);
+  }
+  const blankIds0 = null; void blankIds0;
 
   // free paper that only exists because the paper edge was sealed (no text, touching the seal) is not building
   const blankIds = new Set();
@@ -161,6 +175,7 @@ export async function buildFromPlan(img0, opts = {}) {
   // OCR the accepted lines, several renderings each; the grammar votes
   const jobs = [];
   accepted.forEach((c) => c.lines.forEach((l) => jobs.push(l)));
+  orphans.forEach((l) => jobs.push(l));
   if (opts.ocr) {
     await readLines(jobs, opts.ocr, (l, th, kind) => (kind === 'old' ? renderLine(layers.gray, ink8.labels, w, h, l, th) : renderCrop(layers.gray, w, h, l, { height: th, mode: 'binary' })), prof, (done, n) => {
       prog(0.2 + 0.65 * (done / Math.max(1, n)), `Reading room numbers ${done}/${n}`);
@@ -205,6 +220,31 @@ export async function buildFromPlan(img0, opts = {}) {
     };
     const roomy = room.aspect <= prof.roomAspectMax && c.f.area <= prof.roomAreaMax * footArea;
     if (number || name || d.kind || (opts.keepUnread !== false && prof.unlabeledRooms && roomy)) rooms.push(room); else notRooms.push(c);
+  }
+  // orphan labels: a number read twice in agreement, not yet used, becomes a room grown out of its label
+  {
+    const have = new Set(rooms.map((r) => r.number).filter(Boolean));
+    for (const l of orphans) {
+      const d = interpret([l], prof, rctx);
+      if (!d.number || d.kind || d.votes < 2 || d.cost > 0.6 || have.has(d.number)) continue;
+      const box = { x0: l.x0, y0: l.y0, x1: l.x1, y1: l.y1 };
+      const g = growFromBox(F1.wallMask, w, h, box, Math.round(L * 0.35));
+      let gw = g.x1 - g.x0 + 1, gh = g.y1 - g.y0 + 1;
+      const tw = l.x1 - l.x0 + 1, th = l.y1 - l.y0 + 1;
+      // walls did not stop the growth (open on all sides): a box a little bigger than the label itself
+      if (gw > 7 * tw || gh > 14 * th || gw * gh > 0.12 * footArea) {
+        g.x0 = Math.round(l.x0 - tw * 0.6); g.x1 = Math.round(l.x1 + tw * 0.6); g.y0 = Math.round(l.y0 - th * 2.2); g.y1 = Math.round(l.y1 + th * 2.2);
+        gw = g.x1 - g.x0 + 1; gh = g.y1 - g.y0 + 1;
+      }
+      const gg = e + 1;
+      const fake = { id: `orphan${rooms.length}`, x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y1, area: gw * gh, fill: 1 };
+      if (rooms.some((q) => overlap({ x: g.x0, y: g.y0, w: gw, h: gh }, { x: q.f.x0, y: q.f.y0, w: q.f.x1 - q.f.x0 + 1, h: q.f.y1 - q.f.y0 + 1 }) > 0.5)) continue;
+      have.add(d.number);
+      rooms.push({
+        kind: 'rect', x: g.x0 - gg, y: g.y0 - gg, w: gw + 2 * gg, h: gh + 2 * gg, number: d.number, name: '', votes: d.votes, cost: d.cost, f: fake,
+        touchesPin: false, leaky: true, id: fake.id, aspect: Math.max(gw, gh) / Math.max(1, Math.min(gw, gh)), ranked: d.ranked, orphan: true,
+      });
+    }
   }
   // each room number can be on only one room: the better-voted room keeps it, the other tries its next reading
   {
