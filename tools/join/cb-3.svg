@@ -127,7 +127,7 @@
   <line class="door" x1="45" y1="490" x2="45" y2="550"/><text class="exit" x="45" y="575">EXIT</text>
   <line class="door" x1="1275" y1="490" x2="1275" y2="550"/><text class="exit" x="1275" y="575">EXIT</text>
   <line class="door" x1="295" y1="1946" x2="295" y2="1914"/><text class="exit" x="344" y="1930">EXIT</text>
-  <line class="door" x1="846" y1="1042" x2="846" y2="985"/><text class="exit" x="894" y="1014">EXIT</text>
+  <line class="door" x1="850" y1="985" x2="850" y2="1042"/><text class="exit" x="795" y="1014">EXIT</text>
   <!-- Which way the building really faces; matches the compass on the posted evacuation map. -->
   <g class="compass" transform="translate(184,671) rotate(280)">
     <circle r="80" fill="#ffffff" stroke="#1d1f23" stroke-width="3"/>

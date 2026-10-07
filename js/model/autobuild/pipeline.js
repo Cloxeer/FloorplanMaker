@@ -323,6 +323,28 @@ export async function buildFromPlan(img0, opts = {}) {
     for (let y = r.f.y0; y <= r.f.y1; y++) for (let x = r.f.x0; x <= r.f.x1; x++) if (r.F.labels[y * w + x] === r.f.id) corridorMask[y * w + x] = 0;
   }
   const halls = hallRects(corridorMask, w, h, Math.max(minSide * 1.5, textH * 2), textH * prof.hallMinLong, L * prof.hallMaxShort);
+  // what backs each corridor: blue evacuation arrows on it, and wall lines along its long sides
+  const wallsRef = layers.wallInk || layers.ink;
+  for (const hl of halls) {
+    const horiz = hl.w >= hl.h, band = Math.max(3, Math.round(textH * 0.5));
+    let blue = 0, n = 0;
+    for (let y = hl.y; y < hl.y + hl.h; y += 2) for (let x = hl.x; x < hl.x + hl.w; x += 2) { n++; if (layers.blue[Math.min(h - 1, y) * w + Math.min(w - 1, x)]) blue++; }
+    const side = (off) => {
+      let on = 0, t = 0;
+      const lo = horiz ? hl.x : hl.y, hi = horiz ? hl.x + hl.w : hl.y + hl.h;
+      for (let a = lo; a < hi; a += 2) {
+        t++;
+        let hit = false;
+        for (let d = 0; d < band && !hit; d++) {
+          const px = horiz ? a : (off < 0 ? hl.x - 1 - d : hl.x + hl.w + d), py = horiz ? (off < 0 ? hl.y - 1 - d : hl.y + hl.h + d) : a;
+          if (px >= 0 && py >= 0 && px < w && py < h && wallsRef[py * w + px]) hit = true;
+        }
+        if (hit) on++;
+      }
+      return t ? on / t : 0;
+    };
+    hl.blue = n ? blue / n : 0; hl.sideA = side(-1); hl.sideB = side(1);
+  }
 
   // numbers along a row that are missing or off get filled from their neighbours
   if (prof.inferRuns) repairRuns(kept);
@@ -360,6 +382,6 @@ export async function buildFromPlan(img0, opts = {}) {
     items,
     hallPass: pass.hallPass,
     stats: { w, h, textH, rooms: kept.length, accepted: accepted.length, halls: halls.length, stairs: stairs.length, exits: exits.length, elevators: elevators.length, elevDensity: elevators.map((q) => +q.density.toFixed(2)), lines: jobs.length },
-    debug: { compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels, keptRaw, keptFinal },
+    debug: { halls: halls.map((q) => ({ x: q.x, y: q.y, w: q.w, h: q.h, blue: q.blue, sideA: q.sideA, sideB: q.sideB })), compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels, keptRaw, keptFinal },
   };
 }
