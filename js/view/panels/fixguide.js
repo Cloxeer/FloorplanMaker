@@ -10,6 +10,7 @@
 // Depends on: js/model/noteGroups.js, js/model/fix*.js, js/view/panels/fixflow.js, js/view/panels/validation.js.
 
 import { noteGroups, boxOfIds, stopLabel } from '../../model/noteGroups.js';
+import { applyIgnores } from '../../model/ignored.js';
 import { docChecklistCodes } from './validation.js';
 import { NUMBER_RE, updateItem } from '../../model/document.js';
 import { createNotesFlow } from './fixflow.js';
@@ -42,6 +43,17 @@ const STYLE = `
 #validation .wl-inline .wl-err { min-height:0; }
 #validation .wl-inline .wl-row { margin-top:0; }
 #validation .wl-inline .wl-btn { font-size:12px; padding:4px 10px; }
+#validation .wl-stop { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+#validation .wl-stop > span { flex:1; min-width:0; }
+#validation .wl-ign { font:inherit; font-size:11px; padding:2px 8px; border-radius:6px; border:1px solid #c5ccd6; background:#fff; color:#4a5059; cursor:pointer; }
+#validation .wl-ign:hover { background:#f0f2f5; }
+#validation .wl-ignall { margin:2px 0 2px; align-self:flex-start; }
+#validation .wl-ignored { margin:8px 0 4px; font-size:12.5px; color:#4a5059; }
+#validation .wl-ignored summary { cursor:pointer; font-weight:600; padding:3px 0; }
+#validation .wl-ignored .wl-igrow { display:flex; align-items:center; gap:6px; padding:3px 0 3px 4px; border-bottom:1px solid #eceef1; }
+#validation .wl-ignored .wl-igrow > span { flex:1; min-width:0; }
+#validation .wl-ignored .wl-igrow small { color:#6b7078; margin-left:5px; }
+#validation .fix-list li .fix-ign { margin-left:6px; font:inherit; font-size:11px; padding:1px 7px; border-radius:6px; border:1px solid #c5ccd6; background:#fff; cursor:pointer; }
 #wl-guide { font:13px/1.4 system-ui,sans-serif; color:#23272e; padding:10px 12px 12px; border-bottom:1px solid #dfe3e8; background:#f7faff; }
 #wl-guide[hidden] { display:none; }
 #wl-guide header { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
@@ -104,8 +116,26 @@ export function mountFixGuide(app) {
     const rooms = doc.items.filter((i) => i && i.type === 'room').length;
     const base = rooms <= 400 ? validate(doc) : (app.validation || []);
     const route = (app.validation || []).filter((v) => v.code === 'room-unreachable' && doc.items.some((i) => i.id === v.itemId));
-    return noteGroups(doc, base.concat(route, docChecklistCodes(doc)));
+    return noteGroups(doc, base.concat(route, docChecklistCodes(doc)), ignoredNow());
   }, []);
+  // the problems the person chose to ignore, grouped the same way (so they can be put back)
+  const ignoredNow = () => (app.ignoredIds ? app.ignoredIds() : new Set());
+  const ignoredGroups = () => safe(() => {
+    const ids = ignoredNow();
+    if (!ids.size) return [];
+    const doc = app.doc;
+    const rooms = doc.items.filter((i) => i && i.type === 'room').length;
+    const base = rooms <= 400 ? validate(doc) : (app.validation || []);
+    const route = (app.validation || []).filter((v) => v.code === 'room-unreachable' && doc.items.some((i) => i.id === v.itemId));
+    return noteGroups(doc, base.concat(route, docChecklistCodes(doc)), ids, 'ignored');
+  }, []);
+  const ignore = (ids) => { revert(); if (app.setIgnored) app.setIgnored(ids, true); app.toast && app.toast('Ignored. It is listed under "Ignored" if you want it back.'); };
+  const unignore = (ids) => { if (app.setIgnored) app.setIgnored(ids, false); };
+  const ignoreBtn = (stop, label = 'Ignore') => {
+    const b = el('button', 'wl-btn', label); b.type = 'button'; b.title = 'Leave this alone: it will not stop you exporting';
+    b.addEventListener('click', (e) => { e.stopPropagation(); ignore(stop.ids); });
+    return b;
+  };
 
   // ---- fly the map to the problem ------------------------------------------------------------
   function focus(ids) {
@@ -221,7 +251,7 @@ export function mountFixGuide(app) {
       const yes = el('button', 'wl-btn main', 'Yes, fix it'); yes.type = 'button';
       yes.addEventListener('click', () => { yes.disabled = true; apply(fix); });
       const sk = el('button', 'wl-btn', 'Skip'); sk.type = 'button'; sk.addEventListener('click', () => go(g.idx + 1));
-      row.appendChild(yes); row.appendChild(sk); panel.appendChild(row);
+      row.appendChild(yes); row.appendChild(sk); row.appendChild(ignoreBtn(stop)); panel.appendChild(row);
     } else {
       const why = manualFor(group, stop) || (stop.cluster ? 'These cannot be separated automatically without reshaping a room.' : '');
       if (why) panel.appendChild(el('div', 'wl-hint', why));
@@ -233,7 +263,7 @@ export function mountFixGuide(app) {
       if (tip) { const t = el('button', 'wl-btn main', tip[0]); t.type = 'button'; t.addEventListener('click', () => { revert(); app.setTool(tip[1]); }); row.appendChild(t); }
       const sk = el('button', 'wl-btn', group.stops.length > 1 ? 'Next problem' : 'Close'); sk.type = 'button';
       sk.addEventListener('click', () => (group.stops.length > 1 ? go(g.idx + 1) : close()));
-      row.appendChild(sk); panel.appendChild(row);
+      row.appendChild(sk); row.appendChild(ignoreBtn(stop)); panel.appendChild(row);
     }
     decorate();
   }
@@ -268,6 +298,7 @@ export function mountFixGuide(app) {
     const sv = el('button', 'wl-btn main', 'Save number'); sv.type = 'button'; sv.addEventListener('click', save);
     row.appendChild(sv);
     if (group.stops.length > 1) { const sk = el('button', 'wl-btn', 'Skip'); sk.type = 'button'; sk.addEventListener('click', () => go(g.idx + 1)); row.appendChild(sk); }
+    row.appendChild(ignoreBtn(stop));
     panel.appendChild(row);
     panel.appendChild(el('div', 'wl-hint', 'Enter saves and jumps to the next room.'));
     decorate();
@@ -289,7 +320,7 @@ export function mountFixGuide(app) {
   // Click a group: it opens in place, one row per problem. Click a row: the map flies to it. A room that
   // needs a number gets its box right there (Enter saves and moves to the next); overlaps can open in
   // Layers; everything else opens the guide card with the fix preview.
-  let expanded = null, activeStop = -1, wantFocus = false;
+  let expanded = null, activeStop = -1, wantFocus = false, ignoredOpen = false;
 
   function saveNumber(id, raw, errEl) {
     const v = raw.trim().toUpperCase();
@@ -320,6 +351,7 @@ export function mountFixGuide(app) {
       const row = el('div', 'wl-row');
       const sv = el('button', 'wl-btn main', 'Save'); sv.type = 'button'; sv.addEventListener('click', save);
       row.appendChild(sv);
+      row.appendChild(ignoreBtn(stop));
       box.append(input, err, row);
       if (wantFocus) setTimeout(() => { if (alive && input.isConnected) { input.focus(); input.select(); } }, 0);
       return box;
@@ -337,6 +369,7 @@ export function mountFixGuide(app) {
     const fb = el('button', 'wl-btn main', 'Show me how to fix it'); fb.type = 'button';
     fb.addEventListener('click', () => open(grp.key, idx));
     row.appendChild(fb);
+    row.appendChild(ignoreBtn(stop));
     box.appendChild(row);
     return box;
   }
@@ -376,7 +409,35 @@ export function mountFixGuide(app) {
         if (idx === activeStop) r.appendChild(inlineFor(grp, stop, idx));
         stops.appendChild(r);
       });
+      const ia = el('button', 'wl-ign wl-ignall', grp.stops.length > 1 ? `Ignore all ${grp.stops.length}` : 'Ignore'); ia.type = 'button';
+      ia.title = 'Leave these alone: they will not stop you exporting';
+      ia.addEventListener('click', (e) => { e.stopPropagation(); ignore([...new Set(grp.stops.flatMap((s) => s.ids))]); });
+      stops.appendChild(ia);
       box.appendChild(stops);
+    }
+    // what was ignored, so it can be put back
+    const ig = ignoredGroups();
+    if (ig.length) {
+      // one row per ignored thing, even when it had several problems (a room with no number that also misses a hallway)
+      const seen = new Set();
+      for (const grp of ig) grp.stops = grp.stops.filter((s) => { const k = s.ids.slice().sort().join('+'); if (seen.has(k)) return false; seen.add(k); return true; });
+      const total = seen.size;
+      const det = el('details', 'wl-ignored');
+      if (ignoredOpen) det.open = true;
+      det.addEventListener('toggle', () => { ignoredOpen = det.open; });
+      det.appendChild(el('summary', null, `Ignored (${total})`));
+      for (const grp of ig) {
+        for (const stop of grp.stops) {
+          const lab = stopLabel(app.doc, stop, grp.kind);
+          const r = el('div', 'wl-igrow');
+          const t = el('span', null, lab.title); if (lab.sub) t.appendChild(el('small', null, lab.sub));
+          t.title = grp.title; t.style.cursor = 'pointer'; t.addEventListener('click', () => focus(stop.ids));
+          const b = el('button', 'wl-ign', 'Stop ignoring'); b.type = 'button'; b.addEventListener('click', () => unignore(stop.ids));
+          r.append(t, b); det.appendChild(r);
+        }
+      }
+      if (total > 1) { const all = el('button', 'wl-ign wl-ignall', 'Stop ignoring all'); all.type = 'button'; all.addEventListener('click', () => unignore([...ignoredNow()])); det.appendChild(all); }
+      box.appendChild(det);
     }
     wantFocus = false;
     if (!groups.length) list.classList.remove('wl-hidden'); // groups unavailable: fall back to the plain list

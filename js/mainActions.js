@@ -17,6 +17,7 @@ import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
 import { mountValidation, checklistReady, docChecklistCodes } from './view/panels/validation.js';
+import { ignoredIds as ignoredOf, pruneIgnored, applyIgnores } from './model/ignored.js';
 import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
@@ -86,6 +87,28 @@ export function createStudio(app, deps) {
     app.emit({ type: 'view' });
   }
   app.saveView = scheduleSaveView;
+  // "Ignore": problems the person chose to leave alone (kept in the project; see js/model/ignored.js)
+  app.ignoredIds = () => (app.project && app.doc ? pruneIgnored(app.doc, ignoredOf(app.project)) : new Set());
+  // "Hide" (the eye in the Layers list): items that are only hidden from view while working. Nothing is deleted or changed, and
+  // hidden items are still exported; the list lives in the project (project.hidden = [item ids]).
+  app.hiddenIds = () => (app.project && app.doc ? pruneIgnored(app.doc, ignoredOf({ ignored: app.project.hidden })) : new Set());
+  app.setHidden = (ids, on) => {
+    if (!app.project) return;
+    const cur = ignoredOf({ ignored: app.project.hidden });
+    for (const id of ids) { if (on) cur.add(id); else cur.delete(id); }
+    app.project.hidden = [...cur];
+    saveNow(app.project);
+    app.emit({ type: 'hidden' });
+  };
+  app.setIgnored = (ids, on) => {
+    if (!app.project) return;
+    const cur = ignoredOf(app.project);
+    for (const id of ids) { if (on) cur.add(id); else cur.delete(id); }
+    app.project.ignored = [...cur];
+    saveNow(app.project);
+    persistToFolder(app.project);
+    app.emit({ type: 'validation' });
+  };
   function isTypingTarget(e) {
     if (document.querySelector('.modal-backdrop')) return true;
     const t = e.target;
@@ -152,7 +175,7 @@ export function createStudio(app, deps) {
   function updateExportButton() {
     const btn = document.getElementById('btn-export');
     if (!btn) return;
-    const results = (app.validation || []).concat(docChecklistCodes(app.doc));
+    const results = applyIgnores(app.doc, (app.validation || []).concat(docChecklistCodes(app.doc)), app.ignoredIds());
     const ready = checklistReady(results);
     btn.disabled = !ready;
     btn.title = ready ? '' : 'Finish the checklist first';

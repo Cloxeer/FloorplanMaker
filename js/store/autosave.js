@@ -50,6 +50,8 @@ export function projectSignature(project) {
     view: project.view,
     name: project.name,
     slug: project.slug,
+    ignored: project.ignored || null, // problems the person chose to ignore (js/model/ignored.js)
+    hidden: project.hidden || null, // items hidden from view (the eye in Layers)
     photo: photoSig,
     placement: p && p.t ? p.t : null,
     extra: (project.extraPhotos || []).map((e) => `${e.width || 0}x${e.height || 0}:${e.dataUrl ? e.dataUrl.length : 0}:${JSON.stringify(e.t || null)}`),
@@ -227,6 +229,8 @@ export function exportProjectJson(project) {
     doc: project.doc,
     photo: project.photo,
     extraPhotos: project.extraPhotos && project.extraPhotos.length ? project.extraPhotos : undefined,
+    ignored: project.ignored && project.ignored.length ? project.ignored : undefined,
+    hidden: project.hidden && project.hidden.length ? project.hidden : undefined,
     view: project.view,
   };
   return JSON.stringify(payload, null, 2);
@@ -250,6 +254,8 @@ export function importProjectJson(text) {
     doc: data.doc,
     photo: data.photo || null,
     extraPhotos: Array.isArray(data.extraPhotos) ? data.extraPhotos : [],
+    ignored: Array.isArray(data.ignored) ? data.ignored.filter((x) => typeof x === 'string') : [],
+    hidden: Array.isArray(data.hidden) ? data.hidden.filter((x) => typeof x === 'string') : [],
     view: data.view || { zoom: 1, panX: 0, panY: 0, onion: 0.5 },
     history: { past: [], future: [] },
   };

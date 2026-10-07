@@ -1,7 +1,9 @@
 // validation.js
 // Renders app.validation as a friendly checklist below the properties panel,
 // plus clickable "fix" / "worth a look" lists for remaining problems.
-// Depends on: nothing beyond app's public API.
+// Depends on: js/model/ignored.js (problems the person chose to ignore are left out), app's public API.
+
+import { applyIgnores } from '../../model/ignored.js';
 
 const CHECKLIST = [
   { label: 'Building outline drawn', codes: ['no-floor', 'floor-not-closed'] },
@@ -168,7 +170,9 @@ export function checklistReady(results) {
 
 export function mountValidation(el, app) {
   function render() {
-    const results = (app.validation || []).concat(docChecklistCodes(app.doc));
+    const raw = (app.validation || []).concat(docChecklistCodes(app.doc));
+    const results = applyIgnores(app.doc, raw, app.ignoredIds ? app.ignoredIds() : null);
+    const someIgnored = results.length < raw.length; // problems the person chose to leave alone (listed under Worth a look, collapsed)
     const byCode = new Set(results.map((r) => r.code));
 
     const checklistCodes = new Set(CHECKLIST.flatMap((row) => row.codes));
@@ -181,10 +185,10 @@ export function mountValidation(el, app) {
 
     const fixListHtml = remainingErrors.length ? `
       <div class="section-title">Fix these before export</div>
-      <ul class="fix-list">${remainingErrors.map((r, i) => `<li data-kind="error" data-index="${i}">${escapeHtml(r.message)}</li>`).join('')}</ul>
+      <ul class="fix-list">${remainingErrors.map((r, i) => `<li data-kind="error" data-index="${i}">${escapeHtml(r.message)}${r.itemId ? ' <button type="button" class="fix-ign" title="Leave this alone: it will not stop the export">Ignore</button>' : ''}</li>`).join('')}</ul>
     ` : '';
 
-    const notesHtml = remainingWarnings.length ? `
+    const notesHtml = remainingWarnings.length || someIgnored ? `
       <div class="section-title">Worth a look</div>
       <ul class="notes-list">${remainingWarnings.map((r, i) => `<li data-kind="warning" data-index="${i}">${escapeHtml(r.message)}</li>`).join('')}</ul>
     ` : '';
@@ -202,6 +206,8 @@ export function mountValidation(el, app) {
       const item = remainingErrors[idx];
       if (item && item.itemId) {
         li.addEventListener('click', () => app.setSelection([item.itemId]));
+        const ig = li.querySelector('.fix-ign');
+        if (ig) ig.addEventListener('click', (e) => { e.stopPropagation(); app.setIgnored([item.itemId], true); });
       }
     });
     el.querySelectorAll('.notes-list li').forEach((li) => {

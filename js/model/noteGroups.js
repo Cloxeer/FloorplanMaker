@@ -63,7 +63,8 @@ function readingOrder(doc, ids) {
 }
 
 // -> [{ key, kind, title, count, stops:[{ ids, cluster? }] }]
-export function noteGroups(rawDoc, validation) {
+// ignored: ids the person chose to ignore. mode 'active' (default) leaves out stops whose items are all ignored; 'ignored' keeps ONLY those.
+export function noteGroups(rawDoc, validation, ignored, mode = 'active') {
   if (!rawDoc || !Array.isArray(rawDoc.items)) return [];
   // a damaged file can hold null / non-object items: work on the usable ones only
   const items = rawDoc.items.filter((i) => i && typeof i === 'object');
@@ -81,7 +82,12 @@ export function noteGroups(rawDoc, validation) {
     }
   }
   const groups = [];
-  const add = (key, kind, title, stops) => { if (stops.length) groups.push({ key, kind, title, count: stops.length, stops }); };
+  const isIgn = (stop) => !!ignored && ignored.size > 0 && stop.ids.length > 0 && stop.ids.every((id) => ignored.has(id));
+  // title(n) is made after the ignored stops are sorted out, so the count is right
+  const add = (key, kind, title, stops) => {
+    stops = stops.filter((s) => (mode === 'ignored' ? isIgn(s) : !isIgn(s)));
+    if (stops.length) groups.push({ key, kind, title: typeof title === 'function' ? title(stops.length) : title, count: stops.length, stops });
+  };
   const single = (ids) => readingOrder(doc, ids).map((id) => ({ ids: [id] }));
 
   // one title per KIND (codes of one kind merge: "numbers in the wrong format" covers bad + duplicate)
@@ -92,21 +98,20 @@ export function noteGroups(rawDoc, validation) {
     kinds.get(kind).ids.push(...ids);
   }
   for (const [kind, k] of kinds) {
-    const stops = single(k.ids);
-    add(`k:${kind}`, kind, `${stops.length} ${plural(stops.length, k.one, k.many)}`, stops);
+    add(`k:${kind}`, kind, (n) => `${n} ${plural(n, k.one, k.many)}`, single(k.ids));
   }
   // overlapping rooms: one stop per cluster
   const clusters = overlapClusters(doc);
-  add('k:overlap', 'overlap', `${clusters.length} ${plural(clusters.length, 'group of rooms overlaps', 'groups of rooms overlap')}`,
+  add('k:overlap', 'overlap', (n) => `${n} ${plural(n, 'group of rooms overlaps', 'groups of rooms overlap')}`,
     clusters.map((c) => ({ ids: readingOrder(doc, c.items.map((i) => i.id)), cluster: c })));
   // hallways and rooms the hallway notes name
   const hallOverlap = overlappingHalls(items);
-  add('k:hall-overlap', 'hall-overlap', `${hallOverlap.length} ${plural(hallOverlap.length, 'hallway overlaps another', 'hallways overlap each other')}`, single(hallOverlap.map((h) => h.id)));
+  add('k:hall-overlap', 'hall-overlap', (n) => `${n} ${plural(n, 'hallway overlaps another', 'hallways overlap each other')}`, single(hallOverlap.map((h) => h.id)));
   const cut = unconnectedHalls(doc);
-  add('k:hall', 'hall', `${cut.length} ${plural(cut.length, "hallway isn't connected", "hallways aren't connected")}`, single(cut.map((h) => h.id)));
+  add('k:hall', 'hall', (n) => `${n} ${plural(n, "hallway isn't connected", "hallways aren't connected")}`, single(cut.map((h) => h.id)));
   const far = roomsNotTouchingHall(items);
-  add('k:room-hall', 'room-hall', `${far.length} ${plural(far.length, "room doesn't reach a hallway", "rooms don't reach a hallway")}`, single(far.map((r) => r.id)));
-  for (const [msg, ids] of other) add(`m:${msg}`, 'other', `${ids.length > 1 ? ids.length + ' x ' : ''}${msg}`, single(ids));
+  add('k:room-hall', 'room-hall', (n) => `${n} ${plural(n, "room doesn't reach a hallway", "rooms don't reach a hallway")}`, single(far.map((r) => r.id)));
+  for (const [msg, ids] of other) add(`m:${msg}`, 'other', (n) => `${n > 1 ? n + ' x ' : ''}${msg}`, single(ids));
   groups.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
   return groups;
 }

@@ -75,9 +75,11 @@ export function nextFix(doc, skippedKeys, opts) {
   if (bad.ids.length || bad.missing) return null;
   const skipped = skippedKeys instanceof Set ? skippedKeys : new Set(skippedKeys || []);
   const avoid = (opts && opts.avoidDocs) || null; // optional Set of doc signatures already visited
+  const ign = (opts && opts.ignoredIds) || null; // items the person chose to ignore: no fix touches them
   for (const source of SOURCES) {
     for (const f of source(doc)) {
       if (!f || !f.key || skipped.has(f.key)) continue;
+      if (ign && ign.size && (f.ids || []).length && (f.ids || []).every((i) => ign.has(i))) continue;
       const nd = f.doc; // (hall fixes build their doc lazily)
       if (!nd || sameDoc(nd, doc)) continue;
       if (avoid && avoid.has(JSON.stringify(nd))) continue;
@@ -105,7 +107,7 @@ function stragglers(doc, known) {
   return [...by].map(([message, ids]) => ({ ids, message: ids.length > 1 ? `${message} (${ids.length} items)` : message }));
 }
 
-export function manualLeft(doc) {
+export function manualLeft(doc, ignoredIds) {
   if (!doc || !Array.isArray(doc.items)) return [];
   const bad = sharedIds(doc);
   if (bad.ids.length || bad.missing) {
@@ -117,7 +119,8 @@ export function manualLeft(doc) {
     ...safe(findManualNumbers, doc),
     ...safe(findManualHalls, doc),
   ].map((m) => ({ ids: m.ids || [], message: m.message }));
-  return list.concat(stragglers(doc, list.flatMap((m) => m.ids)));
+  const all = list.concat(stragglers(doc, list.flatMap((m) => m.ids)));
+  return ignoredIds && ignoredIds.size ? all.filter((m) => !(m.ids.length && m.ids.every((i) => ignoredIds.has(i)))) : all;
 }
 
 // Apply fixes until none is left. A fix that would bring back an earlier state is skipped, and the

@@ -38,13 +38,14 @@ export function mountFixAll(app) {
     busy = true; btn.disabled = true;
     try {
       let fixed = 0;
-      const r = autoFixAll(app.doc);
+      const ignoredIds = app.ignoredIds ? app.ignoredIds() : null;
+      const r = autoFixAll(app.doc, { ignoredIds });
       if (r.applied.length) {
         app.commit(r.doc, 'Fix all'); // ONE undo step for every safe fix
         fixed = r.applied.length;
       }
-      const pending = !!nextFix(app.doc, new Set()) ; // fixes that need approval
-      const manual = manualLeft(app.doc);
+      const pending = !!nextFix(r.doc, new Set(), { ignoredIds }); // fixes that need approval
+      const manual = manualLeft(r.doc, ignoredIds);
       if (fixed) app.toast(`Fix all: ${fixed} ${fixed === 1 ? 'fix' : 'fixes'} applied${pending ? ' - the rest need your OK' : manual.length ? ` - ${manual.length} left for you` : ''}`);
       if (pending || manual.length) {
         // approvals (and the "Needs you" list) show in the right sidebar guide card, one at a time

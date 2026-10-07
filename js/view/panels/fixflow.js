@@ -36,11 +36,12 @@ export function createNotesFlow(app, h, injected) {
   if (!mod) import('../../model/fixNotes.js').then((m) => { mod = m; h.render(); }).catch(() => {});
 
   const safe = (fn, dflt) => { try { return fn(); } catch (e) { return dflt; } };
-  const nextOf = (doc, sk) => mod.nextFix(doc, sk);
+  const ign = () => (app.ignoredIds ? app.ignoredIds() : null); // items the person chose to ignore are left alone
+  const nextOf = (doc, sk) => mod.nextFix(doc, sk, { ignoredIds: ign() });
 
   function canStart() {
     if (!mod || !app.doc) return false;
-    return safe(() => !!nextOf(app.doc, new Set()) || mod.manualLeft(app.doc).length > 0, false);
+    return safe(() => !!nextOf(app.doc, new Set()) || mod.manualLeft(app.doc, ign()).length > 0, false);
   }
   function estimate() {
     let d = app.doc, n = 0; const sk = new Set();
@@ -132,7 +133,7 @@ export function createNotesFlow(app, h, injected) {
     const kinds = Object.keys(flow.fixed).sort((a, b) => kindIdx(a) - kindIdx(b));
     const total = kinds.reduce((s, k) => s + flow.fixed[k], 0);
     let left = [];
-    try { left = mod.manualLeft(app.doc) || []; } catch (e) { flow.failed = true; }
+    try { left = mod.manualLeft(app.doc, ign()) || []; } catch (e) { flow.failed = true; }
     card.appendChild(h.el('h4', null, 'Fix worth-a-looks: done'));
     if (flow.failed) card.appendChild(h.el('div', 'ly-hint', 'Could not compute a fix, left for you.'));
     if (total) {

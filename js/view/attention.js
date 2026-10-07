@@ -47,7 +47,7 @@ export function mountAttention(app) {
     targets = new Map(); polys = [];
     const doc = app.doc;
     if (!doc || !doc.items || !doc.items.length) return;
-    targets = attentionTargets(doc, app.validation);
+    targets = attentionTargets(doc, app.validation, app.ignoredIds ? app.ignoredIds() : null);
     if (!targets.size) return;
     const byId = new Map();
     for (const i of doc.items) if (targets.has(i.id)) byId.set(i.id, i);

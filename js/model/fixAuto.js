@@ -64,7 +64,7 @@ export function autoFixAll(doc, opts) {
   const uses = new Map();
   let cur = doc;
   for (let i = 0; i < max; i++) {
-    const f = nextFix(cur, skipped, { avoidDocs: seen });
+    const f = nextFix(cur, skipped, { avoidDocs: seen, ignoredIds: opts && opts.ignoredIds });
     if (!f) break;
     const reason = approvalReason(f, cur);
     if (reason) { skipped.add(f.key); held.set(f.key, { key: f.key, kind: f.kind, title: f.title, reason }); continue; }
@@ -77,7 +77,13 @@ export function autoFixAll(doc, opts) {
   // last: close the small gaps (rooms to the wall, corner to corner, on the 5-grid); never adds overlaps
   try {
     const t = tidyRooms(cur);
-    if (t.count) { cur = t.doc; applied.push({ key: 'tidy', kind: 'tidy', title: 'Close the gaps', notes: t.notes, ids: t.changed }); }
+    const ign = opts && opts.ignoredIds;
+    if (t.count && ign && ign.size) {
+      // items the person chose to ignore stay exactly as they are
+      const before = new Map(cur.items.map((i) => [i.id, i]));
+      const keep = t.changed.filter((id) => !ign.has(id));
+      if (keep.length) { cur = { ...t.doc, items: t.doc.items.map((i) => (ign.has(i.id) && before.has(i.id) ? before.get(i.id) : i)) }; applied.push({ key: 'tidy', kind: 'tidy', title: 'Close the gaps', notes: t.notes, ids: keep }); }
+    } else if (t.count) { cur = t.doc; applied.push({ key: 'tidy', kind: 'tidy', title: 'Close the gaps', notes: t.notes, ids: t.changed }); }
   } catch (e) { /* nothing to tidy */ }
   return { doc: cur, applied, held: [...held.values()] };
 }

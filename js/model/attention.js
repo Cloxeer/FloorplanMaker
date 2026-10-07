@@ -97,10 +97,10 @@ export function unconnectedHalls(doc) {
 }
 
 // -> Map(itemId -> { level: 'warning'|'error', reasons: [string] })
-export function attentionTargets(doc, validation) {
+export function attentionTargets(doc, validation, ignored) {
   const out = new Map();
   const add = (id, level, reason) => {
-    if (!id) return;
+    if (!id || (ignored && ignored.has(id))) return;
     const cur = out.get(id) || { level: 'warning', reasons: [] };
     if (level === 'error') cur.level = 'error';
     if (reason && !cur.reasons.includes(reason)) cur.reasons.push(reason);

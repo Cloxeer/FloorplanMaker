@@ -7,6 +7,7 @@
 import { getItem, addItem, newId, nextNumber } from './model/document.js';
 import { bbox } from './model/geometry.js';
 import { validate } from './model/validate.js';
+import { applyIgnores } from './model/ignored.js';
 import { exportSvg } from './model/svgExport.js';
 import { showExportStep } from './view/panels/exportDialog.js';
 import { showPreviewStep } from './view/panels/previewStep.js';
@@ -104,9 +105,10 @@ export function createActions(app, deps) {
     // Everything drawn in trace goes into the SVG — nothing is filtered out.
     // Hallways and staff walls use classes the map-build parsers ignore.
     const doc = app.doc;
-    const results = validate(doc);
-    app.validation = results;
+    const all = validate(doc);
+    app.validation = all;
     app.emit({ type: 'validation' });
+    const results = applyIgnores(doc, all, app.ignoredIds()); // problems the person chose to ignore do not stop an export
     if (results.some((r) => r.level === 'error')) {
       app.toast('Finish the checklist on the right first (the items still marked ○ or listed under "Worth a look"), then you can preview and export.');
       return;
