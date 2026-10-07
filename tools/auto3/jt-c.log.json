@@ -1,0 +1,44 @@
+{
+ "slug": "jt-c",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 31 rooms · hallways filled in (8 pieces) · Compass placed · 5 need a look"
+ ],
+ "review": [
+  "278Read as 178 but this is floor 2: changed to 278",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "225Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room 251 falls outside its shape.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms idev6sfrd and 259 overlap.",
+  "overlapping-rooms: Rooms idev6sfrd and idxkhpdql overlap.",
+  "overlapping-rooms: Rooms 213 and 215 overlap.",
+  "room-unreachable: Room 278 is not reachable from an entrance.",
+  "room-unreachable: Room 289 is not reachable from an entrance.",
+  "room-unreachable: Room 256 is not reachable from an entrance.",
+  "room-unreachable: Room 252 is not reachable from an entrance.",
+  "room-unreachable: Room 274 is not reachable from an entrance.",
+  "room-unreachable: Room 265 is not reachable from an entrance.",
+  "room-unreachable: Room 268 is not reachable from an entrance.",
+  "room-unreachable: Room 264 is not reachable from an entrance.",
+  "room-unreachable: Room 262 is not reachable from an entrance.",
+  "room-unreachable: Room 260 is not reachable from an entrance.",
+  "room-unreachable: Room 258 is not reachable from an entrance.",
+  "room-unreachable: Room 254 is not reachable from an entrance.",
+  "room-unreachable: Room 250 is not reachable from an entrance."
+ ]
+}

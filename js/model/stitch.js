@@ -365,8 +365,12 @@ export function alignPlans(plans) {
     const nm = movers.reduce((c, m) => c + rooms(plans[m]).length, 0);
     const wrongSide = !e.strong && westConflictGroups(plans, stay.map((k) => [k, tf[k]]), movers.map((m) => [m, moved.get(m)]));
     const weak = (e.t.n || 0) < 3 && e.t.how !== 'rooms-many';
-    if (bad > (weak ? 0 : Math.max(2, 0.12 * nm)) || wrongSide) { done.add(key); continue; }
+    // many shared numbers agree on the turn, scale and place: stray boxes of badly read rooms may overlap without it being a wrong join
+    const share = (e.t.labelled || 0) >= 8 ? 0.45 : 0.12;
+    if (bad > (weak ? 0 : Math.max(2, share * nm)) || wrongSide) { done.add(key); continue; }
     const target = root[e.from];
+    // the plan this one was joined TO also says how it is joined (the join may have been found from either side)
+    if (!tf[e.from].how) tf[e.from] = { ...tf[e.from], how: T.how, n: T.n || 0, rms: T.rms || 0, labelled: T.labelled || 0 };
     for (const m of movers) { tf[m] = { ...moved.get(m), how: m === e.to ? T.how : (tf[m].how && tf[m].how !== 'group root' ? tf[m].how : T.how), n: m === e.to ? T.n || 0 : tf[m].n || 0, rms: m === e.to ? T.rms || 0 : 0, labelled: m === e.to ? T.labelled || 0 : tf[m].labelled || 0 }; root[m] = target; }
   }
   // plan 0's group is framed on plan 0; other groups on their lowest plan
@@ -410,20 +414,26 @@ export function layoutPlans(plans, opts = {}) {
     roots = [0];
     notes.push('Photos placed as you arranged them on the board.');
   }
+  const loose = [];
   for (const root of roots.slice(1)) {
     const group = tfs.map((t, i) => (t.root === root ? i : -1)).filter((i) => i >= 0);
     const so = mergePlans(plans, tfs.map((t) => (t.root === 0 || t.final ? t : null))).items;
     const bt = opts.arranged ? boardTf(root) : null;
     const F = bt || placeBeside(plans, group, tfs, so);
     for (const i of group) tfs[i] = { ...compose(F, tfs[i]), final: true, how: i === root ? F.how : tfs[i].how };
-    notes.push(`${group.map((i) => `Photo ${i + 1}`).join(' and ')} ${group.length > 1 ? 'share' : 'shares'} no room numbers or hallway with the others, so ${group.length > 1 ? 'they were' : 'it was'} placed ${bt ? 'where you put it on the board' : 'beside them'}. Check how it joins.`);
+    const names = group.map((i) => `Photo ${i + 1}`).join(' and '), pl = group.length > 1;
+    // a group nothing connects to the first photo is not part of this plan unless the person lined it up on the board
+    if (opts.apart && !bt) {
+      group.forEach((i) => loose.push(i));
+      notes.push(`${names} ${pl ? 'share' : 'shares'} no room numbers or hallway with the other photos, so ${pl ? 'they were' : 'it was'} not combined into this plan (${pl ? 'they stay' : 'it stays'} under it as ${pl ? 'pictures' : 'a picture'}). Build ${pl ? 'them' : 'it'} as ${pl ? 'their' : 'its'} own floor, or line ${pl ? 'them' : 'it'} up on the board yourself.`);
+    } else notes.push(`${names} ${pl ? 'share' : 'shares'} no room numbers or hallway with the others, so ${pl ? 'they were' : 'it was'} placed ${bt ? 'where you put it on the board' : 'beside them'}. Check how it joins.`);
   }
   tfs.forEach((t, i) => {
     if (i === 0 || t.final) { if (i > 0 && t.final && !['beside', 'board', 'group root', 'given'].includes(t.how)) notes.push(`Photo ${i + 1}: joined by ${t.how}; check the join.`); return; }
     if (t.how === 'hallway') notes.push(`Photo ${i + 1} was joined to the others by its hallway; check the join.`);
     else if (t.n === 1) notes.push(`Photo ${i + 1} was joined by a single shared room; check the join.`);
   });
-  return { tfs, notes };
+  return { tfs, notes, loose };
 }
 
 // compose: p_outer = F(p_root), p_root = T(p) -> p_outer = (F o T)(p)

@@ -1,0 +1,49 @@
+{
+ "slug": "hh-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 42 rooms · hallways filled in (14 pieces) · Compass placed · 15 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "132DNumber 132D needed character repairs; check it",
+  "132GNumber 132G needed character repairs; check it",
+  "RoomNumber unclear (best guess 194); left blank, please check",
+  "132BNumber 132B needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "109Number 109 was read only once; check it",
+  "RoomText in this room could not be read",
+  "130Walls unclear here; check the room shape",
+  "102Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms 119 and 131 overlap.",
+  "overlapping-rooms: Rooms 101 and 102 overlap.",
+  "overlapping-rooms: Rooms 102 and 103 overlap.",
+  "overlapping-rooms: Rooms 102 and 104 overlap.",
+  "room-unreachable: Room 132D is not reachable from an entrance.",
+  "room-unreachable: Room 132C is not reachable from an entrance.",
+  "room-unreachable: Room 132B is not reachable from an entrance."
+ ]
+}

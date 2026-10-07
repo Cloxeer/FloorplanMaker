@@ -170,6 +170,26 @@ after each save; a tab that receives a change for its open project shows
 "Changed in another tab. Reload?" and suspends autosave until reload (prevents
 two-tab races). `lastSaved()` -> Date for the "Saved · just now" chip.
 
+## AutoBuild and several photos (`js/model/autobuild/*`, `js/model/stitch.js`, `js/view/panels/autobuildMulti.js`)
+
+`autobuild/pipeline.js` (`buildFromPlan`) turns one flattened poster into plan items: `chrome.js` masks the maroon legend
+sidebar and grey caption band, `layers.js`/`faces.js` find walls and closed cells, `text.js`/`reading.js`/`ocrRender.js`
+read room numbers (several crisp renderings, grammar voting, `floorRule.js` repairs a wrong leading digit), `shapes.js`
+fits rects/polygons, `hallpass.js` fills the corridors, `assemble.js` builds the document items. Numbers that sit outside
+any closed wall cell become "orphan" rooms (box found by `rayBox` from the label). Rectification (`rectify.js`) crops to
+the plan and straightens it; trusted only when it looks right.
+
+Several photos of one floor: each photo is flattened, then built on its own (`autobuildMulti.buildMany`) and the plans are
+joined by `stitch.js`: `alignByLabels` (shared room numbers, compass turn as a hint), `alignByShape`, `alignByHallways`
+(a corridor running from one photo into the next), `alignPlans` (strongest joins first, rejected when rooms would land on
+each other, W-prefix rooms stay west), `layoutPlans` (what nothing joins is placed beside, numeric order, corridors end to
+end), `mergePlans` (a room on two photos is kept once, the outline is the union). Photos are kept under the plan as
+layers placed to match. `rememberPixels` hands the straightened pixels to AutoBuild without a JPEG round trip.
+
+`tools/` (Node + Playwright, not shipped): `build-floor.mjs` drives the real UI for a floor, `floorkit.mjs` finishes a draft
+by hand (ops), `join-wings.mjs` joins finished pieces, `finalize.mjs` writes the maps folder, `gt-eval.mjs`/`eval.mjs` score
+AutoBuild against finished floors / hand-read numbers (the gate: no change may lower them).
+
 ## View
 
 The drawing surface is **Fabric.js 6.7.1** (`import * as fabric from

@@ -101,6 +101,9 @@ try {
   }, out.svg);
   writeFileSync(`${outDir}/${slug}.svg.png`, Buffer.from(rendered.split(',')[1], 'base64'));
   writeFileSync(`${outDir}/${slug}.floorplan.json`, out.json);
+  log.shots = await page.evaluate(() => (window.__shots || []).map((s, i) => ({ ...s, url: undefined, i })));
+  const urls = await page.evaluate(() => (window.__shots || []).map((s) => s.url));
+  urls.forEach((u, i) => { if (u) writeFileSync(`${outDir}/${slug}.shot${i}.jpg`, Buffer.from(u.split(',')[1], 'base64')); });
   log.multi = await page.evaluate(() => { const m = window.__app._lastMulti; if (!m) return null; return { transforms: m.transforms, notes: m.notes, report: m.report, plans: m.results.map((r) => ({ scale: r.scale, viewW: r.viewW, viewH: r.viewH, floor: r.floor && r.floor.points, halls: r.items.filter((i) => i.type === 'hall').map((h) => [h.x, h.y, h.w, h.h]), compass: r.items.find((i) => i.type === 'compass') || null, rooms: r.items.filter((i) => i.type === 'room' && i.number).map((q) => q.number) })) }; });
   try { const r = await page.evaluate(() => window.__multiResults || null); if (r) writeFileSync(`${outDir}/${slug}.results.json`, JSON.stringify(r)); } catch { /* none */ }
   log.toast = out.toast; log.review = out.review; log.validation = out.validation;

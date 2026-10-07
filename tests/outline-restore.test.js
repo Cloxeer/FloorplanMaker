@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rememberOutline, restoreOutline, autoOutline, snapDoorsTo, hasOutline } from '../js/model/outlineRestore.js';
+import { rememberOutline, restoreOutline, autoOutline, hasOutline } from '../js/model/outlineRestore.js';
 import { turnSelection } from '../js/model/turn.js';
 import { polygonArea, pointInPolygon } from '../js/model/geometry.js';
 
@@ -78,16 +78,6 @@ test('auto outline of an L shape is an L, and a gap between rooms is bridged', (
   assert.equal(polygonArea(r.points) >= 100 * 300 + 200 * 100, true);
   assert.ok(r.points.length >= 6);
   assert.equal(autoOutline({ ...base(), items: [] }), null);
-});
-
-test('doors left on the old wall are brought to the new one', () => {
-  const d = without(base());
-  d.items = [...d.items, { id: 'd', type: 'door', kind: 'Door', x1: 100, y1: 150, x2: 100, y2: 186, label: { x: 155, y: 168 } }];
-  const next = snapDoorsTo(d, [[90, 90], [510, 90], [510, 310], [90, 310]]);
-  const door = next.items.find((i) => i.id === 'd');
-  assert.equal(door.x1, 90);
-  assert.equal(door.x2, 90);
-  assert.equal(snapDoorsTo(d, [[100, 100], [500, 100], [500, 300], [100, 300]]), d, 'already on the wall: untouched');
 });
 
 test('a far-off room is never left outside: auto outline bridges it, restore falls back to a fresh outline', () => {

@@ -7,6 +7,7 @@
 import { chipSvg, ghostSvg } from './paletteIcons.js';
 import { setFloor, removeItems, findLegend } from '../../model/document.js';
 import { straightenOutline } from '../rectify.js';
+import { autoOutline } from '../../model/outlineRestore.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -29,6 +30,7 @@ export function mountPalette(el, app) {
       <h4>1. Outline the building</h4>
       <p class="step-desc">Trace the outer walls once, from the photo.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
+      <button type="button" class="btn-big-tool" id="btn-auto-outline" hidden title="Draw the outline round the rooms, halls and stairs that are on the plan">Auto-outline</button>
       <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
     </div>
     <div class="palette-step" data-step="door">
@@ -103,6 +105,20 @@ export function mountPalette(el, app) {
     });
   }
 
+  // an outline drawn round what is on the plan (undoable). Doors are left where they are: any that are no longer on the outline are flagged by the checks, not moved.
+  const autoBtn = el.querySelector('#btn-auto-outline');
+  const hasPlan = () => (app.doc.items || []).some((it) => it.type === 'room' || it.type === 'hall' || it.type === 'stair');
+  if (autoBtn) {
+    autoBtn.addEventListener('click', () => {
+      autoBtn.blur();
+      const r = autoOutline(app.doc);
+      if (!r) { app.toast('Add a room first, or draw the outline by hand.'); return; }
+      app.commit(setFloor(app.doc, r.points), 'Auto-outline');
+      if (app.setSelection) app.setSelection(['floor']);
+      app.toast('Drew the outline around your rooms. Use Edit outline to fine-tune it (Undo puts the old one back).');
+    });
+  }
+
   const straightenBtn = el.querySelector('#btn-straighten');
   if (straightenBtn) {
     straightenBtn.addEventListener('click', () => {
@@ -162,6 +178,7 @@ export function mountPalette(el, app) {
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
+    if (autoBtn) { autoBtn.hidden = !hasPlan(); autoBtn.textContent = hasFloor() ? 'Auto-outline again' : 'Auto-outline'; }
     if (detectDoorsBtn) detectDoorsBtn.disabled = !STEP_UNLOCKED.door();
     if (detectHallsBtn) detectHallsBtn.disabled = !STEP_UNLOCKED.hall();
     if (detectRoomsBtn) detectRoomsBtn.disabled = !STEP_UNLOCKED.room();

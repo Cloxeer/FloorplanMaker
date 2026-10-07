@@ -1,0 +1,8 @@
+{
+ "slug": "hj-1",
+ "steps": [
+  "project created"
+ ],
+ "console": [],
+ "error": "Error: ENOENT: no such file or directory, open 'C:\\c\\Users\\sebastian\\Desktop\\Coding\\Tools\\FloorplanMaker\\samples\\hjlc-1-posted.jpg'\n    at Object.openSync (node:fs:561:18)\n    at readFileSync (node:fs:445:35)\n    at file:///C:/Users/sebastian/Desktop/Coding/Tools/FloorplanMaker/tools/build-floor.mjs:40:164\n    at Array.map (<anonymous>)\n    at file:///C:/Users/sebastian/Desktop/Coding/Tools/FloorplanMaker/tools/build-floor.mjs:40:29"
+}

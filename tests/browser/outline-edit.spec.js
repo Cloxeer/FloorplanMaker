@@ -50,9 +50,9 @@ test('button is hidden until an outline exists, then toggles edit mode', async (
   });
   await expect(btn).toBeVisible();
   await expect(btn).toHaveText('Edit outline');
-  // sits right under "Redraw the outline"
+  // sits right under "Redraw the outline" (and Auto-outline, which is hidden while the plan is empty)
   const prev = await btn.evaluate((b) => b.previousElementSibling && b.previousElementSibling.id);
-  expect(prev).toBe('btn-tool-floor');
+  expect(['btn-tool-floor', 'btn-auto-outline']).toContain(prev);
   await btn.click();
   await expect(page.locator('.oe-pill')).toBeVisible();
   await expect(btn).toHaveText('Done editing outline');

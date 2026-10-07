@@ -90,3 +90,28 @@ test('Draw it again still starts the draw tool', async ({ page }) => {
   await expect(page.locator('#start-overlay')).toBeHidden();
   expect(await page.evaluate(() => window.__app.toolName)).toBe('floor');
 });
+
+test('step 1 has an Auto-outline button that draws the outline round the rooms (one undo step)', async ({ page }) => {
+  await setup(page);
+  await expect(page.locator('#btn-auto-outline')).toBeVisible();
+  await deleteOutline(page);
+  await expect(page.locator('#btn-auto-outline')).toHaveText('Auto-outline');
+  await page.click('#btn-auto-outline');
+  const pts = await floor(page);
+  expect(pts && pts.length).toBeGreaterThanOrEqual(4);
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  expect(Math.min(...xs)).toBeLessThanOrEqual(100);
+  expect(Math.max(...xs)).toBeGreaterThanOrEqual(500);
+  expect(Math.min(...ys)).toBeLessThanOrEqual(100);
+  expect(Math.max(...ys)).toBeGreaterThanOrEqual(300);
+  await expect(page.locator('#start-overlay')).toBeHidden();
+  await page.click('#btn-undo');
+  expect(await floor(page)).toBeNull();
+});
+
+test('Auto-outline is not offered while the plan is empty', async ({ page }) => {
+  const p = await seedProject(page, { building: 'Restore Test', floor: 1, slug: SLUG, outline: false });
+  ids.push(p.id);
+  await openTrace(page, SLUG);
+  await expect(page.locator('#btn-auto-outline')).toBeHidden();
+});

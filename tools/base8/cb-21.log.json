@@ -1,0 +1,29 @@
+{
+ "slug": "cb-21",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "shots": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 19 rooms · hallways filled in (2 pieces) · Compass placed · 4 need a look"
+ ],
+ "review": [
+  "RoomText in this room could not be read",
+  "RoomText in this room could not be read",
+  "R204BNumber R204B needed character repairs; check it",
+  "RoomText in this room could not be read"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms id4veoltt and idmheapau overlap.",
+  "room-unreachable: Room idlgu5f4e is not reachable from an entrance."
+ ]
+}

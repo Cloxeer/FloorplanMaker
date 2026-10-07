@@ -7,7 +7,7 @@
 // Depends on: js/model/outlineRestore.js, js/model/document.js (setFloor), app.commit, app.toast.
 
 import { setFloor } from '../model/document.js';
-import { rememberOutline, restoreOutline, autoOutline, snapDoorsTo, hasOutline } from '../model/outlineRestore.js';
+import { rememberOutline, restoreOutline, autoOutline, hasOutline } from '../model/outlineRestore.js';
 
 const hasPlan = (doc) => !!(doc && (doc.items || []).some((it) => it.type === 'room' || it.type === 'hall' || it.type === 'stair'));
 
@@ -53,7 +53,6 @@ export function mountOutlinePrompt(app) {
 
   function apply(points, label, message) {
     let doc = setFloor(app.doc, points);
-    doc = snapDoorsTo(doc, points);
     app.commit(doc, label);
     if (app.setSelection) app.setSelection(['floor']);
     if (app.toast) app.toast(message);

@@ -41,7 +41,7 @@ test('click a problem -> taken to it with instructions; type the number in place
   await page.click('#layers-panel .ly-x');
 
   // click "rooms need a number": the guide card appears with an input, and something is selected
-  const numberGroup = page.locator('#validation .wl-group', { hasText: 'need a number' }).first();
+  const numberGroup = page.locator('#validation .wl-group', { hasText: /needs? a number/  }).first();
   await expect(numberGroup).toBeVisible();
   const countBefore = parseInt((await numberGroup.innerText()).match(/^(\d+)/)[1], 10);
   await numberGroup.click();
@@ -59,7 +59,7 @@ test('click a problem -> taken to it with instructions; type the number in place
   await inline.locator('.wl-input').fill('S901');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(500);
-  const after = page.locator('#validation .wl-group', { hasText: 'need a number' });
+  const after = page.locator('#validation .wl-group', { hasText: /needs? a number/  });
   if (countBefore > 1) {
     await expect(after.first()).toContainText(String(countBefore - 1));
     await expect(inline.locator('.wl-input')).toBeVisible(); // jumped to the next room

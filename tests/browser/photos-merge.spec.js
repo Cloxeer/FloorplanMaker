@@ -199,13 +199,13 @@ test('"Add multiple photos" from an open photo keeps that photo first, with the 
   expect(await page.locator('#ps-overlay circle').first().getAttribute('cx')).toBe(cx);
 });
 
-test('AutoBuild on the board joins the photos into one picture (no extra layers)', async ({ page }) => {
+test('AutoBuild on the board builds one plan from all the photos and keeps them under it as layers', async ({ page }) => {
   await toMerge(page, [A(), B()]);
   await page.click('#ms-auto');
   await expect(page.locator('#studio')).toBeVisible({ timeout: 60000 });
   const proj = await page.evaluate(() => { const p = window.__app.project; return { extra: (p.extraPhotos || []).length, w: p.photo.width, h: p.photo.height }; });
-  expect(proj.extra).toBe(0);
-  expect(proj.w).toBeGreaterThan(900); // both photos wide, side by side
+  expect(proj.extra).toBe(1); // the second photo stays under the plan, placed to match
+  expect(proj.w).toBeGreaterThan(100);
 });
 
 test('Back from the board and forward again keeps how the photos were lined up', async ({ page }) => {

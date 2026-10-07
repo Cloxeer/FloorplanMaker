@@ -4,7 +4,7 @@ const box = (it) => (it.points ? { x0: Math.min(...it.points.map((p) => p[0])), 
 const ov = (a, b) => { const w = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)), h = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)); return (w * h) / Math.max(1, Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))); };
 let c = { found: 0, blankThere: 0, wrongNum: 0, none: 0 };
 for (const s of ['hh-1', 'hh-2', 'gn-1', 'gn-2', 'bx-1', 'rh-1']) {
-  const d = load('tools/final2', s), f = load('tools/final3', s);
+  const d = load(process.argv[2] || 'tools/final2', s), f = load('tools/final3', s);
   const dr = d.items.filter((i) => i.type === 'room');
   const out = [];
   for (const r of f.items.filter((i) => i.type === 'room' && i.number)) {

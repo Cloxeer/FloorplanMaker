@@ -294,7 +294,7 @@ export function mountOutlineEdit(app) {
     button.title = 'Move a wall or corner, add a break in a wall';
     button.addEventListener('click', () => setActive(!active));
     const floorBtn = document.getElementById('btn-tool-floor');
-    (floorBtn || host).after(button); // right under "Redraw the outline"
+    (document.getElementById('btn-auto-outline') || floorBtn || host).after(button); // right under "Redraw the outline" and Auto-outline
   }
   function syncButton() {
     ensureButton();

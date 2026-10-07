@@ -8,6 +8,7 @@ import { basename } from 'node:path';
 
 const file = process.argv[2];
 const raw = process.argv.includes('--raw');
+const JPEG = process.argv.includes('--jpeg');
 mkdirSync('tools/dbg', { recursive: true });
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1200, height: 900 } })).newPage();
@@ -16,7 +17,7 @@ await page.goto('http://localhost:8080/');
 await page.waitForFunction(() => !!window.__app);
 const b64 = readFileSync(file).toString('base64');
 const mime = /\.webp$/i.test(file) ? 'image/webp' : 'image/jpeg';
-const out = await page.evaluate(async ({ b64, mime, raw }) => {
+const out = await page.evaluate(async ({ b64, mime, raw, JPEG }) => {
   const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = `data:${mime};base64,${b64}`; });
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const g = c.getContext('2d'); g.drawImage(img, 0, 0);
@@ -25,6 +26,13 @@ const out = await page.evaluate(async ({ b64, mime, raw }) => {
   const { buildFromPlan } = await import('/js/model/autobuild/pipeline.js');
   let src = { width: px.width, height: px.height, data: px.data };
   if (!raw) { const r = rectify(src); if (r) src = r.image; }
+  if (JPEG) {
+    const cc = document.createElement('canvas'); cc.width = src.width; cc.height = src.height;
+    const g3 = cc.getContext('2d'), id3 = g3.createImageData(src.width, src.height); id3.data.set(src.data); g3.putImageData(id3, 0, 0);
+    const im2 = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = cc.toDataURL('image/jpeg', 0.88); });
+    const c4 = document.createElement('canvas'); c4.width = im2.naturalWidth; c4.height = im2.naturalHeight; const g4 = c4.getContext('2d'); g4.drawImage(im2, 0, 0);
+    const p4 = g4.getImageData(0, 0, c4.width, c4.height); src = { width: p4.width, height: p4.height, data: p4.data };
+  }
   const T = (await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js')).default;
   const workers = [];
   for (let i = 0; i < 3; i++) { const w = await T.createWorker('eng'); await w.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/ ', tessedit_pageseg_mode: '7' }); workers.push({ w, psm: '7', busy: false }); }
@@ -71,7 +79,7 @@ const out = await page.evaluate(async ({ b64, mime, raw }) => {
     sg.strokeStyle = '#ccc'; sg.strokeRect(0, i * rowH, 900, rowH);
   });
   return { w: src.width, h: src.height, textH: res.stats.textH, lines, rooms, review: res.review, scale: sc, overlay: cv.toDataURL('image/png'), sheet: sheet.toDataURL('image/png') };
-}, { b64, mime, raw });
+}, { b64, mime, raw, JPEG });
 writeFileSync(`tools/dbg/${basename(file)}.stages.png`, Buffer.from(out.overlay.split(',')[1], 'base64')); delete out.overlay; writeFileSync(`tools/dbg/${basename(file)}.crops.png`, Buffer.from(out.sheet.split(',')[1], 'base64')); delete out.sheet;
 writeFileSync(`tools/dbg/${basename(file)}.lines.json`, JSON.stringify(out));
 console.log(`size ${out.w}x${out.h} textH ${out.textH} lines ${out.lines.length} rooms ${out.rooms.length}`);

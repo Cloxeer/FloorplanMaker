@@ -22,7 +22,7 @@ import { findExitSigns, findElevators, findStairs } from './symbols.js';
 import { runHallPass } from './hallpass.js';
 import { tidyRooms } from '../tidyRooms.js';
 import { findCompassBest } from './compass.js';
-import { faceShape, hallRects, alignShapes, resolveOverlaps, growFromBox, snapToWalls } from './shapes.js';
+import { faceShape, hallRects, alignShapes, resolveOverlaps, growFromBox, rayBox, snapToWalls } from './shapes.js';
 
 // share of box `a` that lies inside box `b`
 const overlap = (a, b) => {
@@ -147,10 +147,11 @@ export async function buildFromPlan(img0, opts = {}) {
   // their text lines are read like the others and the room is boxed by growing from the label until walls stop it
   const orphans = [];
   if (glyphs1 && opts.orphans !== false) {
-    const loose = glyphs1.filter((g) => !g.face && !g.dot && !takenGlyphs.has(g.id)).map((g) => ({ ...g, face: -1 }));
+    const loose = glyphs1.filter((g) => !g.dot && !takenGlyphs.has(g.id)).map((g) => ({ ...g, face: -1 }));
     const olines = (buildLines(loose, textH).get(-1) || []).filter((l) => {
       const hs = l.glyphs.map((g) => g.bh);
-      return l.glyphs.length >= 3 && l.glyphs.length <= 7 && l.h >= textH * 0.7 && l.h <= textH * 1.7 && Math.max(...hs) <= 1.7 * Math.min(...hs) && !inIcon(l)
+      const nG = l.glyphs.length, wide = (l.x1 - l.x0 + 1) >= textH * 1.7; // touching digits come out as one or two blobs
+      return ((nG >= 3 && nG <= 7) || (nG <= 2 && wide)) && l.h >= textH * 0.7 && l.h <= textH * 1.7 && Math.max(...hs) <= 1.7 * Math.min(...hs) && !inIcon(l)
         && (l.x1 - l.x0 + 1) <= textH * 9 && (l.x1 - l.x0 + 1) >= textH * 1.6;
     });
     for (const l of olines.slice(0, 120)) orphans.push(l);
@@ -228,12 +229,20 @@ export async function buildFromPlan(img0, opts = {}) {
       const d = interpret([l], prof, rctx);
       if (!d.number || d.kind || d.votes < 2 || d.cost > 0.6 || have.has(d.number)) continue;
       const box = { x0: l.x0, y0: l.y0, x1: l.x1, y1: l.y1 };
-      const g = growFromBox(F1.wallMask, w, h, box, Math.round(L * 0.35));
+      let g = growFromBox(F1.wallMask, w, h, box, Math.round(L * 0.35));
       let gw = g.x1 - g.x0 + 1, gh = g.y1 - g.y0 + 1;
       const tw = l.x1 - l.x0 + 1, th = l.y1 - l.y0 + 1;
       // walls did not stop the growth (open on all sides): a box a little bigger than the label itself
-      if (gw > 7 * tw || gh > 14 * th || gw * gh > 0.12 * footArea) {
-        g.x0 = Math.round(l.x0 - tw * 0.6); g.x1 = Math.round(l.x1 + tw * 0.6); g.y0 = Math.round(l.y0 - th * 2.2); g.y1 = Math.round(l.y1 + th * 2.2);
+      if (true) {
+        // the paper's own edge stops a ray like a wall does
+        const stop = new Uint8Array(F1.wallMask.length);
+        for (let i = 0; i < stop.length; i++) stop[i] = F1.wallMask[i] || !foot.mask[i] ? 1 : 0;
+        const rb = rayBox(stop, w, h, { x0: l.x0 - 2, y0: l.y0 - 2, x1: l.x1 + 2, y1: l.y1 + 2 }, Math.round(L * 0.3));
+        // an edge is only moved out to a wall that was actually found; with no wall that way, just a little past the label
+        g.x0 = Math.round(l.x0 - (rb.l == null ? tw * 0.6 : Math.max(rb.l + 2, tw * 0.6)));
+        g.x1 = Math.round(l.x1 + (rb.r == null ? tw * 0.6 : Math.max(rb.r + 2, tw * 0.6)));
+        g.y0 = Math.round(l.y0 - (rb.t == null ? th * 1.2 : Math.max(rb.t + 2, th * 1.2)));
+        g.y1 = Math.round(l.y1 + (rb.b == null ? th * 1.2 : Math.max(rb.b + 2, th * 1.2)));
         gw = g.x1 - g.x0 + 1; gh = g.y1 - g.y0 + 1;
       }
       const gg = e + 1;
@@ -382,6 +391,6 @@ export async function buildFromPlan(img0, opts = {}) {
     items,
     hallPass: pass.hallPass,
     stats: { w, h, textH, rooms: kept.length, accepted: accepted.length, halls: halls.length, stairs: stairs.length, exits: exits.length, elevators: elevators.length, elevDensity: elevators.map((q) => +q.density.toFixed(2)), lines: jobs.length },
-    debug: { halls: halls.map((q) => ({ x: q.x, y: q.y, w: q.w, h: q.h, blue: q.blue, sideA: q.sideA, sideB: q.sideB })), compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels, keptRaw, keptFinal },
+    debug: { glyphs1, orphans, textH, halls: halls.map((q) => ({ x: q.x, y: q.y, w: q.w, h: q.h, blue: q.blue, sideA: q.sideA, sideB: q.sideB })), compass, exits, elevators, stairs, jobs, gray: layers.gray, inkLabels: ink8.labels, keptRaw, keptFinal },
   };
 }

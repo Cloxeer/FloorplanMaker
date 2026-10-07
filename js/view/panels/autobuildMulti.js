@@ -24,8 +24,14 @@ export function buildInWorker(pixels, floor, onProgress) {
   return { promise, cancel: () => worker.terminate() };
 }
 
+// Pixels of a photo that was just straightened: handing them on as they are keeps AutoBuild reading exactly what the
+// single-photo flow reads (a JPEG round trip of a small poster changes what the text reader sees).
+const kept = new Map();
+export function rememberPixels(dataUrl, pixels) { kept.set(dataUrl, pixels); }
+
 const loadImage = (url) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
 export async function pixelsOf(dataUrl) {
+  if (kept.has(dataUrl)) { const k = kept.get(dataUrl); kept.delete(dataUrl); return k; }
   const im = await loadImage(dataUrl);
   const c = document.createElement('canvas');
   c.width = im.naturalWidth; c.height = im.naturalHeight;
@@ -67,8 +73,9 @@ export async function buildMany(list, opts) {
   opts.onProgress(0.94, 'Joining the photos');
   const boards = list.map((l) => l.board || null);
   const forced = (typeof window !== 'undefined' && window.__forceTransforms) || null; // a tool may fix the placements (debugging, tools/)
-  const { tfs, notes } = layoutPlans(plans, { boardTf: (i) => boardTransform(i, results, boards), arranged: !!list.arranged, forced });
-  const merged = mergePlans(plans, tfs);
+  const { tfs, notes, loose } = layoutPlans(plans, { boardTf: (i) => boardTransform(i, results, boards), arranged: !!list.arranged, forced, apart: true });
+  // photos that nothing ties to the others are not made part of the plan (nothing is guessed): they only sit under it
+  const merged = mergePlans(plans, tfs.map((t, i) => (loose.includes(i) ? null : t)));
   // photo placements in the merged frame: pixel -> plan_i (x scale_i) -> plan_0
   const layout = list.map((l, i) => {
     const t = tfs[i];

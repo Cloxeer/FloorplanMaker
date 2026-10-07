@@ -1,7 +1,7 @@
 // tests/stitch.test.js: joining the plans of several photos of one floor (js/model/stitch.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alignByShape, alignByHallways, alignPlans, mergePlans, placeItem, apply } from '../js/model/stitch.js';
+import { alignByShape, alignByHallways, alignPlans, layoutPlans, mergePlans, placeItem, apply } from '../js/model/stitch.js';
 
 const room = (n, x, y, w, h) => ({ id: `r${n}`, type: 'room', cls: 'room', shape: 'rect', number: n, x, y, w, h, label: {} });
 const hall = (x, y, w, h) => ({ id: `h${x}-${y}`, type: 'hall', x, y, w, h });
@@ -66,4 +66,19 @@ test('mergePlans keeps a shared room once, drops overlapping repeats and gives o
   assert.ok(m.floor && m.floor.points.length >= 4);
   const xs = m.floor.points.map((p) => p[0]);
   assert.ok(Math.max(...xs) >= 1000);
+});
+
+test('photos with nothing in common are not combined: they are reported as apart, and left out of the plan', () => {
+  const a = A();
+  // another floor: other numbers, no corridor to meet, different shapes
+  const other = { id: 'Z', w: 500, h: 300, compass: { x: 10, y: 10, deg: 0 }, items: [room('401', 0, 0, 130, 90), room('402', 130, 0, 90, 150), room('403', 220, 0, 170, 60)], floor: { points: [[0, 0], [390, 0], [390, 150], [0, 150]] } };
+  const { tfs, notes, loose } = layoutPlans([a, other], { apart: true });
+  assert.deepEqual(loose, [1]);
+  assert.ok(notes.some((n) => /not combined/.test(n)), notes.join(' | '));
+  const merged = mergePlans([a, other], tfs.map((t, i) => (loose.includes(i) ? null : t)));
+  assert.ok(!merged.items.some((i) => i.number === '401'), 'the other floor must not be in the plan');
+  assert.ok(merged.items.some((i) => i.number === '101'));
+  // the same photos on a hand-lined-up board are used as the person placed them (tools may also ask for them to be joined anyway)
+  const joined = layoutPlans([a, other], {});
+  assert.deepEqual(joined.loose, []);
 });

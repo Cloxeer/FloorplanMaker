@@ -1,0 +1,53 @@
+{
+ "slug": "jt-b0",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 30 rooms · hallways filled in (7 pieces) · Compass placed · 7 need a look"
+ ],
+ "review": [
+  "252Read as 152 but this is floor 2: changed to 252",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read",
+  "RoomNumber hidden under the You-Are-Here pin",
+  "RoomText in this room could not be read",
+  "225Number 225 was read only once; check it"
+ ],
+ "validation": [
+  "label-outside-shape: The label for room idkv472r6 falls outside its shape.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "overlapping-rooms: Rooms idi47lm0d and idwyyg1jn overlap.",
+  "overlapping-rooms: Rooms idkv472r6 and 259 overlap.",
+  "room-unreachable: Room 260 is not reachable from an entrance.",
+  "room-unreachable: Room 262 is not reachable from an entrance.",
+  "room-unreachable: Room 252 is not reachable from an entrance.",
+  "room-unreachable: Room 254 is not reachable from an entrance.",
+  "room-unreachable: Room 256 is not reachable from an entrance.",
+  "room-unreachable: Room 258 is not reachable from an entrance.",
+  "room-unreachable: Room idjeu9igh is not reachable from an entrance.",
+  "room-unreachable: Room R253 is not reachable from an entrance.",
+  "room-unreachable: Room 274 is not reachable from an entrance.",
+  "room-unreachable: Room 251 is not reachable from an entrance.",
+  "room-unreachable: Room 278 is not reachable from an entrance.",
+  "room-unreachable: Room 264 is not reachable from an entrance.",
+  "room-unreachable: Room 268 is not reachable from an entrance.",
+  "room-unreachable: Room 259 is not reachable from an entrance.",
+  "room-unreachable: Room idn8wf4yu is not reachable from an entrance.",
+  "room-unreachable: Room idyhn9wof is not reachable from an entrance.",
+  "room-unreachable: Room idx9fivb2 is not reachable from an entrance."
+ ]
+}

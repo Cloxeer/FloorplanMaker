@@ -1,0 +1,38 @@
+{
+ "slug": "bx-1",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "shots": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 16 rooms · hallways filled in (3 pieces) · Compass placed · 10 need a look"
+ ],
+ "review": [
+  "100Number 100 was read only once; check it",
+  "103BNumber 103B needed character repairs; check it",
+  "R100BNumber R100B needed character repairs; check it",
+  "111AWalls unclear here; check the room shape",
+  "110Walls unclear here; check the room shape",
+  "105Walls unclear here; check the room shape",
+  "104Walls unclear here; check the room shape",
+  "114Walls unclear here; check the room shape",
+  "102Walls unclear here; check the room shape",
+  "101Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "label-in-other-room: The label for room 103 sits inside smaller room 101, so the parser would give it that room.",
+  "label-outside-shape: The label for room 103 falls outside its shape.",
+  "overlapping-rooms: Rooms 103 and 101 overlap.",
+  "overlapping-rooms: Rooms 105 and 111A overlap.",
+  "overlapping-rooms: Rooms 104 and 111A overlap.",
+  "room-unreachable: Room 111A is not reachable from an entrance.",
+  "room-unreachable: Room 103C is not reachable from an entrance.",
+  "room-unreachable: Room 103B is not reachable from an entrance.",
+  "room-unreachable: Room 101 is not reachable from an entrance."
+ ]
+}

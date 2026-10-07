@@ -165,6 +165,28 @@ export function growFromBox(wall, w, h, box, maxGrow) {
   return { x0, y0, x1, y1 };
 }
 
+// A room whose walls are drawn open: from the label's box, cast a few parallel rays each way; the room edge is where most of them
+// meet a wall line (the median stop distance). -> { l, r, t, b }: the distance to the wall on each side, or null where no wall
+// was found (nothing is guessed there), plus the label box.
+export function rayBox(wall, w, h, box, cap) {
+  const med = (a) => a.slice().sort((p, q) => p - q)[a.length >> 1];
+  const cast = (dx, dy) => {
+    const n = 7, stops = [];
+    const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
+    for (let k = 0; k < n; k++) {
+      const f = (k + 0.5) / n;
+      let x = dx ? (dx > 0 ? box.x1 + 1 : box.x0 - 1) : Math.round(box.x0 + bw * f);
+      let y = dy ? (dy > 0 ? box.y1 + 1 : box.y0 - 1) : Math.round(box.y0 + bh * f);
+      let d = 0;
+      while (d < cap && x > 0 && y > 0 && x < w - 1 && y < h - 1 && !wall[y * w + x]) { x += dx; y += dy; d++; }
+      stops.push(d);
+    }
+    const m = med(stops);
+    return m >= cap ? null : m; // no wall found within reach: the edge is unknown
+  };
+  return { l: cast(-1, 0), r: cast(1, 0), t: cast(0, -1), b: cast(0, 1), x0: box.x0, x1: box.x1, y0: box.y0, y1: box.y1 };
+}
+
 // Pull room edges onto the wall lines actually drawn: each rect edge (and each axis-aligned
 // polygon edge) moves to the strongest wall line within `tol` px that covers most of the
 // edge's span. Edges with no clear wall nearby stay where they are, so nothing is invented.

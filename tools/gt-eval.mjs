@@ -30,9 +30,33 @@ function mask(doc, kind, W, H) {
 }
 const pr = (a, b) => { let i = 0, na = 0, nb = 0; for (let k = 0; k < a.length; k++) { na += a[k]; nb += b[k]; i += a[k] & b[k]; } return { p: na ? i / na : 0, r: nb ? i / nb : 0, iou: na + nb - i ? i / (na + nb - i) : 0 }; };
 
+// the draft's frame can differ from the finished plan's (scale follows the median room): fit scale + shift on the rooms both have
+function align(d, f) {
+  const dm = new Map(d.items.filter((i) => i.type === 'room' && i.number).map((r) => [r.number, box(r)]));
+  const ar = (b) => (b.x1 - b.x0) * (b.y1 - b.y0);
+  let pairs = f.items.filter((i) => i.type === 'room' && i.number && dm.has(i.number)).map((r) => [dm.get(r.number), box(r)]);
+  pairs = pairs.sort((p, q) => ar(q[0]) - ar(p[0])).slice(0, Math.max(3, Math.ceil(pairs.length / 2))); // the big ones: small stubs have no reliable size
+  if (pairs.length < 3) return d;
+  const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+  const s = med(pairs.map(([a, b]) => Math.sqrt(((b.x1 - b.x0) * (b.y1 - b.y0)) / Math.max(1, (a.x1 - a.x0) * (a.y1 - a.y0)))));
+  const tx = med(pairs.map(([a, b]) => (b.x0 + b.x1) / 2 - s * (a.x0 + a.x1) / 2)), ty = med(pairs.map(([a, b]) => (b.y0 + b.y1) / 2 - s * (a.y0 + a.y1) / 2));
+  const P = (p) => [p[0] * s + tx, p[1] * s + ty];
+  const items = d.items.map((it) => {
+    if (it.points) return { ...it, points: it.points.map(P) };
+    if (it.x === undefined) return it;
+    return { ...it, x: it.x * s + tx, y: it.y * s + ty, w: it.w * s, h: it.h * s };
+  });
+  return { ...d, items, floor: d.floor && { ...d.floor, points: d.floor.points.map(P) } };
+}
 let tot = { found: 0, want: 0, wrong: 0, iou: 0, nIou: 0 };
 for (const s of slugs) {
-  const d = load(draftDir, s), f = load(finalDir, s);
+  let d = load(draftDir, s); const f = load(finalDir, s);
+  if (d && f) {
+    const mi = (x) => { const m = new Map(x.items.filter((i) => i.type === 'room' && i.number).map((r) => [r.number, r])); let a = 0, n = 0; for (const r of f.items) { const q = r.type === 'room' && r.number && m.get(r.number); if (q) { a += iou(box(q), box(r)) > 0.3 ? 1 : 0; n++; } } return n ? a / n : 0; };
+    const al = align(d, f);
+    if (process.env.DBG) console.log("align", mi(d), mi(al));
+    if (mi(al) > mi(d)) d = al;
+  }
   if (!d || !f) { console.log(s.padEnd(6), 'missing'); continue; }
   const W = Math.ceil(Math.max(d.viewBox.w, f.viewBox.w, 3000) / G), H = Math.ceil(Math.max(d.viewBox.h, f.viewBox.h, 3000) / G);
   const dr = new Map(d.items.filter((i) => i.type === 'room' && i.number).map((r) => [r.number, r]));

@@ -1,0 +1,31 @@
+{
+ "slug": "cb-31",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "shots": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 20 rooms · hallways filled in (8 pieces) · Compass placed · 8 need a look"
+ ],
+ "review": [
+  "W376Number W376 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "W374Number W374 needed character repairs; check it",
+  "W377Number W377 needed character repairs; check it",
+  "RoomText in this room could not be read",
+  "328Walls unclear here; check the room shape",
+  "RoomText in this room could not be read",
+  "331Walls unclear here; check the room shape"
+ ],
+ "validation": [
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable.",
+  "room-no-number: A room shape has no room number, so it will not be searchable."
+ ]
+}

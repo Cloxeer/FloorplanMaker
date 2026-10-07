@@ -4,11 +4,9 @@
 //  restoreOutline(memory, doc) -> { points, how } the old outline carried to wherever the pieces are now
 //                                 (they may have been moved or turned since), then widened so nothing pokes out
 //  autoOutline(doc)            -> { points } a fresh outline drawn round the pieces that are there now
-//  snapDoorsTo(doc, points)    -> doc with doors that sat on the old wall brought onto the new one
-// Depends on: ./geometry.js, ./document.js (doorFor), ./autobuild/outline.js, ./autobuild/raster.js.
+// Depends on: ./geometry.js, ./autobuild/outline.js, ./autobuild/raster.js.
 
-import { pointInPolygon, nearestPointOnPolyline } from './geometry.js';
-import { doorFor } from './document.js';
+import { pointInPolygon } from './geometry.js';
 import { extendOutline, cellRing, rectilinearRing } from './autobuild/outline.js';
 import { dilate, erode } from './autobuild/raster.js';
 
@@ -156,23 +154,4 @@ export function autoOutline(doc, g = G) {
   // anything that did not join the main body (a far-off room) is bridged in
   const points = extendOutline(ring, shapes, g, 3);
   return { points: hasRing(points) ? points : ring };
-}
-
-// ---- doors
-// A door that sat on the old wall but is not on the new outline moves to the nearest point of it
-// (when that is close). Doors already on the outline are left alone.
-export function snapDoorsTo(doc, points, reach = 80) {
-  if (!hasRing(points)) return doc;
-  let changed = false;
-  const items = doc.items.map((it) => {
-    if (it.type !== 'door' || ![it.x1, it.y1, it.x2, it.y2].every(ok)) return it;
-    const mid = { x: (it.x1 + it.x2) / 2, y: (it.y1 + it.y2) / 2 };
-    const near = nearestPointOnPolyline([mid.x, mid.y], points, true);
-    if (!near || near.dist <= 2 || near.dist > reach) return it;
-    const d = doorFor(points, mid);
-    if (!d) return it;
-    changed = true;
-    return { ...it, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: d.label };
-  });
-  return changed ? { ...doc, items } : doc;
 }

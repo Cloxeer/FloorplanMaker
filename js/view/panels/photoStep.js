@@ -4,6 +4,7 @@
 // Depends on: js/view/panels/autobuild.js (the AutoBuild button).
 
 import { autoStraighten } from './autobuild.js';
+import { rememberPixels } from './autobuildMulti.js';
 import { warpToCanvas } from './photoWarp.js';
 import { mountFlattenStage } from './flattenStage.js';
 import { posterRoi } from '../../model/autobuild/chrome.js';
@@ -59,7 +60,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
         <label class="btn btn-secondary" for="ps-file">Choose a photo</label>
         <input type="file" id="ps-file" accept="image/*" hidden>
         <p id="ps-error" style="color:#b3261e; display:none"></p>
-        <p id="ps-busy" class="ps-tip" style="display:none" role="status"></p>
+        <p id="ps-busy" class="ps-busy" style="display:none" role="status"></p>
         <p style="margin-top:16px"><button type="button" id="ps-skip-initial">Skip for now</button> <button type="button" id="ps-multi-initial" title="One photo per floor is best. Use this only if the plan needs several photos: you flatten each one, then line them up side by side.">Add multiple photos</button></p>
         <input type="file" id="ps-multi-file" accept="image/*" multiple hidden>
         <p class="ps-tip">The better the photo, the better AutoBuild works: shoot straight on, fill the frame, no glare or flash.</p>
@@ -99,7 +100,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
     .ps-canvas-wrap svg { position:absolute; top:0; left:0; width:100%; height:100%; }
     .ps-handle { fill:#2f6feb; stroke:#fff; stroke-width:2; cursor:grab; }
     .ps-actions { display:flex; gap:10px; margin-top:10px; }
-    .ps-tip { margin:8px 0 0; font-size:12px; color:#6b7078; text-align:center; }
+    .ps-tip, .ps-busy { margin:8px 0 0; font-size:12px; color:#6b7078; text-align:center; }
     .ps-flat { width:100%; }
     .ps-navrow { margin:0 0 6px; text-align:left; }
     .ps-back { border:0; background:none; padding:4px 0; color:var(--accent,#2f6feb); cursor:pointer; font-size:14px; }
@@ -329,7 +330,7 @@ export function mountPhotoStep(containerEl, { onDone, onSkip, onBackToProjects, 
         // straightening it on the plan's own walls; failing that, by the poster's sidebar and caption
         if (multi && cv) {
           const built = await autoStraighten(cv, originalDataUrl);
-          if (built) { onDone({ ...built.photo, corners: corners.map((p) => [...p]), originalDataUrl }); return; }
+          if (built) { rememberPixels(built.photo.dataUrl, built.pixels); onDone({ ...built.photo, corners: corners.map((p) => [...p]), originalDataUrl }); return; }
           const g = cv.getContext('2d'), px = g.getImageData(0, 0, cv.width, cv.height);
           const roi = posterRoi({ width: cv.width, height: cv.height, data: px.data });
           if (roi) {
