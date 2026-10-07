@@ -1,0 +1,4 @@
+[{"op":"setBox","number":"132F","x":250,"y":130,"w":90,"h":105},
+{"op":"setBox","number":"132D","x":115,"y":235,"w":100,"h":60},
+{"op":"setBox","number":"132G","x":250,"y":235,"w":70,"h":95},
+{"op":"deleteItem","id":"idgkwstz4"},{"op":"addStair","x":322,"y":280,"w":18,"h":96,"dir":"v"}]

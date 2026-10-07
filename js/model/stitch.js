@@ -91,7 +91,7 @@ export function alignByLabels(a, b) {
   for (const it of a.items) {
     if (it.type !== 'room' || !it.number || !(it.points || (ok(it.x) && ok(it.w)))) continue;
     const m = rb.get(digits(it.number));
-    if (m) P.push({ a: centre(it), b: centre(m), ba: boxOf(it), bb: boxOf(m) });
+    if (m) P.push({ a: centre(it), b: centre(m), ba: boxOf(it), bb: boxOf(m), exact: it.number === m.number });
   }
   if (!P.length) return [];
   const hint = compassTurn(a, b);
@@ -105,9 +105,10 @@ export function alignByLabels(a, b) {
     out.push({ q, s, tx, ty, inl: pairs.length, pairs, why });
   };
   for (const q of [0, 1, 2, 3]) {
-    if (hint != null && q !== hint) continue; // the compasses say which way; only a lot of agreeing rooms can overrule them (below)
+    if (hint == null || q !== hint) continue; // one shared room is only believed with both compasses (they say which way), and only an exact number
     // seed: one shared room (the compass fixes the turn, the room's size the scale)
     for (const p of P) {
+      if (!p.exact || p.ba.w * p.ba.h < 4000) continue;
       const [rw, rh] = q % 2 ? [p.bb.h, p.bb.w] : [p.bb.w, p.bb.h];
       const s = Math.max(0.7, Math.min(1.4, Math.sqrt((p.ba.w * p.ba.h) / Math.max(1, rw * rh))));
       const [bx, by] = spin(p.b[0], p.b[1], q);
@@ -122,12 +123,12 @@ export function alignByLabels(a, b) {
       const la = Math.hypot(vax, vay), lb = Math.hypot(vbx, vby);
       if (la < 60 || lb < 60) continue;
       const sc = la / lb;
-      if (sc < 0.55 || sc > 1.9 || (vax * vbx + vay * vby) / (la * lb) < 0.97) continue;
+      if (sc < 0.7 || sc > 1.45 || (vax * vbx + vay * vby) / (la * lb) < 0.97) continue;
       consider(q, sc, P[i].a[0] - sc * B[i][0], P[i].a[1] - sc * B[i][1], 'two');
     }
   }
   // best first; a turn against the compasses is kept only with 4+ agreeing rooms
-  const keep = out.filter((c) => hint == null || c.q === hint || c.inl >= 4).sort((x, y) => y.inl - x.inl || (x.why === 'two' ? -1 : 1));
+  const keep = out.filter((c) => (hint == null || c.q === hint || c.inl >= 4) && (c.inl >= 4 || (c.s >= 0.8 && c.s <= 1.3))).sort((x, y) => y.inl - x.inl || (x.why === 'two' ? -1 : 1));
   const res = [];
   for (const c of keep) {
     if (res.length >= 4) break;
@@ -267,9 +268,9 @@ const turnSide = (side, q) => 'NESW'[(SIDE_Q[side] + q) % 4];
 // plan b joined to plan a where b's corridor end meets a's. -> { q, s, tx, ty, how: 'hallway', cost } | null
 export function alignByHallways(a, b) {
   const ea = hallEnds(a), eb0 = hallEnds(b);
-  if (!ea.length || !eb0.length) return null;
+  if (!ea.length || !eb0.length) return [];
   const hint = compassTurn(a, b);
-  let best = null;
+  const all = [];
   for (const q of hint != null ? [hint] : [0, 1, 2, 3]) {
     for (const x of eb0) {
       const [rx, ry] = spin(x.x, x.y, q);
@@ -280,11 +281,14 @@ export function alignByHallways(a, b) {
         if (dt > 0.45) continue;
         const tx = y.x - rx, ty = y.y - ry;
         const cost = dt + 0.001;
-        if (!best || cost < best.cost) best = { q, s: 1, tx, ty, how: 'hallway', cost };
+        all.push({ q, s: 1, tx, ty, how: 'hallway', cost });
       }
     }
   }
-  return best;
+  all.sort((m, n) => m.cost - n.cost);
+  const out = [];
+  for (const c of all) { if (out.length >= 8) break; if (!out.some((o) => o.q === c.q && Math.hypot(o.tx - c.tx, o.ty - c.ty) < 40)) out.push(c); }
+  return out;
 }
 
 // rooms of plan b (placed by tb) that land ON rooms of plan a (placed by ta) without being the same room: a join that stacks the photos
@@ -311,9 +315,23 @@ export function stackConflicts(a, ta, b, tb) {
   return n;
 }
 
+// Room numbers starting with W are the west wing: a join that puts the W rooms to the east of the others is wrong. (Weak evidence
+// such as a corridor end is checked against it; shared rooms are not.) Only when both kinds are present.
+const isW = (n) => /^W\d/.test(String(n || ''));
+function westConflict(plans, tfs, root, newPlan, cand) {
+  const xs = (plan, t, w) => plan.items.filter((it) => it.type === 'room' && it.number && isW(it.number) === w && (it.points || (ok(it.x) && ok(it.w)))).map((it) => apply(t, ...centre(it))[0]);
+  let wx = xs(newPlan, cand, true), ox = xs(newPlan, cand, false);
+  plans.forEach((p, k) => { if (tfs[k] && tfs[k].root === root) { wx = wx.concat(xs(p, tfs[k], true)); ox = ox.concat(xs(p, tfs[k], false)); } });
+  if (wx.length < 2 || ox.length < 2) return false;
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  return mean(wx) > mean(ox) + 80;
+}
+
 // ---- all plans into plan 0's frame
-// -> { tfs, roots }: tfs[i] maps plan i into the frame of ITS group's root plan (roots[0] = 0 is the reference); a group
-// that nothing connects to the first one has its own root, and the caller decides where that group goes (placeBeside).
+// Strongest evidence first: every pair's candidate joins are sorted by weight and taken one by one (like Kruskal) when they join two
+// groups of photos without putting rooms on top of each other. -> { tfs, roots }: tfs[i] maps plan i into the frame of ITS group's root plan
+// (plan 0 is the root of its group); a group nothing connects to the first has its own root, and the caller decides where that group
+// goes (placeBeside).
 export function alignPlans(plans) {
   const n = plans.length;
   const tfs = Array(n).fill(null), roots = [];
@@ -322,42 +340,90 @@ export function alignPlans(plans) {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     if (i === j) continue;
     const cands = alignByShape(plans[i], plans[j]); // each maps j into i, best first
-    cands.forEach((t, k) => edges.push({ from: i, to: j, k, t, weight: 10 * t.score + 50 * (t.labelled || 0) - k }));
-    if (!cands.length) {
-      const hall = alignByHallways(plans[i], plans[j]);
-      if (hall) edges.push({ from: i, to: j, k: 0, t: hall, weight: 1 - hall.cost });
-    }
+    cands.forEach((t, k) => edges.push({ from: i, to: j, k, t, weight: 10 * t.score + 50 * (t.labelled || 0) - k, strong: true }));
+    if (!cands.length) alignByHallways(plans[i], plans[j]).forEach((hall, k) => edges.push({ from: i, to: j, k, t: hall, weight: 1 - hall.cost - 0.01 * k, strong: false }));
   }
-  const rejected = new Set();
-  const grow = (root) => {
-    tfs[root] = { q: 0, s: 1, tx: 0, ty: 0, how: root === 0 ? 'reference' : 'group root', n: 0, rms: 0, root };
-    roots.push(root);
-    for (;;) {
-      // the strongest link into the group that does not put the new photo on top of the ones already there
-      const cands = edges.filter((e) => tfs[e.from] && tfs[e.from].root === root && !tfs[e.to] && !rejected.has(`${e.from}>${e.to}#${e.k}`)).sort((a, b) => b.weight - a.weight);
-      let took = false;
-      for (const pick of cands) {
-        const A = tfs[pick.from], T = pick.t;
-        // p_from = T(p_to); p_root = A(p_from)
-        const [tx, ty] = apply(A, T.tx, T.ty);
-        const cand = { q: (A.q + T.q) % 4, s: A.s * T.s, tx, ty, how: T.how, n: T.n || 0, rms: T.rms || 0, labelled: T.labelled || 0, root };
-        const bad = plans.reduce((c, p, k) => (tfs[k] && tfs[k].root === root ? c + stackConflicts(p, tfs[k], plans[pick.to], cand) : c), 0);
-        if (bad > Math.max(2, 0.12 * rooms(plans[pick.to]).length)) { rejected.add(`${pick.from}>${pick.to}#${pick.k}`); continue; }
-        tfs[pick.to] = cand;
-        took = true;
-        break;
-      }
-      if (!took) break;
-    }
-  };
-  grow(0);
-  while (tfs.some((t) => !t)) {
-    // the next group starts from the unplaced plan with the strongest link to another unplaced one
-    let best = -1, bw = -1;
-    for (let i = 0; i < n; i++) if (!tfs[i]) { const w = Math.max(0, ...edges.filter((e) => e.from === i && !tfs[e.to]).map((e) => e.weight)); if (w > bw) { bw = w; best = i; } }
-    grow(best);
+  edges.sort((a, b) => b.weight - a.weight);
+  const root = plans.map((_, i) => i), tf = plans.map(() => ({ q: 0, s: 1, tx: 0, ty: 0 })); // tf[i]: plan i -> its group root
+  const groupOf = (g) => plans.map((_, i) => i).filter((i) => root[i] === g);
+  const done = new Set();
+  for (const e of edges) {
+    if (root[e.from] === root[e.to]) continue;
+    const key = `${e.from}>${e.to}#${e.k}`;
+    if (done.has(key)) continue;
+    // plan e.to into plan e.from's group frame; the whole group of e.to follows
+    const A = tf[e.from], T = e.t;
+    const [tx, ty] = apply(A, T.tx, T.ty);
+    const toInA = { q: (A.q + T.q) % 4, s: A.s * T.s, tx, ty };
+    const inv = invertT(tf[e.to]); // group-of-to frame -> plan e.to
+    const movers = groupOf(root[e.to]);
+    const moved = new Map(movers.map((m) => [m, composeT(toInA, composeT(inv, tf[m]))]));
+    // conflicts against the group it joins: rooms of the movers landing on rooms there
+    const stay = groupOf(root[e.from]);
+    let bad = 0;
+    for (const m of movers) for (const k of stay) bad += stackConflicts(plans[k], tf[k], plans[m], moved.get(m));
+    const nm = movers.reduce((c, m) => c + rooms(plans[m]).length, 0);
+    const wrongSide = !e.strong && westConflictGroups(plans, stay.map((k) => [k, tf[k]]), movers.map((m) => [m, moved.get(m)]));
+    const weak = (e.t.n || 0) < 3 && e.t.how !== 'rooms-many';
+    if (bad > (weak ? 0 : Math.max(2, 0.12 * nm)) || wrongSide) { done.add(key); continue; }
+    const target = root[e.from];
+    for (const m of movers) { tf[m] = { ...moved.get(m), how: m === e.to ? T.how : (tf[m].how && tf[m].how !== 'group root' ? tf[m].how : T.how), n: m === e.to ? T.n || 0 : tf[m].n || 0, rms: m === e.to ? T.rms || 0 : 0, labelled: m === e.to ? T.labelled || 0 : tf[m].labelled || 0 }; root[m] = target; }
   }
+  // plan 0's group is framed on plan 0; other groups on their lowest plan
+  const seen = new Set();
+  for (let g = 0; g < n; g++) {
+    const r = root[g];
+    if (seen.has(r)) continue;
+    seen.add(r);
+    const members = groupOf(r);
+    const base = members.includes(0) ? 0 : members[0];
+    const inv = invertT(tf[base]);
+    for (const m of members) tfs[m] = { ...composeT(inv, tf[m]), how: m === base ? (base === 0 ? 'reference' : 'group root') : tf[m].how, n: tf[m].n || 0, rms: tf[m].rms || 0, labelled: tf[m].labelled || 0, root: base };
+    roots.push(base);
+  }
+  roots.sort((a, b) => (a === 0 ? -1 : b === 0 ? 1 : a - b));
   return { tfs, roots };
+}
+
+// p -> s R(q) p + t composed / inverted
+export function composeT(F, T) { const [tx, ty] = apply(F, T.tx, T.ty); return { q: (F.q + T.q) % 4, s: F.s * T.s, tx, ty }; }
+export function invertT(t) {
+  const iq = (4 - t.q) % 4, is = 1 / t.s, [rx, ry] = spin(t.tx, t.ty, iq);
+  return { q: iq, s: is, tx: -is * rx, ty: -is * ry };
+}
+function westConflictGroups(plans, a, b) {
+  const xs = (list, w) => list.flatMap(([k, t]) => plans[k].items.filter((it) => it.type === 'room' && it.number && isW(it.number) === w && (it.points || (ok(it.x) && ok(it.w)))).map((it) => apply(t, ...centre(it))[0]));
+  const wx = [...xs(a, true), ...xs(b, true)], ox = [...xs(a, false), ...xs(b, false)];
+  if (wx.length < 2 || ox.length < 2) return false;
+  const mean = (v) => v.reduce((s, x) => s + x, 0) / v.length;
+  return mean(wx) > mean(ox) + 80;
+}
+
+// All the steps in one: the plans' transforms into plan 0's frame, with a note for everything that deserves a second look.
+// opts: { boardTf(i) -> transform | null, arranged: the user placed the photos by hand (board transforms win), forced: [transform] }
+export function layoutPlans(plans, opts = {}) {
+  const notes = [], boardTf = opts.boardTf || (() => null);
+  let { tfs, roots } = alignPlans(plans);
+  if (opts.forced) { tfs = plans.map((_, i) => ({ ...opts.forced[i], how: 'given', root: 0, final: true, n: 0, rms: 0 })); roots = [0]; }
+  else if (opts.arranged && plans.every((_, i) => i === 0 || boardTf(i))) {
+    tfs = plans.map((_, i) => ({ ...(i === 0 ? { q: 0, s: 1, tx: 0, ty: 0 } : boardTf(i)), how: 'board', root: 0, final: true, n: 0, rms: 0 }));
+    roots = [0];
+    notes.push('Photos placed as you arranged them on the board.');
+  }
+  for (const root of roots.slice(1)) {
+    const group = tfs.map((t, i) => (t.root === root ? i : -1)).filter((i) => i >= 0);
+    const so = mergePlans(plans, tfs.map((t) => (t.root === 0 || t.final ? t : null))).items;
+    const bt = opts.arranged ? boardTf(root) : null;
+    const F = bt || placeBeside(plans, group, tfs, so);
+    for (const i of group) tfs[i] = { ...compose(F, tfs[i]), final: true, how: i === root ? F.how : tfs[i].how };
+    notes.push(`${group.map((i) => `Photo ${i + 1}`).join(' and ')} ${group.length > 1 ? 'share' : 'shares'} no room numbers or hallway with the others, so ${group.length > 1 ? 'they were' : 'it was'} placed ${bt ? 'where you put it on the board' : 'beside them'}. Check how it joins.`);
+  }
+  tfs.forEach((t, i) => {
+    if (i === 0 || t.final) { if (i > 0 && t.final && !['beside', 'board', 'group root', 'given'].includes(t.how)) notes.push(`Photo ${i + 1}: joined by ${t.how}; check the join.`); return; }
+    if (t.how === 'hallway') notes.push(`Photo ${i + 1} was joined to the others by its hallway; check the join.`);
+    else if (t.n === 1) notes.push(`Photo ${i + 1} was joined by a single shared room; check the join.`);
+  });
+  return { tfs, notes };
 }
 
 // compose: p_outer = F(p_root), p_root = T(p) -> p_outer = (F o T)(p)

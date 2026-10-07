@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+const f='bx-1.floorplan.json';
+const p=JSON.parse(fs.readFileSync(f,'utf8'));
+const d=p.doc;
+const lab=()=>({pinned:false,x:null,y:null,fontSize:null});
+let n=0; const id=()=>'idp'+(n++)+Math.random().toString(36).slice(2,7);
+const poly=(number,points)=>({id:id(),type:'room',cls:'room',number,name:'',label:lab(),showName:false,section:null,shape:'poly',points});
+const r=d.items.find(i=>i.number==='113'); r.points=[[250,520],[450,520],[450,555],[500,555],[500,710],[210,710],[210,555],[250,555]];
+d.items.push(poly('110',[[40,90],[140,90],[140,290],[160,290],[160,445],[40,445]]));
+d.items.push(poly('105',[[140,100],[515,100],[515,270],[755,270],[755,445],[160,445],[160,290],[140,290]]));
+d.items.push(poly('104',[[755,270],[905,270],[905,100],[1205,100],[1205,700],[1135,700],[1135,445],[755,445]]));
+d.viewBox={x:0,y:0,w:1460,h:1088};
+fs.writeFileSync(f,JSON.stringify(p));

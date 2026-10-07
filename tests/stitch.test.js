@@ -41,7 +41,7 @@ test('a plan photographed turned a quarter is turned back, and a different scale
 test('with no shared number, a corridor that leaves one plan meets the corridor that arrives in the other', () => {
   const a = { id: 'A', compass: { deg: 0 }, items: [hall(0, 100, 600, 80), room('101', 0, 0, 200, 100)], floor: { points: [[0, 0], [600, 0], [600, 300], [0, 300]] } };
   const b = { id: 'B', compass: { deg: 0 }, items: [hall(0, 40, 500, 80), room('201', 0, 120, 200, 100)], floor: { points: [[0, 0], [500, 0], [500, 220], [0, 220]] } };
-  const t = alignByHallways(a, b);
+  const t = alignByHallways(a, b)[0];
   assert.equal(t.how, 'hallway');
   const [x, y] = apply(t, 0, 80);
   assert.ok(Math.abs(x - 600) < 2 && Math.abs(y - 140) < 2, `${x},${y}`);

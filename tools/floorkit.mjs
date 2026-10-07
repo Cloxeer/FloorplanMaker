@@ -2,6 +2,7 @@
 //   node tools/floorkit.mjs show   <file.floorplan.json>             list rooms / halls / stairs / doors / outline, with ids
 //   node tools/floorkit.mjs apply  <file.floorplan.json> <ops.json>  apply corrections (a JSON array of ops), save, re-render
 //   node tools/floorkit.mjs render <file.floorplan.json>             re-render <file>.overlay.png (plan over the photo) and <file>.svg.png
+//   node tools/floorkit.mjs check  <file.floorplan.json>             the app's own checks (errors block export): duplicate numbers, labels outside shapes, wrong-floor numbers, overlaps ...
 //   node tools/floorkit.mjs view   <file.floorplan.json> x y w h     zoomed overlay of that plan-unit region -> <file>.view.png (grid labelled in plan units)
 // Ops (a room is found by "id", or "number", or "at":[x,y] = the smallest room that contains that plan point):
 //   {"op":"setNumber","number":"123","to":"132"}              {"op":"setNumber","at":[x,y],"to":"132E"}
@@ -19,6 +20,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { newId, roomPolygon } from '../js/model/document.js';
 import { pointInPolygon, polygonArea } from '../js/model/geometry.js';
 import { renderProject } from './lib/render.mjs';
+import { validate } from '../js/model/validate.js';
 
 const [cmd, file, opsFile] = process.argv.slice(2);
 const project = JSON.parse(readFileSync(file, 'utf8'));
@@ -90,6 +92,10 @@ function applyOp(op) {
 }
 
 if (cmd === 'show') show();
+else if (cmd === 'check') {
+  const v = validate(doc);
+  console.log(v.length ? v.map((x) => `${x.level.toUpperCase()} ${x.code}: ${x.message}`).join(String.fromCharCode(10)) : 'no problems');
+}
 else if (cmd === 'apply') {
   const ops = JSON.parse(readFileSync(opsFile, 'utf8'));
   let n = 0;

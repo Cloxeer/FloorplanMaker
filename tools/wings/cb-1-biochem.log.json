@@ -1,0 +1,21 @@
+{
+ "slug": "cb-1-biochem",
+ "steps": [
+  "project created",
+  "autobuild started",
+  "autobuild done",
+  "saved"
+ ],
+ "console": [],
+ "multi": null,
+ "toast": [
+  "AutoBuild placed 7 rooms · hallways filled in (2 pieces) · Compass placed · 4 need a look"
+ ],
+ "review": [
+  "W157Number W157 needed character repairs; check it",
+  "W156Number W156 needed character repairs; check it",
+  "W159Number W159 needed character repairs; check it",
+  "W115Number W115 needed character repairs; check it"
+ ],
+ "validation": []
+}

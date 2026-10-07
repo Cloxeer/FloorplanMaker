@@ -5,7 +5,7 @@
 // get placed to match, so the plan sits on its pictures. Everything is in the first photo's plan units.
 // Depends on: js/workers/autobuild.worker.js, js/model/stitch.js, js/model/photos.js.
 
-import { alignPlans, mergePlans, placeBeside, compose } from '../../model/stitch.js';
+import { layoutPlans, mergePlans } from '../../model/stitch.js';
 import { photoCorners, tOf, translateDoc } from '../../model/photos.js';
 
 // One photo through the worker. -> { promise, cancel }; the promise resolves with the worker's result message.
@@ -65,31 +65,9 @@ export async function buildMany(list, opts) {
     compass: (() => { const c = m.items.find((it) => it.type === 'compass'); return c ? { x: c.x, y: c.y, deg: c.deg } : null; })(),
   }));
   opts.onProgress(0.94, 'Joining the photos');
-  const notes = [];
   const boards = list.map((l) => l.board || null);
-  let { tfs, roots } = alignPlans(plans);
-  // placements fixed by hand: the user arranged the merge board, or a tool passed them (window.__forceTransforms)
-  const forced = (typeof window !== 'undefined' && window.__forceTransforms) || null;
-  if (forced) { tfs = plans.map((_, i) => ({ ...forced[i], how: 'given', root: 0, final: true, n: 0, rms: 0 })); roots = [0]; }
-  else if (list.arranged && plans.every((_, i) => boardTransform(i, results, boards) || i === 0)) {
-    tfs = plans.map((_, i) => ({ ...(i === 0 ? { q: 0, s: 1, tx: 0, ty: 0 } : boardTransform(i, results, boards)), how: 'board', root: 0, final: true, n: 0, rms: 0 }));
-    roots = [0];
-    notes.push('Photos placed as you arranged them on the board.');
-  }
-  // a group of photos that nothing links to the first goes where the board says (when the user arranged it) or beside the rest
-  for (const root of roots.slice(1)) {
-    const group = tfs.map((t, i) => (t.root === root ? i : -1)).filter((i) => i >= 0);
-    const so = mergePlans(plans, tfs.map((t) => (t.root === 0 || t.final ? t : null))).items;
-    const bt = list.arranged ? boardTransform(root, results, boards) : null;
-    const F = bt || placeBeside(plans, group, tfs, so);
-    for (const i of group) tfs[i] = { ...compose(F, tfs[i]), final: true, how: i === root ? F.how : tfs[i].how };
-    notes.push(`${group.map((i) => `Photo ${i + 1}`).join(' and ')} ${group.length > 1 ? 'share' : 'shares'} no room numbers or hallway with the others, so ${group.length > 1 ? 'they were' : 'it was'} placed ${bt ? 'where you put it on the board' : 'beside them'}. Check how it joins.`);
-  }
-  tfs.forEach((t, i) => {
-    if (i === 0 || t.final) { if (i > 0 && t.final && t.how !== 'beside' && t.how !== 'board' && t.how !== 'group root') notes.push(`Photo ${i + 1}: joined by ${t.how}; check the join.`); return; }
-    if (t.how === 'hallway') notes.push(`Photo ${i + 1} was joined to the others by its hallway; check the join.`);
-    else if (t.n === 1) notes.push(`Photo ${i + 1} was joined by a single shared room; check the join.`);
-  });
+  const forced = (typeof window !== 'undefined' && window.__forceTransforms) || null; // a tool may fix the placements (debugging, tools/)
+  const { tfs, notes } = layoutPlans(plans, { boardTf: (i) => boardTransform(i, results, boards), arranged: !!list.arranged, forced });
   const merged = mergePlans(plans, tfs);
   // photo placements in the merged frame: pixel -> plan_i (x scale_i) -> plan_0
   const layout = list.map((l, i) => {
