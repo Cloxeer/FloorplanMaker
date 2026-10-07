@@ -1,6 +1,7 @@
 // tests/browser/autobuild-multi.spec.js
-// One floor posted as several photos: pick them all, flatten each, AutoBuild on the merge board builds every photo
-// and joins the plans (shared room numbers), places the photos to match, and the result is ONE plan.
+// One floor posted as several photos: pick them all, flatten each, AutoBuild on the merge board builds every photo ON ITS OWN
+// and leaves each plan over its own photo as a separate piece (items tagged piece: "Photo N"). Nothing is joined, turned or
+// guessed: combining the pieces is the person's job.
 // Uses the Jett Hall floor-2 posters in tests/fixtures/autobuild (two posters of the same floor, one turned 180 degrees).
 
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ test.afterEach(async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('two posters of one floor become one plan with the photos placed to match', async ({ page }) => {
+test('two posters of one floor are built separately: one piece per photo, nothing joined', async ({ page }) => {
   test.setTimeout(240000);
   await page.goto('/#/new');
   await page.waitForFunction(() => !!window.__app);
@@ -38,18 +39,21 @@ test('two posters of one floor become one plan with the photos placed to match',
   }
   await expect(page.locator('#ms-svg')).toBeVisible({ timeout: 30000 });
   await page.click('#ms-auto');
-  await page.locator('.ab-ok').click({ timeout: 200000 });
   await page.waitForFunction(() => window.__app.doc.items.length > 10 && !document.querySelector('.ab-card'), null, { timeout: 200000 });
   const r = await page.evaluate(() => {
     const d = window.__app.doc, p = window.__app.project;
     const nums = d.items.filter((i) => i.type === 'room' && i.number).map((i) => i.number);
     const m = window.__app._lastMulti;
-    return { rooms: nums.length, dupes: nums.length - new Set(nums).size, extra: (p.extraPhotos || []).length, hasT: !!(p.extraPhotos[0] && p.extraPhotos[0].t), how: m.transforms.map((t) => t.how), outline: !!d.floor };
+    const pieces = {};
+    for (const it of d.items) if (it.piece) pieces[it.piece] = (pieces[it.piece] || 0) + (it.type === 'room' ? 1 : 0);
+    return { rooms: nums.length, extra: (p.extraPhotos || []).length, hasT: !!(p.extraPhotos[0] && p.extraPhotos[0].t), pieces, untagged: d.items.filter((i) => !i.piece).length, outline: !!d.floor };
   });
   expect(r.extra).toBe(1);
   expect(r.hasT).toBe(true);
-  expect(r.rooms).toBeGreaterThan(20);
-  expect(r.dupes).toBe(0); // a room on both posters is there once
-  expect(r.how[1]).toBe('rooms'); // joined by the room numbers they share
-  expect(r.outline).toBe(true);
+  expect(Object.keys(r.pieces).sort()).toEqual(['Photo 1', 'Photo 2']);
+  expect(r.pieces['Photo 1']).toBeGreaterThan(10);
+  expect(r.pieces['Photo 2']).toBeGreaterThan(10);
+  expect(r.untagged).toBe(0);
+  expect(r.rooms).toBeGreaterThan(20); // every room of both photos is kept: a room on both posters is there twice, for the person to combine
+  expect(r.outline).toBe(false); // no outline is guessed over the pieces: Auto-outline after they are lined up
 });

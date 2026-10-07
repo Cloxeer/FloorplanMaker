@@ -179,15 +179,19 @@ fits rects/polygons, `hallpass.js` fills the corridors, `assemble.js` builds the
 any closed wall cell become "orphan" rooms (box found by `rayBox` from the label). Rectification (`rectify.js`) crops to
 the plan and straightens it; trusted only when it looks right.
 
-Several photos of one floor: each photo is flattened, then built on its own (`autobuildMulti.buildMany`) and the plans are
-joined by `stitch.js`: `alignByLabels` (shared room numbers, compass turn as a hint), `alignByShape`, `alignByHallways`
-(a corridor running from one photo into the next), `alignPlans` (strongest joins first, rejected when rooms would land on
-each other, W-prefix rooms stay west), `layoutPlans` (what nothing joins is placed beside, numeric order, corridors end to
-end), `mergePlans` (a room on two photos is kept once, the outline is the union). Photos are kept under the plan as
-layers placed to match. `rememberPixels` hands the straightened pixels to AutoBuild without a JPEG round trip.
+Several photos of one floor: each photo is flattened, then built on its own (`autobuildMulti.buildMany`). Nothing is joined,
+turned or guessed: each plan is left over its own photo exactly where the merge board has that photo, its items carry
+`piece: "Photo N"`, and the result has no outline. The person lines the pieces up afterwards (Layers: the Pieces section selects
+or hides a piece; move and turn it as a group), then draws the outline (Auto-outline in step 1). `js/model/stitch.js`
+(shared-room / corridor matching, `mergePlans`) is no longer used by the app; `tools/join-wings.mjs` still uses it for a
+suggested join. `rememberPixels` hands the straightened pixels to AutoBuild without a JPEG round trip.
+
+Ignore / hide: `project.ignored` (ids, js/model/ignored.js) are fix problems the person chose to leave alone: they leave the
+Worth-a-look lists, the yellow outlines, Fix all and the export check (`app.ignoredIds()`, `app.setIgnored`). `project.hidden`
+(ids) are items hidden from view with the eye in Layers (`app.hiddenIds()`, `app.setHidden`); they are still exported.
 
 `tools/` (Node + Playwright, not shipped): `build-floor.mjs` drives the real UI for a floor, `floorkit.mjs` finishes a draft
-by hand (ops), `join-wings.mjs` joins finished pieces, `finalize.mjs` writes the maps folder, `gt-eval.mjs`/`eval.mjs` score
+by hand (ops), `pieces.mjs` lays finished wings out as separate pieces (not joined), `join-wings.mjs` suggests a join, `finalize.mjs` writes the maps folder, `gt-eval.mjs`/`eval.mjs` score
 AutoBuild against finished floors / hand-read numbers (the gate: no change may lower them).
 
 ## View
@@ -207,6 +211,12 @@ than 50). Owns the grid pattern, the onion-skin `backgroundImage`, plan
 opacity, guides, ghosts and the route overlay, and restacks objects by their
 `zLayer` (grid, floor, hall, route, rooms/stairs, doors, compass, ghosts,
 guides).
+
+The eye (View layers list): `app.setHidden(ids, on)` keeps `project.hidden` (saved with the project, emits `{type:'hidden'}`);
+`stage.js` `applyHidden()` then makes those objects (and their labels) invisible and non-evented, after every `setDoc` and on that event, and
+`app.setSelection` skips hidden ids. It is view-only: no undo step, nothing deleted, and hidden items are still exported and validated. Items
+AutoBuild built from one photo of a multi-photo floor carry `piece` ("Photo 1"...): the Pieces section at the top of All layers has one eye +
+Select per piece.
 
 `stageView.js`: viewport - `toPlan`, fit-to-document zoom, `zoomToPoint` wheel
 zoom (0.1..8), space / middle-button / pan-tool dragging via `viewportTransform`,

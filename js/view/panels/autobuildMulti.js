@@ -1,11 +1,11 @@
 // autobuildMulti.js
-// AutoBuild for a floor posted as SEVERAL photos: each photo is built on its own (same worker, same pipeline), then the
-// plans are joined (js/model/stitch.js): room numbers on two photos, or a corridor that runs from one photo into the
-// next, say where each belongs; whatever nothing connects keeps the place it has on the merge board. The photos
-// get placed to match, so the plan sits on its pictures. Everything is in the first photo's plan units.
-// Depends on: js/workers/autobuild.worker.js, js/model/stitch.js, js/model/photos.js.
+// AutoBuild for a floor posted as SEVERAL photos: each photo is built on its own (same worker, same pipeline) and its plan is
+// left over its own photo, where the merge board has it. Nothing is joined, turned or guessed: each plan's items are tagged
+// piece: "Photo N" and the person combines the pieces afterwards. Everything is in the first photo's plan units.
+// Depends on: js/workers/autobuild.worker.js, js/model/stitch.js (placeItem only), js/model/photos.js.
 
-import { layoutPlans, mergePlans } from '../../model/stitch.js';
+import { placeItem } from '../../model/stitch.js';
+import { newId } from '../../model/document.js';
 import { photoCorners, tOf, translateDoc } from '../../model/photos.js';
 
 // One photo through the worker. -> { promise, cancel }; the promise resolves with the worker's result message.
@@ -66,17 +66,33 @@ export async function buildMany(list, opts) {
     results.push(await job.promise);
   }
   if (typeof window !== 'undefined') window.__multiResults = results; // for debugging (tools/)
-  const plans = results.map((m, i) => ({
-    id: `photo ${i + 1}`, items: m.items, floor: m.floor, w: m.viewW, h: m.viewH,
-    compass: (() => { const c = m.items.find((it) => it.type === 'compass'); return c ? { x: c.x, y: c.y, deg: c.deg } : null; })(),
-  }));
-  opts.onProgress(0.94, 'Joining the photos');
+  // Nothing is joined or guessed: every photo is built on its own and its plan is left exactly over its own photo, where the
+  // merge board has that photo (the person lined them up there). Each plan's items carry piece: "Photo N"; turning, moving and
+  // combining the pieces is the person's job afterwards (Layers: select / hide a piece, then move / turn it as a group).
+  opts.onProgress(0.94, 'Placing each plan on its photo');
   const boards = list.map((l) => l.board || null);
-  const forced = (typeof window !== 'undefined' && window.__forceTransforms) || null; // a tool may fix the placements (debugging, tools/)
-  const { tfs, notes, loose } = layoutPlans(plans, { boardTf: (i) => boardTransform(i, results, boards), arranged: !!list.arranged, forced, apart: true });
-  // photos that nothing ties to the others are not made part of the plan (nothing is guessed): they only sit under it
-  const merged = mergePlans(plans, tfs.map((t, i) => (loose.includes(i) ? null : t)));
-  // photo placements in the merged frame: pixel -> plan_i (x scale_i) -> plan_0
+  const tfs = [];
+  results.forEach((m, i) => {
+    if (i === 0) { tfs.push({ q: 0, s: 1, tx: 0, ty: 0, how: 'reference' }); return; }
+    const b = boardTransform(i, results, boards);
+    if (b) { tfs.push(b); return; }
+    // no board placement at all: to the right of the plans before it, with a gap
+    let right = 0;
+    for (let k = 0; k < i; k++) right = Math.max(right, tfs[k].tx + results[k].viewW * (tfs[k].s || 1));
+    tfs.push({ q: 0, s: 1, tx: right + 100, ty: 0, how: 'beside' });
+  });
+  const used = new Set();
+  const items = [];
+  results.forEach((m, i) => {
+    for (const raw of m.items) {
+      const it = { ...placeItem(raw, tfs[i]), piece: `Photo ${i + 1}` };
+      if (used.has(it.id)) it.id = newId();
+      used.add(it.id);
+      items.push(it);
+    }
+  });
+  const notes = [`${n} photos were built separately, one piece each (Photo 1 to Photo ${n}). Line them up yourself (Layers), then use Auto-outline.`];
+  // photo placements: pixel -> plan_i (x scale_i) -> plan_0
   const layout = list.map((l, i) => {
     const t = tfs[i];
     return { t: { x: t.tx, y: t.ty, s: t.s * results[i].scale, a: 90 * t.q } };
@@ -85,17 +101,16 @@ export async function buildMany(list, opts) {
   const probe = list.map((l, i) => ({ width: i === 0 ? results[0].viewW : l.photo.width, height: i === 0 ? results[0].viewH : l.photo.height, t: i === 0 ? { x: 0, y: 0, s: 1, a: 0 } : layout[i].t }));
   let x0 = 0, y0 = 0;
   for (const p of probe) for (const [x, y] of photoCorners(p)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); }
-  for (const it of merged.items) for (const [x, y] of it.points || [[it.x, it.y]]) if (Number.isFinite(x)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); }
+  for (const it of items) for (const [x, y] of it.points || [[it.x, it.y]]) if (Number.isFinite(x)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); }
   const dx = x0 < 0 ? Math.ceil(-x0 / 5) * 5 + 20 : 0, dy = y0 < 0 ? Math.ceil(-y0 / 5) * 5 + 20 : 0;
-  const moved = dx || dy ? translateDoc({ items: merged.items, floor: merged.floor }, dx, dy) : { items: merged.items, floor: merged.floor };
+  const moved = dx || dy ? translateDoc({ items, floor: null }, dx, dy) : { items, floor: null };
   const lay = layout.map((l, i) => ({ t: { ...l.t, x: l.t.x + dx, y: l.t.y + dy }, main: i === 0 }));
   lay[0].t = { x: dx, y: dy, s: 1, a: 0 };
   let ub = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   probe.forEach((p, i) => { for (const [x, y] of photoCorners({ ...p, t: lay[i].t })) ub = { x0: Math.min(ub.x0, x), y0: Math.min(ub.y0, y), x1: Math.max(ub.x1, x), y1: Math.max(ub.y1, y) }; });
   const review = results.flatMap((m) => m.review || []);
-  for (const d of merged.report.dropped) void d;
   return {
-    items: moved.items, floor: moved.floor, review, notes, layout: lay, transforms: tfs, report: merged.report,
+    items: moved.items, floor: null, review, notes, layout: lay, transforms: tfs, report: { placed: tfs.map((t, i) => ({ id: `photo ${i + 1}`, how: t.how })), dropped: [], unplaced: [] },
     scale: results[0].scale, viewW: Math.round(ub.x1), viewH: Math.round(ub.y1), ocr: results.every((m) => m.ocr), results,
   };
 }

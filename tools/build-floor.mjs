@@ -57,7 +57,7 @@ try {
     await page.click('#ms-auto');
   }
   step('autobuild started');
-  await page.locator('.ab-ok').click({ timeout: 240000 }); // "Looks right, continue" on the outline question
+  if (files.length === 1) await page.locator('.ab-ok').click({ timeout: 240000 }); // "Looks right, continue" on the outline question (several photos: no question, each is its own piece)
   await page.waitForFunction(() => window.__app && window.__app.doc && window.__app.doc.items.length > 3 && !document.querySelector('.ab-card'), null, { timeout: 240000 });
   await page.waitForTimeout(1500);
   step('autobuild done');

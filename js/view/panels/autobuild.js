@@ -322,7 +322,7 @@ export function mountAutoBuild(app) {
     worker.postMessage({ kind: 'build', width: pixels.width, height: pixels.height, data: copy, floor: app.doc && app.doc.meta ? app.doc.meta.floor : undefined }, [copy]);
   }
 
-  // Several photos of one floor: each is built on its own, the plans are joined, the photos are placed to match.
+  // Several photos of one floor: each is built on its own and left on its own photo as a separate piece (nothing is joined or turned).
   // list: [{ pixels, photo, board }] (see autobuildMulti.js). The first photo stays the project's photo.
   async function runMulti(list) {
     if (!list || !list.length || !app.project) return;
@@ -352,15 +352,15 @@ export function mountAutoBuild(app) {
     const base = { ...app.doc, items: [], floor: null, viewBox: { x: 0, y: 0, w: vw, h: vh } };
     app.canvas.setPhoto(app.project.photo);
     if (app._photoLayer && app._photoLayer.refresh) app._photoLayer.refresh();
-    const out = await reveal({ ...m, outlineInfo: null, hallAdded: [], hallExtended: [], hallBefore: {} }, base);
-    if (!out) return;
+    // each photo's plan is left on its own photo as a separate piece: no outline question, no joining
+    const doc = { ...base, items: m.items, floor: null };
+    setProgress(0.99, 'Placing each plan on its photo');
     hideCard();
-    if (out.stopped) { app.commit(out.doc, 'AutoBuild outline'); app.canvas.zoomTo(true); return; }
-    app.commit(out.doc, 'AutoBuild');
+    app.commit(doc, 'AutoBuild');
     app.canvas.zoomTo(true);
     const rooms = m.items.filter((it) => it.type === 'room').length;
-    app.toast(`AutoBuild joined ${list.length} photos: ${rooms} rooms${m.notes.length ? ` · ${m.notes[0]}` : ''}${m.review.length ? ` · ${m.review.length} need a look` : ''}`);
-    app.setHint('Review what AutoBuild drew, then refine.');
+    app.toast(`AutoBuild built ${list.length} photos separately: ${rooms} rooms. Line the pieces up yourself (Layers), then use Auto-outline.${m.review.length ? ` ${m.review.length} need a look.` : ''}`);
+    app.setHint('Each photo is its own piece (Layers > Pieces): move and turn them into place, then draw the outline.');
     showReview(m);
   }
 

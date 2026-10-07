@@ -195,7 +195,8 @@ app.redo = function redo() {
   app.replaceDoc(JSON.parse(next));
 };
 app.setSelection = function setSelection(ids) {
-  app.selection = new Set(ids);
+  const hid = app.hiddenIds ? app.hiddenIds() : null; // hidden items (the eye in Layers) are never selected
+  app.selection = new Set(hid && hid.size ? [...ids].filter((id) => !hid.has(id)) : ids);
   if (app.canvas) app.canvas.setSelection([...app.selection]);
   emit({ type: 'selection' });
 };

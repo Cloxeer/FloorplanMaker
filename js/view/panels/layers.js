@@ -34,6 +34,16 @@ const STYLE = `
 #layers-panel .ly-fixbtns { display:flex; gap:6px; margin-top:8px; }
 #layers-panel .ly-fixbtns button { font:inherit; font-size:12px; padding:5px 12px; border-radius:6px; border:1px solid #c5ccd6; background:#fff; cursor:pointer; }
 #layers-panel .ly-fixbtns .ly-yes { background:#2f6feb; border-color:#2f6feb; color:#fff; font-weight:600; }
+#layers-panel .ly-line { display:flex; align-items:stretch; gap:4px; margin:0 0 3px; }
+#layers-panel .ly-line .ly-row { flex:1; min-width:0; margin:0; }
+#layers-panel .ly-line .ly-row.ly-static { cursor:default; }
+#layers-panel .ly-eye { flex:none; width:30px; display:flex; align-items:center; justify-content:center; padding:0; border:1px solid #e1e4e9; border-radius:6px; background:#fff; color:#2f6feb; cursor:pointer; }
+#layers-panel .ly-eye:hover { background:#eef3fe; }
+#layers-panel .ly-eye[aria-pressed="true"] { color:#9aa0a8; background:#f3f4f6; }
+#layers-panel .ly-eye svg { width:16px; height:16px; display:block; }
+#layers-panel .ly-off .ly-row { opacity:.5; }
+#layers-panel .ly-pbtn { flex:none; font:inherit; font-size:12px; padding:0 10px; border:1px solid #c5ccd6; border-radius:6px; background:#fff; cursor:pointer; }
+#layers-panel .ly-pbtn:hover { background:#eef3fe; }
 #layers-panel .ly-selall { font:inherit; font-size:11px; font-weight:500; padding:2px 8px; border:1px solid #e5484d; border-radius:6px; background:#fff; color:#9b1c1f; cursor:pointer; }
 `;
 
@@ -86,6 +96,22 @@ function row(it, cls, sub, onClick) {
   if (onClick) b.addEventListener('click', onClick);
   return b;
 }
+
+const EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_SHUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><path d="M3 3l18 18"/></svg>';
+
+// small eye button: aria-pressed = hidden. what = what it hides, for the screen-reader label
+function eyeBtn(hidden, what, onToggle) {
+  const b = el('button', 'ly-eye'); b.type = 'button';
+  b.setAttribute('aria-pressed', String(hidden));
+  b.setAttribute('aria-label', `${hidden ? 'Show' : 'Hide'} ${what}`);
+  b.title = hidden ? 'Show on the plan' : 'Hide from the plan (nothing is deleted)';
+  b.innerHTML = hidden ? EYE_SHUT : EYE_OPEN;
+  b.addEventListener('click', onToggle);
+  return b;
+}
+
+const naturalCmp = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
 export function mountLayers(app) {
   const props = document.getElementById('props');
@@ -210,6 +236,28 @@ export function mountLayers(app) {
     if (fix) { renderFix(); return; }
     if (notes.active()) { notes.renderCard(panel); return; }
 
+    const hid = app.hiddenIds ? app.hiddenIds() : new Set();
+    const pieces = new Map(); // piece name -> items (AutoBuild tags the items of each photo of a multi-photo floor)
+    for (const it of doc.items) if (typeof it.piece === 'string' && it.piece) { if (!pieces.has(it.piece)) pieces.set(it.piece, []); pieces.get(it.piece).push(it); }
+    if (pieces.size) {
+      panel.appendChild(el('h4', null, `Pieces (${pieces.size})`));
+      panel.appendChild(el('div', 'ly-hint', 'Each photo was built on its own. Select a piece, then move or turn it into place; hide the others with the eye.'));
+      for (const name of [...pieces.keys()].sort(naturalCmp)) {
+        const its = pieces.get(name), ids = its.map((i) => i.id);
+        const off = ids.every((id) => hid.has(id));
+        const rooms = its.filter((i) => i.type === 'room').length;
+        const line = el('div', `ly-line ly-piece${off ? ' ly-off' : ''}`);
+        line.appendChild(eyeBtn(off, name, () => app.setHidden(ids, !off)));
+        const lab = el('div', 'ly-row ly-static', name);
+        lab.appendChild(el('small', null, `${rooms} ${rooms === 1 ? 'room' : 'rooms'}`));
+        line.appendChild(lab);
+        const sb = el('button', 'ly-pbtn', 'Select'); sb.type = 'button';
+        sb.setAttribute('aria-label', `Select ${name}`);
+        sb.addEventListener('click', () => app.setSelection(ids));
+        line.appendChild(sb);
+        panel.appendChild(line);
+      }
+    }
     if (sel.length) {
       panel.appendChild(el('h4', null, sel.length > 1 ? `Selected (${sel.length})` : 'Selected'));
       for (const it of sel) panel.appendChild(row(it, 'ly-sel', itemGeom(it)));
@@ -253,13 +301,19 @@ export function mountLayers(app) {
         const red = it.id && redIds.has(it.id);
         const on = it.id && app.selection.has(it.id);
         const cls = red ? 'ly-red' : on ? 'ly-sel' : '';
-        panel.appendChild(row(it, cls, itemGeom(it), it.id ? () => select(it.id) : null));
+        const r = row(it, cls, itemGeom(it), it.id ? () => select(it.id) : null);
+        if (!it.id) { panel.appendChild(r); continue; } // the outline is not an item: it has no eye
+        const off = hid.has(it.id);
+        const line = el('div', `ly-line${off ? ' ly-off' : ''}`);
+        line.appendChild(eyeBtn(off, itemTitle(it), () => app.setHidden([it.id], !off)));
+        line.appendChild(r);
+        panel.appendChild(line);
       }
     }
   }
 
   function schedule() { if (open && !raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
-  const unsub = app.subscribe((e) => { if (e.type === 'doc') notes.onDoc(); if (e.type === 'doc' || e.type === 'selection') schedule(); });
+  const unsub = app.subscribe((e) => { if (e.type === 'doc') notes.onDoc(); if (e.type === 'doc' || e.type === 'selection' || e.type === 'hidden') schedule(); });
   const onBtn = (e) => {
     e.stopPropagation();
     setOpen(!open);

@@ -136,7 +136,34 @@ export function createStage(containerEl, app) {
 
   function setDoc(newDoc) {
     editing.runSilently(() => applyDoc(newDoc));
+    applyHidden();
     editing.reselect();
+    render();
+  }
+
+  // The eye in the Layers list: hidden items are not drawn and cannot be clicked, selected or dragged (nothing in the plan changes).
+  function applyHidden() {
+    const hid = app.hiddenIds ? app.hiddenIds() : new Set();
+    const mark = (o, hide) => {
+      if (hide) {
+        if (!o._eye) o._eye = { selectable: o.selectable, evented: o.evented };
+        o.set({ visible: false, selectable: false, evented: false });
+      } else if (o._eye) {
+        const keep = o._eye; o._eye = null;
+        o.set({ visible: true, selectable: keep.selectable, evented: keep.evented });
+      }
+    };
+    const gone = [...app.selection].filter((id) => hid.has(id));
+    if (gone.length) { // a hidden item cannot stay selected
+      editing.runSilently(() => canvas.discardActiveObject());
+      app.setSelection([...app.selection].filter((id) => !hid.has(id)));
+    }
+    for (const [id, o] of objects) {
+      if (id === 'floor' || id === 'floor-edge') continue;
+      const h = hid.has(id);
+      mark(o, h);
+      for (const x of extras.get(id) || []) mark(x, h);
+    }
     render();
   }
 
@@ -321,6 +348,7 @@ export function createStage(containerEl, app) {
   const unsubTool = app.subscribe((evt) => {
     if (evt.type === 'tool') { tools.cancel(); applyCursor(); }
   });
+  const unsubHidden = app.subscribe((evt) => { if (evt.type === 'hidden' && doc) applyHidden(); });
 
   const ro = new ResizeObserver(() => {
     if (destroyed) return;
@@ -337,6 +365,7 @@ export function createStage(containerEl, app) {
     destroyed = true;
     ro.disconnect();
     unsubTool();
+    unsubHidden();
     view.destroyView();
     editing.destroy();
     tools.destroy();
