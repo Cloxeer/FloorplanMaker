@@ -414,6 +414,22 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
 .btn-big-tool.btn-detect:disabled { cursor: not-allowed; }
 .hotkey-hint { color: var(--muted); font-size: 10px; margin-left: 4px; }
 
+/* Connect hallways (step 1, when a floor is outlined building by building) */
+.connect-section { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.connect-section[hidden] { display: none; }
+.connect-section h5 { margin: 0 0 4px; font-size: 12px; line-height: 1.3; }
+.connect-section .btn-big-tool:disabled { opacity: 0.5; cursor: not-allowed; }
+.link-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.link-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.link-pt {
+  width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--c); background: #fff; color: var(--c);
+  font-weight: 700; font-size: 13px; line-height: 1; cursor: pointer; flex: none;
+}
+.link-pt[aria-pressed="true"] { background: var(--c); color: #fff; }
+.link-status { flex: 1; min-width: 0; font-size: 11px; line-height: 1.3; color: var(--muted); }
+.link-status .chk.ok { color: #1a7f37; font-weight: 600; }
+.link-x { border: none; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 0 4px; cursor: pointer; flex: none; }
+
 .floor-ghost-dot { fill: var(--accent); stroke: #fff; stroke-width: 1; pointer-events: none; }
 .floor-ghost-line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .door-ghost-preview { stroke-width: 4; pointer-events: none; }

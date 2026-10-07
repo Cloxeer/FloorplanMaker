@@ -92,6 +92,8 @@ export function createStudio(app, deps) {
   // "Hide" (the eye in the Layers list): items that are only hidden from view while working. Nothing is deleted or changed, and
   // hidden items are still exported; the list lives in the project (project.hidden = [item ids]).
   app.hiddenIds = () => (app.project && app.doc ? pruneIgnored(app.doc, ignoredOf({ ignored: app.project.hidden })) : new Set());
+  // the photos of the project can be hidden too: ids 'photo:0' (main photo), 'photo:1' (first extra) ... live in the same list
+  app.hiddenPhotos = () => new Set(((app.project && app.project.hidden) || []).filter((x) => typeof x === 'string' && /^photo:\d+$/.test(x)).map((x) => Number(x.slice(6))));
   app.setHidden = (ids, on) => {
     if (!app.project) return;
     const cur = ignoredOf({ ignored: app.project.hidden });

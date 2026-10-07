@@ -8,6 +8,7 @@
 
 import { setFloor } from '../model/document.js';
 import { rememberOutline, restoreOutline, autoOutline, hasOutline } from '../model/outlineRestore.js';
+import { hasPieces, outlinesOf } from '../model/connect.js';
 
 const hasPlan = (doc) => !!(doc && (doc.items || []).some((it) => it.type === 'room' || it.type === 'hall' || it.type === 'stair'));
 
@@ -31,6 +32,8 @@ export function mountOutlinePrompt(app) {
   function update() {
     const doc = app.doc;
     if (hasOutline(doc)) { memory = rememberOutline(doc); overlay.hidden = true; return; }
+    // a floor built from several photos is drawn building by building (Layers, then Auto-outline / Connect hallways): no prompt
+    if (hasPieces(doc) || outlinesOf(doc).length) { overlay.hidden = true; return; }
     const plan = hasPlan(doc);
     overlay.hidden = false;
     overlay.classList.toggle('has-plan', plan && !!memory);

@@ -14,6 +14,7 @@ import {
 import { ROOM_LOOK, VOID_TEXT, roomLook, voidLabelLines } from '../model/look.js';
 import { legendSvgGroupAt, legendGroupSize } from './panels/legend.js';
 import { bbox } from '../model/geometry.js';
+import { wallStretches, openConnects, openingOf } from '../model/connect.js';
 
 export const FONT = "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif";
 // Room looks come from js/model/look.js — the same values the exported SVG
@@ -45,7 +46,7 @@ function voidTexts(box) {
 // Back-to-front draw order.
 export const LAYER = {
   grid: 0, floor: 1, hall: 2, route: 3, room: 4, stair: 4, authwall: 4.5,
-  compass: 6, floorEdge: 6.5, door: 6.7, legend: 6.8, ghost: 7, guide: 8,
+  compass: 6, outline: 6.4, floorEdge: 6.5, door: 6.7, connect: 6.9, legend: 6.8, ghost: 7, guide: 8,
 };
 
 const BASE = {
@@ -438,9 +439,50 @@ export function rebuildFloorEdgePoints(poly, points) {
   setPolyPoints(poly, points);
 }
 
+// ------------------------------------------- piece outlines and links ----
+// An outline item is the wall round ONE building, drawn as separate stretches with a gap at each opening (the
+// opening ends carry the link's color). Only the walls hit-test (perPixelTargetFind), so rooms inside stay clickable.
+// `_base` is the object's matrix as built: a move of a selection is read back as (now x base^-1) applied to the points.
+export function buildOutline(item, doc) {
+  const kids = wallStretches(doc, item.id).map((pts) => new fabric.Polyline(pts.map(([x, y]) => ({ x, y })), {
+    fill: null, stroke: '#3a3d42', strokeWidth: 4, strokeUniform: true, strokeLineJoin: 'round', objectCaching: false,
+  }));
+  for (const c of openConnects(doc)) {
+    if (c.outline !== item.id) continue;
+    const op = openingOf(doc, c);
+    if (!op) continue;
+    for (const p of [op.a, op.b]) {
+      kids.push(new fabric.Circle({ left: p[0], top: p[1], originX: 'center', originY: 'center', radius: 6, fill: c.color, stroke: '#ffffff', strokeWidth: 2, strokeUniform: true, objectCaching: false }));
+    }
+  }
+  const grp = new fabric.Group(kids, {
+    ...BASE, objectCaching: false, perPixelTargetFind: true, hasControls: false,
+    lockMovementX: true, lockMovementY: true, lockRotation: true, lockScalingX: true, lockScalingY: true, hoverCursor: 'pointer',
+  });
+  grp._base = grp.calcTransformMatrix();
+  return tag(grp, item, 'outline');
+}
+
+// a connect point: a colored disc with its number (1 or 2) on the wall
+export function buildConnect(item) {
+  const disc = new fabric.Circle({
+    left: item.x, top: item.y, originX: 'center', originY: 'center', radius: 15, fill: item.color || '#2f6feb',
+    stroke: '#ffffff', strokeWidth: 3, strokeUniform: true, objectCaching: false,
+  });
+  const num = new fabric.FabricText(String(item.slot === 2 ? 2 : 1), {
+    left: item.x, top: item.y, originX: 'center', originY: 'center', fontSize: 20, fontWeight: 700, fill: '#ffffff', fontFamily: FONT,
+    selectable: false, evented: false, objectCaching: false,
+  });
+  const grp = new fabric.Group([disc, num], {
+    ...BASE, objectCaching: false, hasControls: false, lockMovementX: true, lockMovementY: true, lockRotation: true, lockScalingX: true, lockScalingY: true,
+  });
+  grp._base = grp.calcTransformMatrix();
+  return tag(grp, item, 'connect');
+}
+
 // ------------------------------------------------------------ dispatcher ---
 // Returns [mainObject, ...extras] for an item, or [] for an unknown type.
-export function buildItem(item, grid) {
+export function buildItem(item, grid, doc) {
   if (item.type === 'room') {
     if (item.shape === 'poly') {
       const label = buildPolyLabel(item);
@@ -454,6 +496,8 @@ export function buildItem(item, grid) {
   if (item.type === 'compass') return [buildCompass(item)];
   if (item.type === 'authwall') return [buildAuthwall(item)];
   if (item.type === 'legend') return [buildLegend(item)];
+  if (item.type === 'outline' && doc && Array.isArray(item.points) && item.points.length >= 3) return [buildOutline(item, doc)];
+  if (item.type === 'connect' && Number.isFinite(item.x) && Number.isFinite(item.y)) return [buildConnect(item)];
   return [];
 }
 

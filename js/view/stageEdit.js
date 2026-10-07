@@ -13,6 +13,7 @@ import { turnSelection } from '../model/turn.js';
 import { polyPoints, absPolyPoints, resetPolyTransform, insertVertex, nearestEdge } from './stagePoly.js';
 import { absBox } from './stageSnap.js';
 import { LEGEND_PX } from './stageObjects.js';
+import { dropOrphanConnects } from '../model/connect.js';
 
 const EDGE_TOL = 10;
 
@@ -36,7 +37,8 @@ export function attachEditing(ctx) {
   function paintParts(obj) {
     const kids = obj.getObjects ? obj.getObjects() : [obj];
     if (obj.itemType === 'compass') return kids.filter((k) => k.compassRing);
-    if (obj.itemType === 'legend') return [];
+    if (obj.itemType === 'legend' || obj.itemType === 'connect') return [];
+    if (obj.itemType === 'outline') return kids.filter((k) => k.isType && k.isType('polyline'));
     return kids;
   }
   function paintWith(map, obj, fill, stroke) {
@@ -262,6 +264,22 @@ export function attachEditing(ctx) {
     return { x1: r(a.x), y1: r(a.y), x2: r(b.x), y2: r(b.y), label: { x: r(c.x), y: r(c.y) } };
   }
 
+  // A piece's outline or a connect point in a moved selection: the same rigid move the object went through (its matrix now,
+  // against the one it was built with) applied to the item's own points.
+  function rigidPatch(obj, item) {
+    const m = fabric.util.multiplyTransformMatrices(obj.calcTransformMatrix(), fabric.util.invertTransform(obj._base || obj.calcTransformMatrix()));
+    // a plain slide is snapped to the grid like the rooms that travel with it
+    const slide = Math.abs(m[0] - 1) < 1e-6 && Math.abs(m[3] - 1) < 1e-6 && Math.abs(m[1]) < 1e-6 && Math.abs(m[2]) < 1e-6;
+    const dx = slide ? grid(m[4]) : 0, dy = slide ? grid(m[5]) : 0;
+    const mv = ([x, y]) => { if (slide) return [x + dx, y + dy]; const p = fabric.util.transformPoint({ x, y }, m); return [Math.round(p.x), Math.round(p.y)]; };
+    if (item.type === 'outline') {
+      const points = item.points.map(mv);
+      return points.every((p, i) => p[0] === item.points[i][0] && p[1] === item.points[i][1]) ? null : { points };
+    }
+    const [x, y] = mv([item.x, item.y]);
+    return x === item.x && y === item.y ? null : { x, y };
+  }
+
   // `inGroup`: obj sits in a multi-selection, so left / top / angle are relative to it; read them through the
   // full transform instead.
   function patchFor(obj, doc, inGroup) {
@@ -281,6 +299,7 @@ export function attachEditing(ctx) {
       return { points: polyPoints(obj).map(([x, y]) => [grid(x), grid(y)]) };
     }
     if (item.type === 'door') return inGroup ? doorPatch(obj) : null;
+    if (item.type === 'outline' || item.type === 'connect') return inGroup ? rigidPatch(obj, item) : null;
     if (item.type === 'authwall') {
       const box = absBox(obj);
       const ox = Math.min(item.x1, item.x2);
@@ -438,7 +457,7 @@ export function attachEditing(ctx) {
     if (!ids.length) return;
     let next = app.doc;
     const itemIds = ids.filter((id) => id !== 'floor');
-    if (itemIds.length) next = removeItems(next, itemIds);
+    if (itemIds.length) next = dropOrphanConnects(removeItems(next, itemIds));
     if (ids.includes('floor')) next = setFloor(next, null);
     syncing = true;
     canvas.discardActiveObject();
@@ -455,6 +474,7 @@ export function attachEditing(ctx) {
       if (!item) continue;
       if (item.shape === 'poly') next = updateItem(next, id, { points: item.points.map(([x, y]) => [x + dx, y + dy]) });
       else if (item.type === 'door') next = updateItem(next, id, { x1: item.x1 + dx, y1: item.y1 + dy, x2: item.x2 + dx, y2: item.y2 + dy, label: { x: item.label.x + dx, y: item.label.y + dy } });
+      else if (item.type === 'outline') next = updateItem(next, id, { points: item.points.map(([x, y]) => [x + dx, y + dy]) });
       else if (item.type === 'authwall') next = updateItem(next, id, { x1: item.x1 + dx, y1: item.y1 + dy, x2: item.x2 + dx, y2: item.y2 + dy });
       else next = updateItem(next, id, { x: item.x + dx, y: item.y + dy });
     }

@@ -8,6 +8,7 @@
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { STD } from '../model/document.js';
 import { bbox, snapToGrid } from '../model/geometry.js';
+import { openingCentres } from '../model/connect.js';
 
 const TOL = 6;
 const WALL_TOL = 8;
@@ -115,6 +116,10 @@ export function createSnapper(app) {
           xs.push(px);
           ys.push(py);
         }
+      }
+      for (const o of openingCentres(doc)) { // the middle of an opening in a building wall
+        xs.push(o.centre[0]);
+        ys.push(o.centre[1]);
       }
     }
     cache = { xs, ys };

@@ -9,6 +9,7 @@
 
 import { STD } from './model/document.js';
 import { magnetSnap } from './model/geometry.js';
+import { openingCentres } from './model/connect.js';
 import { validate } from './model/validate.js';
 import { installAutosaveHooks, onExternalChange } from './store/autosave.js';
 import { isSupported as folderIsSupported, getFolder, pickFolder as pickFolderHandle } from './store/folderStore.js';
@@ -228,6 +229,7 @@ app.snap = function snap(pt, opts = {}) {
   const grid = app.gridOn ? STD.grid : null;
   const vertices = [];
   if (app.magnet && app.doc.floor && app.doc.floor.points) vertices.push(...app.doc.floor.points);
+  if (app.magnet) vertices.push(...openingCentres(app.doc).map((o) => o.centre)); // the middle of each opening between buildings
   const targets = { xs: [], ys: [], vertices, grid };
   const result = magnetSnap(pt, opts.targets ? { ...opts.targets, grid } : targets);
   if (app.canvas) app.canvas.setGuides(result.guides);

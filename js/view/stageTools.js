@@ -11,6 +11,7 @@ import {
 } from '../model/document.js';
 import { legendGroupSize } from './panels/legend.js';
 import { snapToGrid, dist, nearestPointOnPolyline } from '../model/geometry.js';
+import { openingCentres, wallAt, outlinesOf, OPENING } from '../model/connect.js';
 
 const DOOR_REACH = 12;
 const DOOR_START_REACH = 40; // plan units: how close to the wall a door drag may start
@@ -30,7 +31,9 @@ const HINTS = {
   compass: 'Click where the compass should sit.',
   pan: 'Drag to move around the plan.',
   authwall: 'Click the start, then the end (or drag) to draw a staff-only wall. Press Esc when done.',
+  connect: 'Click a wall of a building. Press Esc to cancel.',
 };
+const SNAP_OPENING = 18; // screen px: how near a hallway end must come to the middle of an opening to lock onto it
 
 export function attachTools(ctx, editing) {
   const { canvas, app, render, toPlan, getDoc, getView } = ctx;
@@ -114,6 +117,53 @@ export function attachTools(ctx, editing) {
       x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
       w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y),
     };
+  }
+
+  // ------------------------------------------- hallway meets an opening --
+  // The middle of the opening a point is near (the magnet; off while Alt is held), or null.
+  function openingNear(p) {
+    if (!app.magnet) return null;
+    const reach = SNAP_OPENING / (canvas.getZoom() || 1);
+    let best = null;
+    for (const o of openingCentres(app.doc)) {
+      const d = Math.hypot(o.centre[0] - p.x, o.centre[1] - p.y);
+      if (d <= reach && (!best || d < best.d)) best = { ...o, d };
+    }
+    return best;
+  }
+  // The hallway box dragged from `a` to `b`. An end on an opening sits exactly on its middle, and the hallway is
+  // centred on it, across the wall (the far end only says how wide: twice its distance, else the opening's width).
+  function hallBox(a, b, oa, ob) {
+    const box = boxOf(a, b);
+    if (oa && ob) {
+      if (oa.horizontal !== ob.horizontal) return box;
+      const vert = oa.horizontal; // walls run along x, so the hallway runs along y and its width is along x
+      const gap = vert ? Math.abs(a.x - b.x) : Math.abs(a.y - b.y);
+      if (gap >= MIN_BOX) return box;
+      const mid = vert ? (a.x + b.x) / 2 : (a.y + b.y) / 2;
+      return vert ? { ...box, x: Math.round(mid - OPENING / 2), w: OPENING } : { ...box, y: Math.round(mid - OPENING / 2), h: OPENING };
+    }
+    const o = oa || ob;
+    if (!o) return box;
+    const e = oa ? a : b, far = oa ? b : a;
+    if (o.horizontal) {
+      const d = Math.abs(far.x - e.x), half = d * 2 >= MIN_BOX ? d : OPENING / 2;
+      return { x: e.x - half, w: 2 * half, y: Math.min(e.y, far.y), h: Math.abs(far.y - e.y) };
+    }
+    const d = Math.abs(far.y - e.y), half = d * 2 >= MIN_BOX ? d : OPENING / 2;
+    return { y: e.y - half, h: 2 * half, x: Math.min(e.x, far.x), w: Math.abs(far.x - e.x) };
+  }
+  function snapRings(list) {
+    const zoom = canvas.getZoom() || 1;
+    draft.rings = draft.rings || [];
+    list.forEach((o, i) => {
+      if (!draft.rings[i]) {
+        draft.rings[i] = addPreview(new fabric.Circle({ originX: 'center', originY: 'center', fill: 'transparent', strokeWidth: 3 }));
+      }
+      draft.rings[i].set({ left: o.centre[0], top: o.centre[1], radius: 10 / zoom, stroke: o.color, strokeWidth: 3 / zoom, visible: true });
+      draft.rings[i].setCoords();
+    });
+    for (let i = list.length; i < draft.rings.length; i += 1) draft.rings[i].set({ visible: false });
   }
 
   const MIN_STAIR = 20;
@@ -220,6 +270,23 @@ export function attachTools(ctx, editing) {
     app.commit(addItem(app.doc, { id: newId(), type: 'door', ...geom, kind: 'EXIT' }), 'Place door');
   }
 
+  // ------------------------------------------------ connect point (a link) --
+  // The palette arms one point of a link (app.connectArm = { pair, slot, color }); the next click on a wall of a building
+  // places it ON that wall. Placing it again moves it.
+  function placeConnect(raw) {
+    const arm = app.connectArm;
+    if (!arm) { app.setTool('select'); return; }
+    const hit = wallAt(app.doc, [raw.x, raw.y], Math.max(40, 24 / (canvas.getZoom() || 1)));
+    if (!hit) { app.toast('Click on a wall of a building.'); return; }
+    const o = outlinesOf(app.doc).find((i) => i.id === hit.outline);
+    const item = { id: newId(), type: 'connect', pair: arm.pair, slot: arm.slot, color: arm.color, outline: hit.outline, piece: o && o.piece, x: hit.x, y: hit.y };
+    const rest = app.doc.items.filter((i) => !(i.type === 'connect' && i.pair === arm.pair && i.slot === arm.slot));
+    app.connectArm = null;
+    app.commit({ ...app.doc, items: [...rest, item] }, 'Place connection point');
+    app.setTool('select');
+  }
+  const connectHint = () => (app.connectArm ? `Click a wall of a building for point ${app.connectArm.slot}. Press Esc to cancel.` : HINTS.connect);
+
   // ------------------------------------------------------- mouse plumbing --
   function drawing() {
     const n = app.toolName;
@@ -229,7 +296,13 @@ export function attachTools(ctx, editing) {
   canvas.on('mouse:down', (opt) => {
     if (!drawing() || !opt.e || opt.e.button === 1) return;
     const tool = app.toolName;
-    const pt = snapPt(toPlan(opt.e.clientX, opt.e.clientY), opt.e);
+    if (tool === 'connect') { placeConnect(toPlan(opt.e.clientX, opt.e.clientY)); return; }
+    let pt = snapPt(toPlan(opt.e.clientX, opt.e.clientY), opt.e);
+    let startOpen = null;
+    if (tool === 'hall') {
+      startOpen = openingNear(toPlan(opt.e.clientX, opt.e.clientY));
+      if (startOpen) pt = { x: startOpen.centre[0], y: startOpen.centre[1] };
+    }
     if (tool === 'floor') {
       if (!draft || draft.kind !== 'floor') draft = { kind: 'floor', points: [], objs: [] };
       const zoom = canvas.getZoom() || 1;
@@ -265,7 +338,7 @@ export function attachTools(ctx, editing) {
       app.setTool('select');
       return;
     }
-    draft = { kind: tool, start: pt, box: { x: pt.x, y: pt.y, w: 0, h: 0 }, objs: [] };
+    draft = { kind: tool, start: pt, box: { x: pt.x, y: pt.y, w: 0, h: 0 }, objs: [], startOpen };
   });
 
   canvas.on('mouse:move', (opt) => {
@@ -290,9 +363,16 @@ export function attachTools(ctx, editing) {
       doorPreview(draft.door);
       return;
     }
+    if (draft.kind === 'hall') {
+      const endOpen = openingNear(toPlan(opt.e.clientX, opt.e.clientY));
+      const end = endOpen ? { x: endOpen.centre[0], y: endOpen.centre[1] } : pt;
+      draft.box = hallBox(draft.start, end, draft.startOpen, endOpen);
+      snapRings([draft.startOpen, endOpen].filter(Boolean));
+      boxPreview('rgba(120,176,224,0.22)', '#5b9bd5');
+      return;
+    }
     draft.box = boxOf(draft.start, pt);
-    if (draft.kind === 'hall') boxPreview('rgba(120,176,224,0.22)', '#5b9bd5');
-    else boxPreview('rgba(47,111,235,0.10)', '#2f6feb');
+    boxPreview('rgba(47,111,235,0.10)', '#2f6feb');
   });
 
   canvas.on('mouse:dblclick', () => {
@@ -430,8 +510,8 @@ export function attachTools(ctx, editing) {
     return false;
   }
   const stubs = {};
-  for (const name of ['select', 'floor', 'door', 'hall', 'room', 'poly', 'stair', 'compass', 'pan', 'authwall']) {
-    stubs[name] = { name, hint: HINTS[name] || '', onKey, cancel: clearDraft };
+  for (const name of ['select', 'floor', 'door', 'hall', 'room', 'poly', 'stair', 'compass', 'pan', 'authwall', 'connect']) {
+    stubs[name] = { name, get hint() { return name === 'connect' ? connectHint() : (HINTS[name] || ''); }, onKey, cancel: clearDraft };
   }
 
   void getDoc;

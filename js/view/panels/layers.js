@@ -1,6 +1,7 @@
 // layers.js
-// "View layers" sidebar: selected item(s) on top, the items overlapping the
-// selection (red, click to select), and an all-layers list grouped by type.
+// "View layers" sidebar: a two-layer tree on top (Photo: each photo of the project; Drawing: everything on the plan, grouped by
+// piece and then by type, with an eye on every row and header), then the selected item(s) and the items overlapping the
+// selection (red, click to select).
 // It temporarily replaces the properties column while open (toggle: the
 // View > View layers button, or the panel's x).
 // Depends on: js/model/overlaps.js, js/model/document.js (roomPolygon).
@@ -44,6 +45,18 @@ const STYLE = `
 #layers-panel .ly-off .ly-row { opacity:.5; }
 #layers-panel .ly-pbtn { flex:none; font:inherit; font-size:12px; padding:0 10px; border:1px solid #c5ccd6; border-radius:6px; background:#fff; cursor:pointer; }
 #layers-panel .ly-pbtn:hover { background:#eef3fe; }
+#layers-panel .ly-gh { display:flex; align-items:stretch; gap:4px; margin:0 0 3px; }
+#layers-panel .ly-chev { flex:none; width:20px; display:flex; align-items:center; justify-content:center; padding:0; border:0; background:none; color:#6b7078; cursor:pointer; }
+#layers-panel .ly-chev svg { width:12px; height:12px; display:block; transition:transform .12s; }
+#layers-panel .ly-chev[aria-expanded="true"] svg { transform:rotate(90deg); }
+#layers-panel .ly-gname { flex:1; min-width:0; text-align:left; font:inherit; color:inherit; background:none; border:0; padding:3px 2px; cursor:pointer; }
+#layers-panel .ly-gname small { color:#6b7078; font-size:11px; margin-left:6px; font-weight:400; text-transform:none; letter-spacing:0; }
+#layers-panel .ly-lv0 .ly-gname { font-weight:600; font-size:13px; }
+#layers-panel .ly-lv1 .ly-gname { font-weight:600; }
+#layers-panel .ly-lv2 .ly-gname { font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:#6b7078; }
+#layers-panel .ly-gh.ly-off .ly-gname { opacity:.5; }
+#layers-panel .ly-gb { margin:0 0 6px 9px; padding-left:6px; border-left:2px solid #e1e4e9; }
+#layers-panel .ly-lv0-wrap { margin:0 0 8px; }
 #layers-panel .ly-selall { font:inherit; font-size:11px; font-weight:500; padding:2px 8px; border:1px solid #e5484d; border-radius:6px; background:#fff; color:#9b1c1f; cursor:pointer; }
 `;
 
@@ -55,7 +68,9 @@ const GROUPS = [
   ['Stairs', (i) => i.type === 'stair'],
   ['Doors', (i) => i.type === 'door'],
   ['Compass & legend', (i) => i.type === 'compass' || i.type === 'legend'],
+  ['Connections', (i) => i.type === 'connect'],
 ];
+const KNOWN = (i) => GROUPS.some(([, pred]) => pred(i));
 
 export function itemTitle(it) {
   if (it.type === 'room') {
@@ -88,10 +103,13 @@ function el(tag, cls, text) {
   return e;
 }
 
-function row(it, cls, sub, onClick) {
+// in the tree an outline item is just "Outline" and a connection point "Connection"
+const treeTitle = (it) => (it.type === 'outline' && it.id ? 'Outline' : it.type === 'connect' ? 'Connection' : itemTitle(it));
+
+function row(it, cls, sub, onClick, title) {
   const b = el('button', `ly-row ${cls || ''}`);
   b.type = 'button';
-  b.appendChild(document.createTextNode(itemTitle(it)));
+  b.appendChild(document.createTextNode(title || itemTitle(it)));
   b.appendChild(el('small', null, sub));
   if (onClick) b.addEventListener('click', onClick);
   return b;
@@ -111,6 +129,8 @@ function eyeBtn(hidden, what, onToggle) {
   return b;
 }
 
+const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+
 const naturalCmp = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
 export function mountLayers(app) {
@@ -124,6 +144,8 @@ export function mountLayers(app) {
   if (props) props.insertBefore(panel, props.firstChild);
   let open = false, raf = 0;
   let fix = null; // staged "Fix overlaps" session
+  const treeOpen = new Map(); // group key -> expanded? (remembered while the app is open)
+  const isOpen = (key, dflt) => (treeOpen.has(key) ? treeOpen.get(key) : dflt);
 
   const notes = createNotesFlow(app, { el, render: () => render(), revert: () => revert() });
   const ckey = (c) => c.items.map((i) => i.id).sort().join('|');
@@ -212,6 +234,116 @@ export function mountLayers(app) {
   }
   const select = (id) => app.setSelection([id]);
 
+  // one collapsible group of the tree: [chevron] [eye] name (count) [Select]; the rows go in body(parent) when it is open
+  function group(parent, o) {
+    const open = isOpen(o.key, o.open);
+    const wrap = el('div', o.level === 0 ? 'ly-lv0-wrap' : '');
+    const head = el('div', `ly-gh ly-lv${o.level}${o.cls ? ` ${o.cls}` : ''}${o.off ? ' ly-off' : ''}`);
+    const toggle = () => { treeOpen.set(o.key, !isOpen(o.key, o.open)); render(); };
+    const chev = el('button', 'ly-chev'); chev.type = 'button'; chev.innerHTML = CHEV;
+    chev.setAttribute('aria-expanded', String(open));
+    chev.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${o.title}`);
+    chev.addEventListener('click', toggle);
+    head.appendChild(chev);
+    if (o.onEye) head.appendChild(eyeBtn(o.off, o.what || o.title, o.onEye));
+    const nm = el('button', 'ly-gname', o.title); nm.type = 'button';
+    if (o.count != null) nm.appendChild(el('small', null, o.count));
+    nm.addEventListener('click', toggle);
+    head.appendChild(nm);
+    if (o.selectIds && o.selectIds.length) {
+      const sb = el('button', 'ly-pbtn', 'Select'); sb.type = 'button';
+      sb.setAttribute('aria-label', `Select ${o.title}`);
+      sb.addEventListener('click', () => app.setSelection(o.selectIds));
+      head.appendChild(sb);
+    }
+    wrap.appendChild(head);
+    if (open) { const body = el('div', 'ly-gb'); o.body(body); wrap.appendChild(body); }
+    parent.appendChild(wrap);
+  }
+
+  // the items of one piece (or of the whole plan) grouped by type, each row with its own eye
+  function typeGroups(parent, items, scope, hid, redIds) {
+    for (const [title, pred] of [...GROUPS, ['Other', (i) => !KNOWN(i)]]) {
+      const list = items.filter(pred);
+      if (!list.length) continue;
+      const ids = list.filter((i) => i.id).map((i) => i.id);
+      const off = ids.length > 0 && ids.every((id) => hid.has(id));
+      group(parent, {
+        level: 2, key: `${scope}|${title}`, open: true, title, count: String(list.length), off,
+        what: `${scope === 'all' ? '' : `${scope.replace(/^piece:/, '')} `}${title}`.trim(),
+        onEye: ids.length ? () => app.setHidden(ids, !off) : null,
+        body: (box) => {
+          for (const it of list) {
+            const red = it.id && redIds.has(it.id);
+            const on = it.id && app.selection.has(it.id);
+            const r = row(it, red ? 'ly-red' : on ? 'ly-sel' : '', itemGeom(it), it.id ? () => select(it.id) : null, treeTitle(it));
+            if (!it.id) { box.appendChild(r); continue; } // the building outline is not an item: it has no eye
+            const iOff = hid.has(it.id);
+            const line = el('div', `ly-line${iOff ? ' ly-off' : ''}`);
+            line.appendChild(eyeBtn(iOff, treeTitle(it), () => app.setHidden([it.id], !iOff)));
+            line.appendChild(r);
+            box.appendChild(line);
+          }
+        },
+      });
+    }
+  }
+
+  // the two layers: Photo (one row per photo of the project) and Drawing (pieces, then types)
+  function renderTree(doc, hid, redIds) {
+    const p = app.project, hp = app.hiddenPhotos ? app.hiddenPhotos() : new Set();
+    const photos = [];
+    if (p && p.photo && p.photo.dataUrl) photos.push({ idx: 0, name: 'Photo 1', ph: p.photo });
+    ((p && p.extraPhotos) || []).forEach((e, j) => { if (e && e.dataUrl) photos.push({ idx: j + 1, name: `Photo ${j + 2}`, ph: e }); });
+    if (photos.length) {
+      const pids = photos.map((x) => `photo:${x.idx}`);
+      const off = photos.every((x) => hp.has(x.idx));
+      group(panel, {
+        level: 0, key: 'layer:photo', open: true, title: 'Photo', count: `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`, off,
+        what: 'all photos', onEye: () => app.setHidden(pids, !off),
+        body: (box) => {
+          for (const x of photos) {
+            const o = hp.has(x.idx);
+            const line = el('div', `ly-line ly-photo${o ? ' ly-off' : ''}`);
+            line.appendChild(eyeBtn(o, `${x.name} picture`, () => app.setHidden([`photo:${x.idx}`], !o)));
+            const lab = el('div', 'ly-row ly-static', x.name);
+            lab.appendChild(el('small', null, `${x.idx === 0 ? 'Main photo' : 'Extra photo'}${x.ph.width ? ` · ${Math.round(x.ph.width)} x ${Math.round(x.ph.height || 0)}` : ''}`));
+            line.appendChild(lab);
+            box.appendChild(line);
+          }
+        },
+      });
+    }
+
+    const all = doc.items.filter(Boolean);
+    const allIds = all.filter((i) => i.id).map((i) => i.id);
+    const offAll = allIds.length > 0 && allIds.every((id) => hid.has(id));
+    const outlineRow = doc.floor && doc.floor.points ? [{ id: null, type: 'outline', points: doc.floor.points }] : [];
+    const pieces = new Map(); // piece name -> items (AutoBuild tags the items of each photo of a multi-photo floor)
+    const loose = [];
+    for (const it of all) { if (typeof it.piece === 'string' && it.piece) { if (!pieces.has(it.piece)) pieces.set(it.piece, []); pieces.get(it.piece).push(it); } else loose.push(it); }
+    group(panel, {
+      level: 0, key: 'layer:drawing', open: true, title: 'Drawing', count: `${all.length} ${all.length === 1 ? 'item' : 'items'}`, off: offAll,
+      what: 'the whole drawing', onEye: allIds.length ? () => app.setHidden(allIds, !offAll) : null,
+      body: (box) => {
+        if (!pieces.size) { typeGroups(box, [...outlineRow, ...loose], 'all', hid, redIds); return; }
+        const dflt = pieces.size <= 2; // many pieces: start folded so the list stays short
+        const sub = (key, name, items, cls) => {
+          const ids = items.filter((i) => i.id).map((i) => i.id);
+          const off = ids.length > 0 && ids.every((id) => hid.has(id));
+          const n = items.length;
+          group(box, {
+            level: 1, key, open: dflt, title: name, cls, count: `${n} ${n === 1 ? 'item' : 'items'}`, off, what: `${name} plan`,
+            onEye: ids.length ? () => app.setHidden(ids, !off) : null, selectIds: ids,
+            body: (b2) => typeGroups(b2, items, key, hid, redIds),
+          });
+        };
+        for (const name of [...pieces.keys()].sort(naturalCmp)) sub(`piece:${name}`, name, pieces.get(name), 'ly-piece');
+        if (loose.length || outlineRow.length) sub('whole', 'Whole plan', [...outlineRow, ...loose], 'ly-whole');
+      },
+    });
+  }
+
   function render() {
     if (!open || !app.doc) return;
     const doc = app.doc;
@@ -237,27 +369,7 @@ export function mountLayers(app) {
     if (notes.active()) { notes.renderCard(panel); return; }
 
     const hid = app.hiddenIds ? app.hiddenIds() : new Set();
-    const pieces = new Map(); // piece name -> items (AutoBuild tags the items of each photo of a multi-photo floor)
-    for (const it of doc.items) if (typeof it.piece === 'string' && it.piece) { if (!pieces.has(it.piece)) pieces.set(it.piece, []); pieces.get(it.piece).push(it); }
-    if (pieces.size) {
-      panel.appendChild(el('h4', null, `Pieces (${pieces.size})`));
-      panel.appendChild(el('div', 'ly-hint', 'Each photo was built on its own. Select a piece, then move or turn it into place; hide the others with the eye.'));
-      for (const name of [...pieces.keys()].sort(naturalCmp)) {
-        const its = pieces.get(name), ids = its.map((i) => i.id);
-        const off = ids.every((id) => hid.has(id));
-        const rooms = its.filter((i) => i.type === 'room').length;
-        const line = el('div', `ly-line ly-piece${off ? ' ly-off' : ''}`);
-        line.appendChild(eyeBtn(off, name, () => app.setHidden(ids, !off)));
-        const lab = el('div', 'ly-row ly-static', name);
-        lab.appendChild(el('small', null, `${rooms} ${rooms === 1 ? 'room' : 'rooms'}`));
-        line.appendChild(lab);
-        const sb = el('button', 'ly-pbtn', 'Select'); sb.type = 'button';
-        sb.setAttribute('aria-label', `Select ${name}`);
-        sb.addEventListener('click', () => app.setSelection(ids));
-        line.appendChild(sb);
-        panel.appendChild(line);
-      }
-    }
+    renderTree(doc, hid, redIds);
     if (sel.length) {
       panel.appendChild(el('h4', null, sel.length > 1 ? `Selected (${sel.length})` : 'Selected'));
       for (const it of sel) panel.appendChild(row(it, 'ly-sel', itemGeom(it)));
@@ -289,31 +401,10 @@ export function mountLayers(app) {
         panel.appendChild(wrap);
       });
     }
-
-    panel.appendChild(el('h4', null, 'All layers'));
-    const all = doc.items.slice();
-    if (doc.floor && doc.floor.points) all.unshift({ id: null, type: 'outline', points: doc.floor.points });
-    for (const [title, pred] of GROUPS) {
-      const list = all.filter(pred);
-      if (!list.length) continue;
-      panel.appendChild(el('h4', null, `${title} (${list.length})`));
-      for (const it of list) {
-        const red = it.id && redIds.has(it.id);
-        const on = it.id && app.selection.has(it.id);
-        const cls = red ? 'ly-red' : on ? 'ly-sel' : '';
-        const r = row(it, cls, itemGeom(it), it.id ? () => select(it.id) : null);
-        if (!it.id) { panel.appendChild(r); continue; } // the outline is not an item: it has no eye
-        const off = hid.has(it.id);
-        const line = el('div', `ly-line${off ? ' ly-off' : ''}`);
-        line.appendChild(eyeBtn(off, itemTitle(it), () => app.setHidden([it.id], !off)));
-        line.appendChild(r);
-        panel.appendChild(line);
-      }
-    }
   }
 
   function schedule() { if (open && !raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
-  const unsub = app.subscribe((e) => { if (e.type === 'doc') notes.onDoc(); if (e.type === 'doc' || e.type === 'selection' || e.type === 'hidden') schedule(); });
+  const unsub = app.subscribe((e) => { if (e.type === 'doc') notes.onDoc(); if (e.type === 'doc' || e.type === 'selection' || e.type === 'hidden' || e.type === 'project') schedule(); });
   const onBtn = (e) => {
     e.stopPropagation();
     setOpen(!open);

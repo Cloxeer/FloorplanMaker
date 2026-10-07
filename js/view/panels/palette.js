@@ -8,6 +8,9 @@ import { chipSvg, ghostSvg } from './paletteIcons.js';
 import { setFloor, removeItems, findLegend } from '../../model/document.js';
 import { straightenOutline } from '../rectify.js';
 import { autoOutline } from '../../model/outlineRestore.js';
+import {
+  hasPieces, outlinesOf, pieceOutlines, linksOf, linkState, mergeReady, mergeOutlines, nextColor, LINK_COLORS, COLOR_NAMES,
+} from '../../model/connect.js';
 
 const PIECES = [
   { key: 'room', label: 'Room' },
@@ -32,6 +35,14 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
       <button type="button" class="btn-big-tool" id="btn-auto-outline" hidden title="Draw the outline round the rooms, halls and stairs that are on the plan">Auto-outline</button>
       <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
+      <div class="connect-section" id="connect-section" hidden>
+        <h5>Connect hallways</h5>
+        <p class="step-desc">Mark a point on a wall of each building, then draw the hallway between them with the hallway tool.</p>
+        <div id="link-list"></div>
+        <button type="button" class="btn-big-tool" id="btn-add-link">Add a connection</button>
+        <button type="button" class="btn-big-tool" id="btn-merge">Merge into one outline</button>
+        <p class="step-desc" id="merge-hint"></p>
+      </div>
     </div>
     <div class="palette-step" data-step="door">
       <h4>2. Add doors and stairs</h4>
@@ -111,6 +122,7 @@ export function mountPalette(el, app) {
   if (autoBtn) {
     autoBtn.addEventListener('click', () => {
       autoBtn.blur();
+      if (piecesMode()) { autoOutlinePieces(); return; }
       const r = autoOutline(app.doc);
       if (!r) { app.toast('Add a room first, or draw the outline by hand.'); return; }
       app.commit(setFloor(app.doc, r.points), 'Auto-outline');
@@ -118,6 +130,89 @@ export function mountPalette(el, app) {
       app.toast('Drew the outline around your rooms. Use Edit outline to fine-tune it (Undo puts the old one back).');
     });
   }
+
+  // A floor built from several photos is outlined building by building: one outline item per piece, never bridged.
+  const piecesMode = () => hasPieces(app.doc) && !hasFloor();
+  function autoOutlinePieces() {
+    const fresh = pieceOutlines(app.doc);
+    if (!fresh.length) { app.toast('Add a room first, or draw the outline by hand.'); return; }
+    const old = new Map(outlinesOf(app.doc).map((o) => [o.piece, o]));
+    const mine = new Set(fresh.map((o) => o.piece));
+    // the same piece again replaces its outline (keeping its id, so the connection points on it stay with it)
+    const kept = app.doc.items.filter((it) => !(it.type === 'outline' && mine.has(it.piece)));
+    const made = fresh.map((o) => (old.has(o.piece) ? { ...o, id: old.get(o.piece).id } : o));
+    app.commit({ ...app.doc, items: [...kept, ...made] }, 'Auto-outline');
+    app.toast(`Drew an outline round each of ${made.length} building${made.length === 1 ? '' : 's'}. Buildings are not joined: use Connect hallways to link them.`);
+  }
+
+  // --- Connect hallways: colored links, point 1 and point 2 each placed by a click on a wall ---
+  const connectSection = el.querySelector('#connect-section');
+  const linkList = el.querySelector('#link-list');
+  const addLinkBtn = el.querySelector('#btn-add-link');
+  const mergeBtn = el.querySelector('#btn-merge');
+  const mergeHint = el.querySelector('#merge-hint');
+  const draftLinks = []; // links with no point placed yet: { pair, color } (they exist in the document once a point is)
+  function allLinks() {
+    const real = linksOf(app.doc);
+    const have = new Set(real.map((l) => l.pair));
+    for (let i = draftLinks.length - 1; i >= 0; i--) if (have.has(draftLinks[i].pair)) draftLinks.splice(i, 1);
+    return real.concat(draftLinks.map((d) => ({ pair: d.pair, color: d.color, one: null, two: null })));
+  }
+  const colorName = (c) => COLOR_NAMES[Math.max(0, LINK_COLORS.indexOf(c))] || 'Link';
+  function renderLinks() {
+    const has = outlinesOf(app.doc).length > 0;
+    connectSection.hidden = !has;
+    if (!has) return;
+    const arm = app.connectArm;
+    linkList.innerHTML = allLinks().map((l) => {
+      const st = linkState(app.doc, l);
+      const pt = (slot, c) => `<button type="button" class="link-pt" data-pair="${l.pair}" data-slot="${slot}" style="--c:${l.color}" aria-pressed="${!!arm && arm.pair === l.pair && arm.slot === slot}" title="${c ? 'Move point ' + slot : 'Place point ' + slot} on a wall">${slot}</button>`;
+      const status = !st.placed ? 'Place both points'
+        : `Hallway to opening <span class="chk${st.oneHall ? ' ok' : ''}">1${st.oneHall ? ' ✓' : ''}</span> <span class="chk${st.twoHall ? ' ok' : ''}">2${st.twoHall ? ' ✓' : ''}</span>`;
+      return `<div class="link-row" data-pair="${l.pair}"><span class="link-dot" style="--c:${l.color}" title="${colorName(l.color)}"></span>${pt(1, l.one)}${pt(2, l.two)}<span class="link-status">${status}</span><button type="button" class="link-x" data-remove="${l.pair}" title="Remove this connection" aria-label="Remove this connection">×</button></div>`;
+    }).join('');
+    const ready = mergeReady(app.doc);
+    mergeBtn.disabled = !ready;
+    mergeHint.textContent = ready ? 'Every opening has a hallway.' : 'Draw a hallway to each opening first';
+    addLinkBtn.disabled = allLinks().length >= LINK_COLORS.length;
+  }
+  addLinkBtn.addEventListener('click', () => {
+    addLinkBtn.blur();
+    const used = new Set(allLinks().map((l) => l.color));
+    const color = LINK_COLORS.find((c) => !used.has(c)) || nextColor(app.doc);
+    draftLinks.push({ pair: `link-${Date.now().toString(36)}${draftLinks.length}`, color });
+    renderLinks();
+  });
+  linkList.addEventListener('click', (e) => {
+    const rm = e.target.closest('[data-remove]');
+    if (rm) {
+      const pair = rm.dataset.remove;
+      const i = draftLinks.findIndex((d) => d.pair === pair);
+      if (i >= 0) draftLinks.splice(i, 1);
+      if (app.doc.items.some((it) => it.type === 'connect' && it.pair === pair)) app.commit({ ...app.doc, items: app.doc.items.filter((it) => !(it.type === 'connect' && it.pair === pair)) }, 'Remove connection');
+      else renderLinks();
+      return;
+    }
+    const b = e.target.closest('.link-pt');
+    if (!b) return;
+    const slot = Number(b.dataset.slot);
+    const arm = app.connectArm;
+    if (app.toolName === 'connect' && arm && arm.pair === b.dataset.pair && arm.slot === slot) { app.setTool('select'); return; } // pressed again: cancel
+    const l = allLinks().find((x) => x.pair === b.dataset.pair);
+    if (!l) return;
+    app.connectArm = { pair: l.pair, slot, color: l.color };
+    app.setTool('connect');
+  });
+  mergeBtn.addEventListener('click', () => {
+    mergeBtn.blur();
+    if (!mergeReady(app.doc)) return;
+    const next = mergeOutlines(app.doc);
+    if (!next) { app.toast('Could not draw one outline round everything.'); return; }
+    draftLinks.length = 0;
+    app.commit(next, 'Merge into one outline');
+    if (app.setSelection) app.setSelection(['floor']);
+    app.toast('The buildings are now one outline. Use Edit outline to fine-tune it (Undo puts the pieces back).');
+  });
 
   const straightenBtn = el.querySelector('#btn-straighten');
   if (straightenBtn) {
@@ -178,7 +273,13 @@ export function mountPalette(el, app) {
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
-    if (autoBtn) { autoBtn.hidden = !hasPlan(); autoBtn.textContent = hasFloor() ? 'Auto-outline again' : 'Auto-outline'; }
+    if (autoBtn) {
+      autoBtn.hidden = !hasPlan();
+      autoBtn.textContent = (hasFloor() || outlinesOf(app.doc).length) ? 'Auto-outline again' : 'Auto-outline';
+      autoBtn.title = piecesMode() ? 'Draw an outline round each building (each photo), without joining them' : 'Draw the outline round the rooms, halls and stairs that are on the plan';
+    }
+    if (app.toolName !== 'connect') app.connectArm = null; // a placing mode ends with its tool (Esc, another tool, or a click)
+    renderLinks();
     if (detectDoorsBtn) detectDoorsBtn.disabled = !STEP_UNLOCKED.door();
     if (detectHallsBtn) detectHallsBtn.disabled = !STEP_UNLOCKED.hall();
     if (detectRoomsBtn) detectRoomsBtn.disabled = !STEP_UNLOCKED.room();

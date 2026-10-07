@@ -214,9 +214,16 @@ guides).
 
 The eye (View layers list): `app.setHidden(ids, on)` keeps `project.hidden` (saved with the project, emits `{type:'hidden'}`);
 `stage.js` `applyHidden()` then makes those objects (and their labels) invisible and non-evented, after every `setDoc` and on that event, and
-`app.setSelection` skips hidden ids. It is view-only: no undo step, nothing deleted, and hidden items are still exported and validated. Items
-AutoBuild built from one photo of a multi-photo floor carry `piece` ("Photo 1"...): the Pieces section at the top of All layers has one eye +
-Select per piece.
+`app.setSelection` skips hidden ids. It is view-only: no undo step, nothing deleted, and hidden items are still exported and validated.
+The Layers panel opens with a two-layer tree (`layers.js` `renderTree`): **Photo** (one row + eye per photo that exists: `photo:0` = project.photo,
+`photo:N` = extraPhotos[N-1]; the header eye hides all) and **Drawing** (a master eye over every item id; the building outline `doc.floor` has no id
+and no eye). Inside Drawing, items AutoBuild built from one photo of a multi-photo floor carry `piece` ("Photo 1"...): one group per piece (natural
+order; eye, Select, item count; folded by default when there are more than 2 pieces) and a final "Whole plan" group for the rest; with no pieces
+the type groups (Outline, Hallways, Rooms, Cores & voids, Stairs, Doors, Compass & legend, Connections) sit directly in Drawing. Every header has an
+eye ("all its items hidden" = off) and a chevron; the folded state lives in memory for the session. Hidden photos are the ids `photo:N` in
+`project.hidden` (`app.hiddenPhotos()` -> Set of indexes; `app.hiddenIds()` drops them since they match no item): `photoLayer.js` `place()` sets
+the main photo (canvas.backgroundImage) and the extras invisible, `stage.js` `setPhoto` applies it to a freshly loaded main photo, and Arrange mode
+leaves hidden photos out of its list (not drawn, not hit, not fitted).
 
 `stageView.js`: viewport - `toPlan`, fit-to-document zoom, `zoomToPoint` wheel
 zoom (0.1..8), space / middle-button / pan-tool dragging via `viewportTransform`,
@@ -266,6 +273,15 @@ Deleted outline (`model/outlineRestore.js`, `view/outlinePrompt.js`): the last
 outline and where the pieces sat are remembered. The card over the stage offers
 Restore (the old outline carried to wherever the pieces are now, widened to hold
 them), Auto-outline (a fresh outline round the pieces) and Draw it again.
+
+Joining buildings by hand (`model/connect.js`, `palette.js` "Connect hallways", `stageTools.js` 'connect' tool): for a plan with
+`piece` items and no `doc.floor`, Auto-outline adds one working item `{type:'outline', piece, points}` per piece (never bridged, never
+exported, not in `doc.floor`). A colored link is two `{type:'connect', pair, slot:1|2, color, outline, piece, x, y}` items placed ON an
+outline wall by a click; once both exist the wall is drawn with a gap there (`wallStretches`; the outline's points are untouched, and
+`stage.js` redraws every outline when the connect set changes). The person draws the hallway with the hall tool, whose ends snap to
+`openingCentres(doc)` (also magnet targets in `stageSnap.js` / `app.snap`) and which comes out centred on the opening. When `mergeReady`
+the palette's "Merge into one outline" runs `mergeOutlines` (one undo step): items gone, one `doc.floor`. Both types move / turn /
+delete with their piece (`turn.js`, `stageEdit.js` `rigidPatch`), honor the eye, and are skipped by the export.
 
 Hotkeys: V select, R room, F floor, O door, A hallway, S stair, C compass,
 G grid, H flash photo (hold), Delete, arrows nudge, Ctrl+Z / Ctrl+Shift+Z /

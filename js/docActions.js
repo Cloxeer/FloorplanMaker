@@ -51,7 +51,7 @@ export function createActions(app, deps) {
     });
   }
   function copy() {
-    const items = [...app.selection].filter((id) => id !== 'floor').map((id) => getItem(app.doc, id)).filter(Boolean);
+    const items = [...app.selection].filter((id) => id !== 'floor').map((id) => getItem(app.doc, id)).filter((it) => it && it.type !== 'outline' && it.type !== 'connect'); // working helpers are not copied
     if (items.length) app.clipboard = items.map((it) => JSON.parse(JSON.stringify(it)));
   }
 

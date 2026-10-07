@@ -38,10 +38,12 @@ export function mountPhotoLayer(app) {
   let lastBg = null, savedView = null, pill = null, preview = null, spaceHeld = false, moved_ = false;
 
   // ---- the photos, as one list: main photo first, then the extras
+  // a photo hidden with the eye in Layers ('photo:0' = main, 'photo:1' = first extra...) is not in this list: it cannot be hit or arranged
+  const hiddenPh = () => (app.hiddenPhotos ? app.hiddenPhotos() : new Set());
   const refs = () => {
-    const p = app.project, out = [];
-    if (p && p.photo && p.photo.dataUrl) out.push({ main: true, photo: p.photo });
-    ((p && p.extraPhotos) || []).forEach((e, j) => { if (e && e.dataUrl) out.push({ main: false, j, photo: e }); });
+    const p = app.project, out = [], hid = hiddenPh();
+    if (p && p.photo && p.photo.dataUrl && !hid.has(0)) out.push({ main: true, idx: 0, photo: p.photo });
+    ((p && p.extraPhotos) || []).forEach((e, j) => { if (e && e.dataUrl && !hid.has(j + 1)) out.push({ main: false, j, idx: j + 1, photo: e }); });
     return out;
   };
   const list = () => refs().map((r) => r.photo);
@@ -57,8 +59,9 @@ export function mountPhotoLayer(app) {
   const bgOpacity = () => (canvas.backgroundImage ? canvas.backgroundImage.opacity : 0.5);
   function place() {
     const p = app.project; if (!p) return;
-    const bg = canvas.backgroundImage;
+    const bg = canvas.backgroundImage, hid = hiddenPh();
     if (bg) {
+      bg.visible = !hid.has(0);
       if (!bg.__base) bg.__base = [bg.scaleX, bg.scaleY];
       const t = tOf(p.photo);
       bg.set({ left: t.x, top: t.y, angle: t.a, scaleX: bg.__base[0] * t.s, scaleY: bg.__base[1] * t.s });
@@ -66,6 +69,7 @@ export function mountPhotoLayer(app) {
     }
     extraObjs.forEach(({ obj, j }) => {
       const e = (p.extraPhotos || [])[j]; if (!e) return;
+      obj.visible = !hid.has(j + 1);
       const t = tOf(e);
       obj.set({ left: t.x, top: t.y, angle: t.a, scaleX: (e.width / obj.width) * t.s, scaleY: (e.height / obj.height) * t.s });
       obj.setCoords();
@@ -141,7 +145,7 @@ export function mountPhotoLayer(app) {
           ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = (on ? 4 : 2) * px; ctx.setLineDash(on ? [] : [10 * px, 6 * px]); ctx.stroke(); ctx.setLineDash([]);
           if (on) c.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 7 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5 * px; ctx.stroke(); });
           ctx.font = `${600} ${14 * px}px sans-serif`; ctx.fillStyle = BLUE;
-          ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${i + 1}`, c[0][0] + 8 * px, c[0][1] + 20 * px);
+          ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${refs()[i] ? refs()[i].idx + 1 : i + 1}`, c[0][0] + 8 * px, c[0][1] + 20 * px);
         });
       } else if (mode === 'drawing') {
         const b = currentFrame();
@@ -327,7 +331,7 @@ export function mountPhotoLayer(app) {
   const origOnion = app.canvas.setOnion, origFlash = app.canvas.flashPhoto;
   app.canvas.setOnion = (op) => { if (mode === 'photo') arrangeOpacity = op; else origOnion(op); paintOpacity(); canvas.requestRenderAll(); };
   app.canvas.flashPhoto = (on) => { if (mode === 'photo') return; origFlash(on); for (const { obj } of extraObjs) obj.opacity = on ? 1 : bgOpacity(); canvas.requestRenderAll(); };
-  const unsub = app.subscribe((e) => { if (e.type === 'project' || e.type === 'step') { sync(); watchBg(); } if (e.type === 'tool' && mode && app.toolName !== 'select' && app.toolName !== 'pan') setMode(null); });
+  const unsub = app.subscribe((e) => { if (e.type === 'project' || e.type === 'step') { sync(); watchBg(); } if (e.type === 'hidden') { sel = -1; drag = null; place(); syncPill(); redraw(); } if (e.type === 'tool' && mode && app.toolName !== 'select' && app.toolName !== 'pan') setMode(null); });
   const poll = setInterval(watchBg, 400); // the main photo loads after the studio opens
   sync();
 

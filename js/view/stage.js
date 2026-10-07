@@ -92,8 +92,8 @@ export function createStage(containerEl, app) {
     if (ex) for (const o of ex) canvas.remove(o);
     extras.delete(id);
   }
-  function addItem(item) {
-    const built = buildItem(item, app.gridOn ? 5 : null);
+  function addItem(item, forDoc) {
+    const built = buildItem(item, app.gridOn ? 5 : null, forDoc);
     if (!built.length) return;
     const [main, ...rest] = built;
     main.opacity = planOpacity;
@@ -171,18 +171,21 @@ export function createStage(containerEl, app) {
     const prevItems = prevDoc ? prevDoc.items : [];
     const prevFloor = prevDoc ? prevDoc.floor : undefined;
     const bigChange = Math.abs(newDoc.items.length - prevItems.length) > 50;
+    // an outline's walls open where the connect points are, so a change to those redraws every outline
+    const linkKey = (d) => (d && d.items ? d.items.filter((it) => it.type === 'connect').map((it) => `${it.id}:${it.outline}:${it.x}:${it.y}:${it.color}:${it.slot}`).join('|') : '');
+    const relink = linkKey(newDoc) !== linkKey(prevDoc);
     if (bigChange) {
       for (const id of [...objects.keys()]) if (id !== 'floor') dropItem(id);
-      for (const item of newDoc.items) addItem(item);
+      for (const item of newDoc.items) addItem(item, newDoc);
     } else {
       const prevById = new Map(prevItems.map((it) => [it.id, it]));
       const nextIds = new Set(newDoc.items.map((it) => it.id));
       for (const it of prevItems) if (!nextIds.has(it.id)) dropItem(it.id);
       for (const item of newDoc.items) {
         const before = prevById.get(item.id);
-        if (before === item && objects.has(item.id)) continue;
+        if (before === item && objects.has(item.id) && !(relink && item.type === 'outline')) continue;
         if (objects.has(item.id)) dropItem(item.id);
-        addItem(item);
+        addItem(item, newDoc);
       }
     }
     doc = newDoc;
@@ -299,6 +302,7 @@ export function createStage(containerEl, app) {
     });
     if (photo.width) img.scaleX = photo.width / (img.width || photo.width);
     if (photo.height) img.scaleY = photo.height / (img.height || photo.height);
+    if (app.hiddenPhotos && app.hiddenPhotos().has(0)) img.visible = false; // the eye of the Photo layer (view only)
     canvas.backgroundImage = img;
     render();
   }

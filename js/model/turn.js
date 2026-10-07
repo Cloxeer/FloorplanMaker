@@ -51,6 +51,12 @@ export function turnItem(it, q, cx, cy) {
       const [x2, y2] = spinPt([it.x2, it.y2], q, cx, cy);
       return { ...it, x1, y1, x2, y2 };
     }
+    case 'outline':
+      return { ...it, points: it.points.map((p) => spinPt(p, q, cx, cy)) };
+    case 'connect': {
+      const [x, y] = spinPt([it.x, it.y], q, cx, cy);
+      return { ...it, x, y };
+    }
     case 'compass': {
       const [x, y] = spinPt([it.x, it.y], q, cx, cy);
       return { ...it, x, y, deg: (((it.deg || 0) + 90 * q) % 360 + 360) % 360 };
@@ -82,7 +88,7 @@ export function selectionBox(doc, ids, floor = false) {
     if (!want.has(it.id) || it.type === 'legend') continue;
     if (ok(it.w) && ok(it.h)) { add(it.x, it.y); add(it.x + it.w, it.y + it.h); }
     else if (it.type === 'door' || it.type === 'authwall') { add(it.x1, it.y1); add(it.x2, it.y2); }
-    else if (it.type === 'compass') add(it.x, it.y);
+    else if (it.type === 'compass' || it.type === 'connect') add(it.x, it.y);
     if (Array.isArray(it.points)) it.points.forEach((p) => add(p[0], p[1]));
   }
   if (floor && doc.floor && Array.isArray(doc.floor.points)) doc.floor.points.forEach((p) => add(p[0], p[1]));

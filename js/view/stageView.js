@@ -10,7 +10,7 @@ import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.mi
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
-const DRAW_TOOLS = new Set(['room', 'poly', 'floor', 'door', 'hall', 'stair', 'compass']);
+const DRAW_TOOLS = new Set(['room', 'poly', 'floor', 'door', 'hall', 'stair', 'compass', 'connect']);
 
 export function attachView(canvas, app, containerEl, render) {
   const listeners = [];
