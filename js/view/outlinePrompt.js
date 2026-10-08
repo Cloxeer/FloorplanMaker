@@ -2,7 +2,8 @@
 // The card shown over the stage while the building has no outline. A plan with no outline yet: "Draw outline".
 // An outline that was just removed (Delete key, Remove outline, undo...): the old outline is remembered, so the
 // card offers Restore outline (puts it back, carried to wherever the rooms are now, moved or turned), Auto-outline
-// (draws a fresh one round the pieces on the plan) and Draw it again (by hand). Each is one undo step.
+// (draws a fresh one round the pieces on the plan), Draw it again (by hand) and Shift photos (arrange the photos first,
+// then come back to this card). Each outline choice is one undo step.
 // The buttons are static in index.html (#btn-overlay-draw is wired in mainActions.js); this only shows / hides them.
 // Depends on: js/model/outlineRestore.js, js/model/document.js (setFloor), app.commit, app.toast.
 
@@ -17,7 +18,7 @@ export function mountOutlinePrompt(app) {
   const overlay = $('start-overlay');
   if (!overlay) return { update() {}, destroy() {} };
   const title = $('overlay-title'), text = $('overlay-text');
-  const btnRestore = $('btn-overlay-restore'), btnAuto = $('btn-overlay-auto'), btnDraw = $('btn-overlay-draw');
+  const btnRestore = $('btn-overlay-restore'), btnAuto = $('btn-overlay-auto'), btnShift = $('btn-overlay-shift'), btnDraw = $('btn-overlay-draw');
   const idle = (b) => { if (b && b.blur) b.blur(); };
 
   // the last outline this floor had; seeded from the undo history so it survives re-opening the project
@@ -39,10 +40,11 @@ export function mountOutlinePrompt(app) {
     overlay.classList.toggle('has-plan', plan && !!memory);
     btnRestore.hidden = !memory;
     btnAuto.hidden = !plan;
+    btnShift.hidden = !(memory || ((app.project && app.project.extraPhotos) || []).length) || !(app.project && app.project.photo && app.project.photo.dataUrl);
     if (memory) {
       title.textContent = 'The building outline is gone';
       text.textContent = plan
-        ? 'Put it back where it was (it follows your rooms if they moved), or let the app draw a new one around them.'
+        ? 'Put it back where it was (it follows your rooms if they moved), let the app draw a new one around them, or shift the photos into place first.'
         : 'Put it back where it was, or draw a new one.';
       btnDraw.textContent = 'Draw it again';
       btnDraw.className = 'btn btn-secondary';
@@ -73,12 +75,14 @@ export function mountOutlinePrompt(app) {
     if (!r) { if (app.toast) app.toast('Add a room first, or draw the outline by hand.'); return; }
     apply(r.points, 'Auto-outline', 'Drew a new outline around your rooms. Use Edit outline to fine-tune it.');
   }
+  function onShift(e) { idle(e.currentTarget); if (app._photoLayer) app._photoLayer.setMode('photo'); } // the card comes back when the photos are done
   btnRestore.addEventListener('click', onRestore);
+  btnShift.addEventListener('click', onShift);
   btnAuto.addEventListener('click', onAuto);
   update();
 
   return {
     update,
-    destroy() { btnRestore.removeEventListener('click', onRestore); btnAuto.removeEventListener('click', onAuto); },
+    destroy() { btnRestore.removeEventListener('click', onRestore); btnAuto.removeEventListener('click', onAuto); btnShift.removeEventListener('click', onShift); },
   };
 }

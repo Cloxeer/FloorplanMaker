@@ -2,17 +2,22 @@
 // Several photos on one floor, and moving photos or the drawing to line them up.
 //  - Extra photos (project.extraPhotos) are drawn under the plan, next to the main photo.
 //  - View > the buttons left of "Photo" and "Drawing" select that layer. Photo: every photo is outlined, drag one
-//    to move it (and use - + and the turn buttons to match size and angle); the drawing is shown faint. Drawing:
+//    to move it, drag a corner of the selected one to turn it (Shift: 15 degree steps; the cursor shows a turn arrow
+//    there), use - + to match size; the drawing is shown faint. Drawing:
 //    drag anywhere to slide the whole drawing over the photos. "Done" (or Esc) puts you back to normal.
 //  - app._photoLayer.arrange() is used right after importing several photos: they arrive apart, ready to move.
 // A photo's placement is saved with the project (photo.t); sliding the drawing is one undo step.
 // Depends on: js/model/photos.js, fabric (same build as the stage), app.canvas.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { tOf, photoCorners, hitPhoto, unionBox, moved, scaledBy, turnedBy, translateDoc, scaleDoc, snapPhoto } from '../model/photos.js';
+import { tOf, photoCorners, photoCentre, hitPhoto, unionBox, moved, scaledBy, turnedBy, translateDoc, scaleDoc, snapPhoto } from '../model/photos.js';
 
 const BLUE = '#0a84ff';
 const FAINT = 0.12;
+const GRAB_PX = 18; // a corner of the selected photo turns it when the pointer is within this many screen pixels
+const TURN_STEP = 15; // degrees, with Shift held
+const TURN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(['<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">',
+  ...[['#fff', 4.5], ['#111', 2]].map(([c, w]) => `<path d="M18.5 12a6.5 6.5 0 1 1-1.9-4.6M19 4v4.5h-4.5" stroke="${c}" stroke-width="${w}"/>`), '</svg>'].join(''))}") 12 12, crosshair`;
 const CSS = `
 .pl-pill { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); z-index:6; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;
   padding:8px 8px 8px 16px; border-radius:22px; background:rgba(255,255,255,.86); -webkit-backdrop-filter:saturate(180%) blur(18px); backdrop-filter:saturate(180%) blur(18px);
@@ -130,7 +135,7 @@ export function mountPhotoLayer(app) {
   }
   const corners = (b) => [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
   function draw(opt) {
-    if (!alive || !mode) return;
+    if (!alive || !mode || (opt && opt.ctx === canvas.contextTop)) return; // never on the top layer: Fabric does not clear it, a ghost would stay
     try {
       const ctx = (opt && opt.ctx) || canvas.getContext();
       const vt = canvas.viewportTransform, r = canvas.getRetinaScaling ? canvas.getRetinaScaling() : 1, px = 1 / (canvas.getZoom() || 1);
@@ -166,13 +171,20 @@ export function mountPhotoLayer(app) {
   const upperRect = () => upper.getBoundingClientRect();
   function toPlan(e) { const r = upperRect(), vt = canvas.viewportTransform; return [(e.clientX - r.left - vt[4]) / vt[0], (e.clientY - r.top - vt[5]) / vt[3]]; }
   const busy = () => spaceHeld || app.toolName === 'pan';
+  // is the pointer on a corner of the selected photo? (the turn handles)
+  const onCorner = (p) => { const z = canvas.getZoom() || 1, ph = list()[sel]; return sel >= 0 && !!ph && photoCorners(ph).some(([x, y]) => Math.hypot(x - p[0], y - p[1]) * z <= GRAB_PX); };
   function onDown(e) {
     if (!mode || e.button !== 0 || busy()) return;
     const p = toPlan(e);
     if (mode === 'photo') {
-      const i = hitPhoto(list(), p);
-      if (i < 0) { sel = -1; syncPill(); redraw(); return; }
-      sel = i; drag = { kind: 'photo', i, p0: p, orig: list()[i] };
+      if (onCorner(p)) {
+        const orig = list()[sel], c = photoCentre(orig);
+        drag = { kind: 'turn', i: sel, orig, c, a0: Math.atan2(p[1] - c[1], p[0] - c[0]) };
+      } else {
+        const i = hitPhoto(list(), p);
+        if (i < 0) { sel = -1; syncPill(); redraw(); return; }
+        sel = i; drag = { kind: 'photo', i, p0: p, orig: list()[i] };
+      }
     } else {
       const box = drawingBox(), z = canvas.getZoom() || 1;
       const k = box ? corners(box).findIndex(([x, y]) => Math.hypot(x - p[0], y - p[1]) * z <= 16) : -1;
@@ -184,9 +196,21 @@ export function mountPhotoLayer(app) {
     syncPill(); redraw();
   }
   function onMove(e) {
-    if (!drag) return;
+    if (!drag) { // hovering: the turn arrow shows on the corners of the selected photo
+      if (mode === 'photo' && !busy()) canvas.defaultCursor = onCorner(toPlan(e)) ? TURN_CURSOR : 'default';
+      return;
+    }
     e.preventDefault(); e.stopImmediatePropagation();
-    const p = toPlan(e), dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
+    const p = toPlan(e);
+    if (drag.kind === 'turn') { // the photo follows the pointer's angle about its centre; Shift snaps the result to 15 degrees
+      const a = tOf(drag.orig).a;
+      let deg = ((Math.atan2(p[1] - drag.c[1], p[0] - drag.c[0]) - drag.a0) * 180) / Math.PI;
+      if (e.shiftKey) deg = Math.round((a + deg) / TURN_STEP) * TURN_STEP - a;
+      canvas.setCursor(TURN_CURSOR);
+      setPhoto(drag.i, turnedBy(drag.orig, deg));
+      return;
+    }
+    const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
     if (drag.kind === 'photo') {
       let next = moved(drag.orig, dx, dy);
       let guides = [];
@@ -214,7 +238,7 @@ export function mountPhotoLayer(app) {
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
     const d = drag; drag = null;
-    if (d.kind === 'photo') { moved_ = true; try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
+    if (d.kind === 'photo' || d.kind === 'turn') { moved_ = true; try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
     else if (d.kind === 'scale') {
       if (preview) { cancelAnimationFrame(preview); preview = 0; }
       if (Math.abs(d.f - 1) > 0.002) app.commit(scaleDoc(app.doc, d.f, d.anchor[0], d.anchor[1]), 'Scale drawing'); else app.canvas.setDoc(app.doc);
@@ -235,7 +259,7 @@ export function mountPhotoLayer(app) {
     if (!pill || mode !== 'photo') return; // the drawing pill has its own fixed text
     const has = sel >= 0, isExtra = has && refs()[sel] && !refs()[sel].main;
     pill.querySelectorAll('[data-pl]').forEach((b) => { b.disabled = b.dataset.pl === 'remove' ? !isExtra : !has; });
-    pill.querySelector('.pl-msg').innerHTML = has ? '<b>Photo selected</b> &nbsp;Drag to move' : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
+    pill.querySelector('.pl-msg').innerHTML = has ? '<b>Photo selected</b> &nbsp;Drag to move, drag a corner to turn' : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
   }
   function showPill() {
     if (pill) pill.remove();
@@ -243,15 +267,12 @@ export function mountPhotoLayer(app) {
     if (mode === 'photo') {
       pill.innerHTML = `<span class="pl-msg"></span><span class="pl-tools">
         <button type="button" data-pl="smaller" title="Smaller">−</button><button type="button" data-pl="bigger" title="Bigger">+</button>
-        <button type="button" data-pl="left" title="Turn left">↺</button><button type="button" data-pl="right" title="Turn right">↻</button>
         <button type="button" data-pl="remove" title="Remove this photo">Remove</button></span><button type="button" class="pl-done">Done</button>`;
       pill.addEventListener('click', async (ev) => {
         const b = ev.target.closest('[data-pl]'); if (!b || b.disabled) return;
         const k = b.dataset.pl;
         if (k === 'smaller') nudge((p) => scaledBy(p, 1 / 1.05));
         else if (k === 'bigger') nudge((p) => scaledBy(p, 1.05));
-        else if (k === 'left') nudge((p) => turnedBy(p, -1));
-        else if (k === 'right') nudge((p) => turnedBy(p, 1));
         else if (k === 'remove') {
           const r = refs()[sel]; if (!r || r.main) return;
           if (!(await app.confirm('Remove this photo from the floor?'))) return;
@@ -296,15 +317,14 @@ export function mountPhotoLayer(app) {
       if (!savedView && app.canvas) savedView = (({ x, y, zoom }) => ({ x, y, zoom }))(app.canvas.getView());
       if (app.toolName !== 'select' && app.toolName !== 'pan') app.setTool('select');
       try { canvas.discardActiveObject(); } catch (e) { /* none */ }
-      canvas.skipTargetFind = true; canvas.selection = false;
       if (next === 'photo') { app.canvas.setPlanOpacity(FAINT); fitAll(); }
       const ov = document.getElementById('start-overlay'); if (ov) ov.style.display = 'none'; // the "outline the building" card would hide the photos
       showPill();
     } else {
       const ov = document.getElementById('start-overlay'); if (ov) ov.style.display = '';
       if (pill) { pill.remove(); pill = null; }
-      if (app.canvas && app.canvas.applyCursor) app.canvas.applyCursor();
     }
+    app.canvas.lockObjects('photo', !!next); // the plan's objects are not hot while photos or the drawing are arranged, whatever tool or hand state comes and goes
     paintOpacity(); syncButtons();
     try { canvas.renderAll(); } catch (e) { /* gone */ } // draw now: no outline from before is left on screen
     redraw();
@@ -343,7 +363,8 @@ export function mountPhotoLayer(app) {
     async arrange() { await sync(); watchBg(); setMode('photo'); },
     refresh() { sync(); watchBg(); }, // photos were replaced (e.g. several photos placed by AutoBuild)
     destroy() {
-      alive = false; unsub(); clearInterval(poll); if (raf) cancelAnimationFrame(raf); if (preview) cancelAnimationFrame(preview);
+      alive = false; unsub(); clearInterval(poll); try { app.canvas.lockObjects('photo', false); } catch (e) { /* disposed */ }
+      if (raf) cancelAnimationFrame(raf); if (preview) cancelAnimationFrame(preview);
       try { upper.removeEventListener('pointerdown', onDown, true); upper.removeEventListener('pointermove', onMove, true); upper.removeEventListener('pointerup', onUp, true); upper.removeEventListener('pointercancel', onUp, true); canvas.off('after:render', draw); } catch (e) { /* disposed */ }
       window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true);
       for (const { obj } of extraObjs) { try { canvas.remove(obj); } catch (e) { /* gone */ } }

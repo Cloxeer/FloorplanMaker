@@ -77,6 +77,26 @@ const centreOf = (page, j) => page.evaluate(async (k) => {
   const p = window.__app.project;
   return photoCentre(k < 0 ? p.photo : p.extraPhotos[k]);
 }, j);
+// drag the top-left corner of extra photo j so the photo turns by `deg` about its centre; -> the photo's new angle
+async function turnBy(page, j, deg, shift = false) {
+  const g = await page.evaluate(async (k) => {
+    const { photoCorners, photoCentre } = await import('/js/model/photos.js');
+    const p = window.__app.project.extraPhotos[k];
+    return { c: photoCorners(p)[0], m: photoCentre(p) };
+  }, j);
+  const r = Math.hypot(g.c[0] - g.m[0], g.c[1] - g.m[1]), a0 = Math.atan2(g.c[1] - g.m[1], g.c[0] - g.m[0]), a1 = a0 + (deg * Math.PI) / 180;
+  const to = [g.m[0] + r * Math.cos(a1), g.m[1] + r * Math.sin(a1)];
+  const a = await toClient(page, g.c), b = await toClient(page, to);
+  await page.mouse.move(a.x, a.y);
+  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor)).toContain('svg'); // the turn arrow shows on the handle
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.down();
+  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+  return (await proj(page)).extra[0].t.a;
+}
 const imageObjs = (page) => page.evaluate(() => window.__app.canvas.fabricCanvas.getObjects().filter((o) => /^image$/i.test(o.type)).length);
 const savedProject = (page, id) => page.evaluate(async (i) => {
   const { loadProject } = await import('/js/store/autosave.js');
@@ -133,9 +153,13 @@ test('drag the extra photo, size and turn it, Done restores', async ({ page }) =
   await page.click('[data-pl="smaller"]'); await page.click('[data-pl="smaller"]');
   const t3 = (await proj(page)).extra[0].t;
   expect(t3.s).toBeLessThan(t1.s);
-  await page.click('[data-pl="right"]'); await page.click('[data-pl="right"]'); await page.click('[data-pl="left"]');
+  // turn: drag the top-left corner of the selected photo a quarter turn about its centre (the old turn buttons are gone)
+  await expect(page.locator('[data-pl="left"], [data-pl="right"]')).toHaveCount(0);
+  const tc = await turnBy(page, 0, 90);
+  expect(tc).toBeCloseTo(90, 0);
+  expect((await proj(page)).extra.length).toBe(1); // turning never adds a copy
+  expect(await imageObjs(page)).toBe(1);
   const t4 = (await proj(page)).extra[0].t;
-  expect(t4.a).toBeCloseTo(1, 5);
   expect(JSON.stringify((await proj(page)).photo)).toBe(mainBefore);
 
   // clicking the main photo selects it: 'Remove' stays disabled for it
@@ -162,7 +186,7 @@ test('placement survives a reload (extra fabric image present)', async ({ page }
   const c0 = await centreOf(page, 0);
   await dragPlan(page, c0, [c0[0] - 120, c0[1] + 60]);
   await page.click('[data-pl="bigger"]');
-  await page.click('[data-pl="right"]');
+  await turnBy(page, 0, 30);
   await page.click('.pl-done');
   const want = (await proj(page)).extra[0].t;
   await flushSave(page);
@@ -355,4 +379,35 @@ test('Drawing select: a corner handle resizes everything 1:1 (one undo step); ev
   expect((await size()).w).toBeGreaterThan(600);
   await page.evaluate(() => { window.__app.undo(); window.__app.undo(); });
   expect(await size()).toEqual(s0);
+});
+
+test('hand tool on and off leaves photo mode locked: no ghost outlines, no room grabbed, drag-turn with Shift snaps to 15 degrees', async ({ page }) => {
+  await importMulti(page, [A(), B()]);
+  await page.evaluate(async () => {
+    const { setFloor, addItem, makeRoom } = await import('/js/model/document.js');
+    let d = setFloor(window.__app.doc, [[100, 100], [500, 100], [500, 400], [100, 400]]);
+    d = addItem(d, makeRoom('room', 150, 150, 150, 100, '101'));
+    window.__app.commit(d, 'Seed');
+  });
+  const room = () => page.evaluate(() => { const r = window.__app.doc.items.find((i) => i.type === 'room'); return [r.x, r.y]; });
+  const locked = () => page.evaluate(() => { const c = window.__app.canvas.fabricCanvas; return [c.skipTargetFind, c.selection]; });
+  expect(await locked()).toEqual([true, false]);
+  await page.click('#btn-hand-toggle');
+  await page.click('#btn-hand-toggle');
+  expect(await locked()).toEqual([true, false]); // the hand used to unlock the plan here
+  // a drag that starts off the photos pans nothing and selects nothing
+  const before = await room();
+  const a = await toClient(page, [-300, -300]), b = await toClient(page, [400, 300]);
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 6 }); await page.mouse.up();
+  expect(await page.evaluate(() => !!window.__app.canvas.fabricCanvas.getActiveObject())).toBe(false);
+  expect(await room()).toEqual(before);
+  // nothing is ever drawn on the (never cleared) top layer
+  expect(await page.evaluate(() => { const c = window.__app.canvas.fabricCanvas, d = c.contextTop.getImageData(0, 0, c.upperCanvasEl.width, c.upperCanvasEl.height).data; return d.some((v) => v !== 0); })).toBe(false);
+  // Shift snaps a drag-turn to whole 15 degree steps
+  const c0 = await toClient(page, await centreOf(page, 0));
+  await page.mouse.click(c0.x, c0.y);
+  const ang = await turnBy(page, 0, 37, true);
+  expect(ang % 15).toBeCloseTo(0, 5);
+  await page.click('.pl-done');
+  expect(await locked()).toEqual([false, true]); // leaving the mode gives the plan back
 });

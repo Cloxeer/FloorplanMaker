@@ -421,6 +421,7 @@ export function createStage(containerEl, app) {
     previewDrop: (key, clientX, clientY, alt) => tools.previewDrop(key, clientX, clientY, alt),
     endPreviewDrop: () => tools.endPreviewDrop(),
     toPlan,
+    lockObjects: view.lockObjects,
     zoomTo,
     getView,
     setView,

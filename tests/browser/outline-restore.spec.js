@@ -115,3 +115,24 @@ test('Auto-outline is not offered while the plan is empty', async ({ page }) => 
   await openTrace(page, SLUG);
   await expect(page.locator('#btn-auto-outline')).toBeHidden();
 });
+
+test('Shift photos: arrange the photos, the "outline is gone" card stays, then Restore still works', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 400; c.height = 300;
+    const x = c.getContext('2d'); x.fillStyle = '#c66'; x.fillRect(0, 0, 400, 300);
+    window.__app.project.photo = { dataUrl: c.toDataURL(), width: 400, height: 300 };
+    await window.__app.canvas.setPhoto(window.__app.project.photo);
+  });
+  await deleteOutline(page);
+  await expect(page.locator('#btn-overlay-shift')).toBeVisible();
+  await page.click('#btn-overlay-shift');
+  await expect(page.locator('.pl-pill')).toContainText('Arrange photos');
+  await expect(page.locator('#start-overlay')).toBeHidden(); // the card would cover the photos while they are moved
+  await page.click('.pl-done');
+  await expect(page.locator('#overlay-title')).toHaveText('The building outline is gone');
+  await expect(page.locator('#btn-overlay-restore')).toBeVisible();
+  await page.click('#btn-overlay-restore');
+  expect(await floor(page)).toEqual(OUTLINE);
+  await expect(page.locator('#start-overlay')).toBeHidden();
+});

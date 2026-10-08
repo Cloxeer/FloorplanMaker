@@ -117,7 +117,7 @@ export function mountOutlineEdit(app) {
 
   // ---- drawing
   function draw(opt) {
-    if (!active || !alive) return;
+    if (!active || !alive || (opt && opt.ctx === canvas.contextTop)) return; // never on the top layer: Fabric does not clear it, a ghost would stay
     try {
       const P = cur(); if (!P) return;
       const ctx = (opt && opt.ctx) || canvas.getContext();
@@ -319,14 +319,10 @@ export function mountOutlineEdit(app) {
     active = on; pts = null; drag = null; hover = null; selected = -1; bad = false;
     if (on) {
       if (app.toolName !== 'select' && app.toolName !== 'pan') app.setTool('select');
-      canvas.skipTargetFind = true; canvas.selection = false;
       try { canvas.discardActiveObject(); } catch (e) { /* none */ }
       showPill();
-    } else {
-      if (pill) { pill.remove(); pill = null; }
-      canvas.defaultCursor = 'default';
-      if (app.canvas && app.canvas.applyCursor) app.canvas.applyCursor();
-    }
+    } else if (pill) { pill.remove(); pill = null; }
+    app.canvas.lockObjects('outline', on); // the plan's objects are not hot while the outline is edited; the tool's own cursor comes back after
     syncButton(); redraw();
   }
 

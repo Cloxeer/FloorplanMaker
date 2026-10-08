@@ -219,12 +219,20 @@ export function attachView(canvas, app, containerEl, render) {
   }, { passive: false });
   on(canvas.upperCanvasEl, 'touchend', () => { touch = null; });
 
+  // A mode that takes over the pointer (arranging photos, editing the outline) locks the plan's objects: while any
+  // lock is held nothing under the pointer is hot, whatever tool or hand state comes and goes.
+  const locks = new Set();
+  function lockObjects(key, on) {
+    if (on) locks.add(key); else locks.delete(key);
+    applyCursor();
+  }
   function applyCursor() {
+    const frozen = locks.size > 0;
     if (app.toolName === 'pan' || spaceHeld) canvas.defaultCursor = 'grab';
     else if (DRAW_TOOLS.has(app.toolName)) canvas.defaultCursor = 'crosshair';
     else canvas.defaultCursor = 'default';
-    canvas.skipTargetFind = DRAW_TOOLS.has(app.toolName) || app.toolName === 'pan';
-    canvas.selection = app.toolName === 'select' && !spaceHeld;
+    canvas.skipTargetFind = frozen || spaceHeld || DRAW_TOOLS.has(app.toolName) || app.toolName === 'pan';
+    canvas.selection = !frozen && app.toolName === 'select' && !spaceHeld;
     render();
   }
   function destroyView() {
@@ -235,7 +243,7 @@ export function attachView(canvas, app, containerEl, render) {
   void containerEl;
 
   return {
-    getView, setView, zoomTo, toPlan, applyCursor, destroyView,
+    getView, setView, zoomTo, toPlan, applyCursor, lockObjects, destroyView,
     isPanning: () => !!grab || spaceHeld,
   };
 }
