@@ -35,6 +35,7 @@ export function mountPalette(el, app) {
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
       <div class="outline-list" id="outline-list" hidden></div>
       <button type="button" class="btn-big-tool" id="btn-add-outline" hidden title="Outline another building on this floor">+ Add another outline</button>
+      <button type="button" class="btn-big-tool" id="btn-auto-draw" hidden title="Read the photos and draw every building: its outline and its rooms (Undo puts it all back)">Auto draw buildings</button>
       <button type="button" class="btn-big-tool" id="btn-auto-outline" hidden title="Draw the outline round the rooms, halls and stairs that are on the plan">Auto-outline</button>
       <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
       <div class="connect-section" id="connect-section" hidden>
@@ -137,6 +138,9 @@ export function mountPalette(el, app) {
       if (app.suggest && typeof app.suggest.run === 'function') app.suggest.run();
     });
   }
+
+  const autoDrawBtn = el.querySelector('#btn-auto-draw');
+  autoDrawBtn.addEventListener('click', () => { autoDrawBtn.blur(); if (app.autoDraw) app.autoDraw(); });
 
   // an outline drawn round what is on the plan (undoable). Doors are left where they are: any that are no longer on the outline are flagged by the checks, not moved.
   const autoBtn = el.querySelector('#btn-auto-outline');
@@ -295,6 +299,7 @@ export function mountPalette(el, app) {
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
+    autoDrawBtn.hidden = !((app.project && app.project.extraPhotos || []).length); // one photo: AutoBuild on the Photo step already did it
     if (autoBtn) {
       autoBtn.hidden = !hasPlan();
       autoBtn.textContent = (hasFloor() || outlinesOf(app.doc).length) ? 'Auto-outline again' : 'Auto-outline';

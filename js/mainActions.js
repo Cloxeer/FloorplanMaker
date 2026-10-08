@@ -21,7 +21,7 @@ import { ignoredIds as ignoredOf, pruneIgnored, applyIgnores } from './model/ign
 import { showBlueprint, slugify } from './view/panels/blueprint.js';
 import { mountPhotoStep } from './view/panels/photoStep.js';
 import { mountSuggest } from './view/panels/suggest.js';
-import { mountAutoBuild } from './view/panels/autobuild.js'; import { mountLayers } from './view/panels/layers.js'; import { mountAttention } from './view/attention.js'; import { mountOverlapDot } from './view/overlapDot.js'; import { mountFixAll } from './view/fixAll.js';
+import { mountAutoBuild } from './view/panels/autobuild.js'; import { pixelsOf } from './view/panels/autobuildMulti.js'; import { mountLayers } from './view/panels/layers.js'; import { mountAttention } from './view/attention.js'; import { mountOverlapDot } from './view/overlapDot.js'; import { mountFixAll } from './view/fixAll.js';
 import { mountOutlineEdit } from './view/outlineEdit.js'; import { mountFloors } from './view/panels/floors.js'; import { mountPhotoLayer } from './view/photoLayer.js'; import { mountOutlinePrompt } from './view/outlinePrompt.js'; import { mountMultiPhoto } from './view/panels/multiPhoto.js'; import { freeSlug, UNNAMED } from './model/building.js'; import { mountFixGuide } from './view/panels/fixguide.js';
 
 export { createActions } from './docActions.js';
@@ -251,6 +251,15 @@ export function createStudio(app, deps) {
     app.suggest = suggestHandle;
     autoBuildHandle = mountAutoBuild(app); app._layers = mountLayers(app); app._attention = mountAttention(app); app._ovDot = mountOverlapDot(app); app._guide = mountFixGuide(app); app._fixAll = mountFixAll(app); app._outlineEdit = mountOutlineEdit(app); app._floors = mountFloors(app); app._photoLayer = mountPhotoLayer(app); app._outlinePrompt = mountOutlinePrompt(app);
     app.autoBuild = autoBuildHandle;
+    // Auto draw: read every photo of the floor and draw it as buildings (rooms, halls, stairs and one outline per building)
+    app.autoDraw = async () => {
+      const p = app.project;
+      const photos = p ? [p.photo, ...(p.extraPhotos || [])].filter((x) => x && x.dataUrl) : [];
+      if (!photos.length) { app.toast('Add a photo first.'); return; }
+      const list = [];
+      for (const ph of photos) list.push({ pixels: await pixelsOf(ph.dataUrl), photo: ph, board: ph });
+      await autoBuildHandle.runMulti(list, { auto: true });
+    };
     const stripEl = document.getElementById('step-strip');
     if (stripEl) {
       stepStripHandle = mountStepStrip(stripEl, app, {

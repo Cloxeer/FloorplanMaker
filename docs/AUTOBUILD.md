@@ -458,3 +458,23 @@ Known limits / open items:
   tests are `tests/autobuild*.test.js`.
 - Current harness numbers (with OCR): Jett 12/20 numbers right (precision 0.8), Hardman &
   Jacobs 42/50 (precision 0.93), Science Hall geometry only (digits too small).
+
+## 12. Auto draw (several photos, drawn as buildings)
+
+*Auto draw* (the card shown when the building outline is gone, and "Auto draw buildings" in step 1 when the floor has
+several photos) reads every photo with AutoBuild and then draws the **buildings** (`js/model/autoDraw.js`, run by
+`buildAuto` in `js/view/panels/autobuildMulti.js`). One photo goes through the normal AutoBuild.
+
+* **Same section:** photos that share two or more room numbers (127 on both) are one section of one building. If the numbers
+  say how they overlap (`alignPlans`, strong evidence only: no corridor guessing) they are lined up on each other; a room
+  that lies on a room with the same number is kept once. If they are not on top of each other nothing is moved: both
+  rooms stay where their photos put them and the note says to use Shift photos.
+* **Same building:** photos whose rooms carry the same letter prefix (W191, W187 ...) are one building. A photo whose numbers
+  could not be read joins the building it lies next to.
+* **Everything else** is a building of its own and keeps the place its photo has. Buildings are never moved towards each other.
+* **Outlines:** one per building: the photos' own traced outlines, plus a filled block where two photos of one building face
+  each other across a gap of at most 400 units (never a thin bridge). Photos further apart are outlined one by one
+  ("W building (2)"). The biggest building's outline is the plan's outline (`floor`); the others are `outline` items with a
+  `name`, exported like the first one.
+* Rooms, hallways and stairs come with it, tagged `piece: <building>` (Layers > Pieces). No door is ever placed.
+* One undo step; the photos' placements follow the lined-up photos (quarter turns only).

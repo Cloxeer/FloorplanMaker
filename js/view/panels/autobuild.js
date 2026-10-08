@@ -8,7 +8,7 @@
 
 import { setFloor } from '../../model/document.js';
 import { ensureTraceStyle, createOutlineTrace, askOutline } from './autobuildTrace.js';
-import { buildMany } from './autobuildMulti.js';
+import { buildMany, buildAuto } from './autobuildMulti.js';
 
 const STYLE = `
 .ab-overlay { position:absolute; inset:0; z-index:30; display:flex; align-items:flex-start; justify-content:center; pointer-events:none; }
@@ -323,8 +323,11 @@ export function mountAutoBuild(app) {
   }
 
   // Several photos of one floor: each is built on its own and left on its own photo as a separate piece (nothing is joined or turned).
+  // With opts.auto (Auto draw) the photos are drawn as buildings instead: same room numbers = one section with one outline, a letter
+  // prefix = one building, the rest stays where its photo is; the biggest building's outline is the plan's outline, the others are
+  // outline items (see autobuildMulti.js buildAuto / model/autoDraw.js).
   // list: [{ pixels, photo, board }] (see autobuildMulti.js). The first photo stays the project's photo.
-  async function runMulti(list) {
+  async function runMulti(list, opts = {}) {
     if (!list || !list.length || !app.project) return;
     if (list.length === 1) return run(list[0].pixels);
     const had = app.doc.items.length > 0 || !!app.doc.floor;
@@ -335,7 +338,7 @@ export function mountAutoBuild(app) {
     app.setHint('AutoBuild is reading the photos…');
     let m;
     try {
-      m = await buildMany(list, { floor: app.doc.meta && app.doc.meta.floor, onProgress: setProgress, onWorker: (c) => { cancelWorker = c; } });
+      m = await (opts.auto ? buildAuto : buildMany)(list, { floor: app.doc.meta && app.doc.meta.floor, onProgress: setProgress, onWorker: (c) => { cancelWorker = c; } });
     } catch (err) {
       hideCard();
       if (!cancelled) app.toast(`AutoBuild failed: ${err.message}`);
@@ -353,14 +356,21 @@ export function mountAutoBuild(app) {
     app.canvas.setPhoto(app.project.photo);
     if (app._photoLayer && app._photoLayer.refresh) app._photoLayer.refresh();
     // each photo's plan is left on its own photo as a separate piece: no outline question, no joining
-    const doc = { ...base, items: m.items, floor: null };
+    const doc = { ...base, items: m.items, floor: opts.auto ? m.floor : null };
     setProgress(0.99, 'Placing each plan on its photo');
     hideCard();
-    app.commit(doc, 'AutoBuild');
+    app.commit(doc, opts.auto ? 'Auto draw' : 'AutoBuild');
     app.canvas.zoomTo(true);
     const rooms = m.items.filter((it) => it.type === 'room').length;
-    app.toast(`AutoBuild built ${list.length} photos separately: ${rooms} rooms. Line the pieces up yourself (Layers), then use Auto-outline.${m.review.length ? ` ${m.review.length} need a look.` : ''}`);
-    app.setHint('Each photo is its own piece (Layers > Pieces): move and turn them into place, then draw the outline.');
+    if (opts.auto) {
+      const names = (m.buildings || []).map((b) => b.name).join(', ');
+      app.toast(`Auto draw: ${rooms} rooms in ${(m.buildings || []).length} outline${(m.buildings || []).length === 1 ? '' : 's'} (${names}).${m.notes.length ? ` ${m.notes[0]}` : ''}${m.review.length ? ` ${m.review.length} need a look.` : ''} Undo puts it all back.`);
+      app.setHint('Check the outlines and the rooms (Layers > Pieces has each building), then place the doors.');
+      app.autoDrawNotes = m.notes;
+    } else {
+      app.toast(`AutoBuild built ${list.length} photos separately: ${rooms} rooms. Line the pieces up yourself (Layers), then use Auto-outline.${m.review.length ? ` ${m.review.length} need a look.` : ''}`);
+      app.setHint('Each photo is its own piece (Layers > Pieces): move and turn them into place, then draw the outline.');
+    }
     showReview(m);
   }
 

@@ -2,7 +2,8 @@
 // The card shown over the stage while the building has no outline. A plan with no outline yet: "Draw outline".
 // An outline that was just removed (Delete key, Remove outline, undo...): the old outline is remembered, so the
 // card offers Restore outline (puts it back, carried to wherever the rooms are now, moved or turned), Auto-outline
-// (draws a fresh one round the pieces on the plan), Draw it again (by hand) and Shift photos (arrange the photos first,
+// (draws a fresh one round the pieces on the plan), Draw it again (by hand), Auto draw (reads the photos and draws every
+// building with its rooms) and Shift photos (arrange the photos first,
 // then come back to this card). Each outline choice is one undo step.
 // The buttons are static in index.html (#btn-overlay-draw is wired in mainActions.js); this only shows / hides them.
 // Depends on: js/model/outlineRestore.js, js/model/document.js (setFloor), app.commit, app.toast.
@@ -18,7 +19,7 @@ export function mountOutlinePrompt(app) {
   const overlay = $('start-overlay');
   if (!overlay) return { update() {}, destroy() {} };
   const title = $('overlay-title'), text = $('overlay-text');
-  const btnRestore = $('btn-overlay-restore'), btnAuto = $('btn-overlay-auto'), btnShift = $('btn-overlay-shift'), btnDraw = $('btn-overlay-draw');
+  const btnRestore = $('btn-overlay-restore'), btnAuto = $('btn-overlay-auto'), btnShift = $('btn-overlay-shift'), btnDraw = $('btn-overlay-draw'), btnAutoDraw = $('btn-overlay-autodraw');
   const idle = (b) => { if (b && b.blur) b.blur(); };
 
   // the last outline this floor had; seeded from the undo history so it survives re-opening the project
@@ -40,6 +41,7 @@ export function mountOutlinePrompt(app) {
     overlay.classList.toggle('has-plan', plan && !!memory);
     btnRestore.hidden = !memory;
     btnAuto.hidden = !plan;
+    btnAutoDraw.hidden = !(app.project && app.project.photo && app.project.photo.dataUrl); // reads the photos: one needs to be there
     btnShift.hidden = !(memory || ((app.project && app.project.extraPhotos) || []).length) || !(app.project && app.project.photo && app.project.photo.dataUrl);
     if (memory) {
       title.textContent = 'The building outline is gone';
@@ -76,13 +78,15 @@ export function mountOutlinePrompt(app) {
     apply(r.points, 'Auto-outline', 'Drew a new outline around your rooms. Use Edit outline to fine-tune it.');
   }
   function onShift(e) { idle(e.currentTarget); if (app._photoLayer) app._photoLayer.setMode('photo'); } // the card comes back when the photos are done
+  function onAutoDraw(e) { idle(e.currentTarget); if (app.autoDraw) app.autoDraw(); }
   btnRestore.addEventListener('click', onRestore);
+  btnAutoDraw.addEventListener('click', onAutoDraw);
   btnShift.addEventListener('click', onShift);
   btnAuto.addEventListener('click', onAuto);
   update();
 
   return {
     update,
-    destroy() { btnRestore.removeEventListener('click', onRestore); btnAuto.removeEventListener('click', onAuto); btnShift.removeEventListener('click', onShift); },
+    destroy() { btnRestore.removeEventListener('click', onRestore); btnAuto.removeEventListener('click', onAuto); btnShift.removeEventListener('click', onShift); btnAutoDraw.removeEventListener('click', onAutoDraw); },
   };
 }

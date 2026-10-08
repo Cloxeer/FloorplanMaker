@@ -332,7 +332,8 @@ function westConflict(plans, tfs, root, newPlan, cand) {
 // groups of photos without putting rooms on top of each other. -> { tfs, roots }: tfs[i] maps plan i into the frame of ITS group's root plan
 // (plan 0 is the root of its group); a group nothing connects to the first has its own root, and the caller decides where that group
 // goes (placeBeside).
-export function alignPlans(plans) {
+// opts.strongOnly: only shared room numbers / shapes join photos (a corridor that merely lines up does not)
+export function alignPlans(plans, opts = {}) {
   const n = plans.length;
   const tfs = Array(n).fill(null), roots = [];
   if (!n) return { tfs, roots };
@@ -341,7 +342,7 @@ export function alignPlans(plans) {
     if (i === j) continue;
     const cands = alignByShape(plans[i], plans[j]); // each maps j into i, best first
     cands.forEach((t, k) => edges.push({ from: i, to: j, k, t, weight: 10 * t.score + 50 * (t.labelled || 0) - k, strong: true }));
-    if (!cands.length) alignByHallways(plans[i], plans[j]).forEach((hall, k) => edges.push({ from: i, to: j, k, t: hall, weight: 1 - hall.cost - 0.01 * k, strong: false }));
+    if (!cands.length && !opts.strongOnly) alignByHallways(plans[i], plans[j]).forEach((hall, k) => edges.push({ from: i, to: j, k, t: hall, weight: 1 - hall.cost - 0.01 * k, strong: false }));
   }
   edges.sort((a, b) => b.weight - a.weight);
   const root = plans.map((_, i) => i), tf = plans.map(() => ({ q: 0, s: 1, tx: 0, ty: 0 })); // tf[i]: plan i -> its group root
@@ -514,7 +515,8 @@ function overlapShare(a, b) { // share of a inside b
 }
 
 // Plans moved into one frame; a room on two photos is kept once, overlapping duplicates and repeated symbols dropped.
-export function mergePlans(plans, tfs) {
+// opts.twinsOverlap: a room number seen on two photos is the same room only where the two actually lie on each other
+export function mergePlans(plans, tfs, opts = {}) {
   const items = [], report = { placed: [], dropped: [], unplaced: [] };
   const rings = [];
   plans.forEach((plan, i) => {
@@ -526,7 +528,7 @@ export function mergePlans(plans, tfs) {
       if (raw.type === 'compass' && items.some((it) => it.type === 'compass')) continue;
       const it = placeItem(raw, t);
       if (it.type === 'room' && it.cls !== 'void') {
-        const twin = it.number ? items.findIndex((o) => o.type === 'room' && o.number === it.number) : -1;
+        const twin = it.number ? items.findIndex((o) => o.type === 'room' && o.number === it.number && (!opts.twinsOverlap || Math.max(overlapShare(it, o), overlapShare(o, it)) > 0.3)) : -1;
         if (twin >= 0) { if (area(it) > 1.25 * area(items[twin])) items[twin] = it; report.dropped.push(it.number); continue; }
         if (items.some((o) => o.type === 'room' && o.cls !== 'void' && Math.min(overlapShare(it, o), overlapShare(o, it)) > 0.6)) { report.dropped.push(it.number || '(unnumbered)'); continue; }
       } else if (it.type === 'hall') {
