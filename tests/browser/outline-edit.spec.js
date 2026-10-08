@@ -86,18 +86,42 @@ test('drag a wall of a rectangle keeps it rectangular, one undo step, doors foll
   expect(await pts(page)).toEqual([[100, 100], [500, 100], [500, 400], [100, 400]]);
 });
 
-test('double-click a wall adds a corner (+1, one undo step); one click only selects the wall', async ({ page }) => {
+test('double-click adds and removes nothing; a click on a wall or on its + only selects; dragging the + bends the wall (+1, one undo step)', async ({ page }) => {
   await setup(page);
   const before = await pastLen(page);
   const a = await toClient(page, [500, 180]); // right wall, off the middle handle
   await page.mouse.click(a.x, a.y);
-  await page.waitForTimeout(500); // a single click selects, it adds nothing
-  expect((await pts(page)).length).toBe(4);
-  expect(await pastLen(page)).toBe(before);
   await page.mouse.dblclick(a.x, a.y);
+  const mid = await toClient(page, [500, 250]); // the + in the middle of the right wall
+  await page.mouse.click(mid.x, mid.y);
+  await page.mouse.dblclick(mid.x, mid.y);
+  const corner = await toClient(page, [100, 400]);
+  await page.mouse.dblclick(corner.x, corner.y);
+  await page.waitForTimeout(500);
+  expect(await pts(page)).toEqual([[100, 100], [500, 100], [500, 400], [100, 400]]);
+  expect(await pastLen(page)).toBe(before);
+  await drag(page, [500, 250], [560, 250]); // dragging the + bends the wall: a new corner
   await expect.poll(async () => (await pts(page)).length).toBe(5);
   expect(await pastLen(page)).toBe(before + 1);
-  expect(await pts(page)).toContainEqual([500, 180]);
+  await page.evaluate(() => window.__app.undo());
+  expect((await pts(page)).length).toBe(4);
+});
+
+test('click a corner: it is clearly selected (the pill says so); Backspace removes it (min 3), one undo step', async ({ page }) => {
+  await setup(page);
+  const before = await pastLen(page);
+  const c = await toClient(page, [100, 400]);
+  await page.mouse.click(c.x, c.y);
+  await expect(page.locator('.oe-pill')).toContainText('Corner selected');
+  await page.keyboard.press('Backspace');
+  await expect.poll(async () => (await pts(page)).length).toBe(3);
+  expect(await pastLen(page)).toBe(before + 1);
+  // at 3 corners nothing more can be removed
+  const c2 = await toClient(page, (await pts(page))[0]);
+  await page.mouse.click(c2.x, c2.y);
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(200);
+  expect((await pts(page)).length).toBe(3);
   await page.evaluate(() => window.__app.undo());
   expect((await pts(page)).length).toBe(4);
 });
@@ -111,7 +135,8 @@ test('click a wall, press Delete: the wall goes and the outline closes over the 
   const before = await pastLen(page);
   const wall = await toClient(page, [200, 350]); // the notch's back wall, away from its middle handle and corners
   await page.mouse.click(wall.x, wall.y);
-  await page.keyboard.press('Delete');
+  await expect(page.locator('.oe-pill')).toContainText('Wall selected');
+  await page.keyboard.press('Backspace');
   await expect.poll(() => pts(page)).toEqual(SQUARE);
   expect(await pastLen(page)).toBe(before + 1);
   expect(await page.evaluate(() => window.__app.doc.floor !== null)).toBe(true); // the outline itself is still there
@@ -144,23 +169,6 @@ test('a corner dropped on its neighbour merges with it', async ({ page }) => {
   await drag(page, [700, 300], [704, 496]); // onto the corner (700, 500)
   await expect.poll(() => pts(page)).toEqual([[100, 100], [700, 100], [700, 500], [100, 500]]);
   expect(await pastLen(page)).toBe(before + 1);
-});
-
-test('double-click a corner removes it (-1, min 3), one undo step', async ({ page }) => {
-  await setup(page);
-  const before = await pastLen(page);
-  const c = await toClient(page, [100, 400]);
-  await page.mouse.dblclick(c.x, c.y);
-  await expect.poll(async () => (await pts(page)).length).toBe(3);
-  // the first click of the double-click is only a (zero-length) grab, so the history grew by exactly one
-  expect(await pastLen(page)).toBe(before + 1);
-  // at 3 corners nothing more can be removed
-  const c2 = await toClient(page, (await pts(page))[0]);
-  await page.mouse.dblclick(c2.x, c2.y);
-  await page.waitForTimeout(200);
-  expect((await pts(page)).length).toBe(3);
-  await page.evaluate(() => window.__app.undo());
-  expect((await pts(page)).length).toBe(4);
 });
 
 test('Esc exits edit mode', async ({ page }) => {

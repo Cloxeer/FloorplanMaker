@@ -1,8 +1,8 @@
 // outlineEdit.js (view)
 // "Edit outline": grab a corner or a wall of the building outline and move it. Click a corner or a wall to SELECT it; Delete /
 // Backspace removes the selected corner or wall and the outline closes over the gap (a notch fills in, square walls stay square,
-// see model/outlineTidy.js). Double-click a wall to add a corner there, drag a "+" in the middle of a wall to bend it, double-click
-// a corner to remove it; a corner dropped on its neighbour merges with it. Corners have a big hit area. Moves snap to the 5-unit grid and line up with the neighbouring corners.
+// see model/outlineTidy.js). Drag a "+" in the middle of a wall to bend it (a click on it only selects the wall); a corner dropped
+// on its neighbour merges with it. Double-clicking does nothing special. Corners have a big hit area. Moves snap to the 5-unit grid and line up with the neighbouring corners.
 // Doors that sit on a wall travel with it. One undo step per gesture. Also a small hint that lights the
 // hand button while the middle button, Space or a two-finger scroll is panning the plan.
 // Drawn on the stage canvas after each render; never touches the document until a gesture ends.
@@ -14,7 +14,7 @@ import { tidyRing, removeVertices, removeEdge } from '../model/outlineTidy.js';
 
 const BLUE = '#0a84ff', RED = '#ff453a';
 const G = 5;
-const VERT_HIT = 18, MID_HIT = 12, EDGE_HIT = 9, DRAG_PX = 4, ALIGN_PX = 8, MERGE_PX = 12; // screen pixels
+const VERT_HIT = 18, MID_HIT = 12, EDGE_HIT = 12, DRAG_PX = 4, ALIGN_PX = 8, MERGE_PX = 12; // screen pixels
 const snapG = (v) => Math.round(v / G) * G;
 
 const CSS = `
@@ -70,9 +70,8 @@ export function mountOutlineEdit(app) {
   let hover = null; // { kind, i }
   let selected = -1; // the selected corner
   let selEdge = -1; // or the selected wall (from corner i to i + 1)
-  let lastWall = { t: 0, i: -1 };
   let bad = false;
-  let pill = null, button = null, raf = 0, lastDown = { t: 0, i: -1 };
+  let pill = null, button = null, raf = 0;
   let spaceHeld = false;
 
   const floorPts = () => (app.doc && app.doc.floor && Array.isArray(app.doc.floor.points) && app.doc.floor.points.length >= 3 ? app.doc.floor.points : null);
@@ -154,17 +153,25 @@ export function mountOutlineEdit(app) {
         ctx.lineWidth = 1.5 * px; ctx.strokeStyle = col; ctx.stroke();
         ctx.beginPath(); ctx.moveTo(m[0] - rr * 0.5, m[1]); ctx.lineTo(m[0] + rr * 0.5, m[1]); ctx.moveTo(m[0], m[1] - rr * 0.5); ctx.lineTo(m[0], m[1] + rr * 0.5); ctx.stroke();
       }
+      if (selected >= 0 && selected < P.length && !drag) { // the selected corner: its two walls go bold
+        const v = P[selected];
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.lineWidth = 16 * px; ctx.beginPath(); ctx.moveTo(P[(selected + P.length - 1) % P.length][0], P[(selected + P.length - 1) % P.length][1]); ctx.lineTo(v[0], v[1]); ctx.lineTo(P[(selected + 1) % P.length][0], P[(selected + 1) % P.length][1]); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.lineWidth = 6 * px; ctx.stroke();
+      }
       // corner handles
       P.forEach((v, i) => {
         const hot = (hover && hover.kind === 'vertex' && hover.i === i) || (drag && drag.i === i && drag.kind === 'vertex');
         const sel = selected === i;
         ctx.globalAlpha = 1;
-        ctx.beginPath(); ctx.arc(v[0], v[1], (hot ? 11 : 9) * px, 0, 7);
+        if (sel) { ctx.beginPath(); ctx.arc(v[0], v[1], 20 * px, 0, 7); ctx.globalAlpha = 0.3; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1; } // a halo round the selected corner
+        ctx.beginPath(); ctx.arc(v[0], v[1], (sel ? 13 : hot ? 11 : 9) * px, 0, 7);
         ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
         ctx.fillStyle = sel ? col : '#fff'; ctx.fill();
         ctx.shadowColor = 'transparent';
-        ctx.lineWidth = 2.5 * px; ctx.strokeStyle = col; ctx.stroke();
+        ctx.lineWidth = (sel ? 4 : 2.5) * px; ctx.strokeStyle = sel ? '#fff' : col; ctx.stroke();
+        if (sel) { ctx.beginPath(); ctx.arc(v[0], v[1], 13 * px + 2 * px, 0, 7); ctx.lineWidth = 2 * px; ctx.strokeStyle = col; ctx.stroke(); }
       });
+      syncPill();
       ctx.restore();
     } catch (e) { /* canvas gone */ }
   }
@@ -176,6 +183,16 @@ export function mountOutlineEdit(app) {
     try { app.canvas.setDoc(setFloor(app.doc, pts.map((p) => [p[0], p[1]]))); } catch (e) { /* keep going */ }
     bad = !validRing(pts);
     redraw();
+  }
+
+  // what the pill says follows what is selected
+  function syncPill() {
+    if (!pill) return;
+    const t = selEdge >= 0 ? '<b>Wall selected</b> &nbsp;Backspace removes it &middot; drag to move it'
+      : selected >= 0 ? '<b>Corner selected</b> &nbsp;Backspace removes it &middot; drag to move it'
+        : '<b>Edit outline</b> &nbsp;Click a corner or a wall to select it &middot; drag a + to bend a wall';
+    const el = pill.querySelector('span');
+    if (el.dataset.t !== t) { el.dataset.t = t; el.innerHTML = t; }
   }
 
   // ---- gestures
@@ -218,17 +235,12 @@ export function mountOutlineEdit(app) {
     pts = base.map((q) => [q[0], q[1]]);
     const start = { x: e.clientX, y: e.clientY };
     if (h.kind === 'vertex') {
-      const now = performance.now();
-      if (lastDown.i === h.i && now - lastDown.t < 350 && pts.length > 3) { // double-click: remove this corner
-        lastDown = { t: 0, i: -1 }; pts = null; takeOut([h.i], 'Remove corner'); return;
-      }
-      lastDown = { t: now, i: h.i }; selected = h.i; selEdge = -1;
+      selected = h.i; selEdge = -1;
       drag = { kind: 'vertex', i: h.i, start, orig: pts[h.i].slice() };
-    } else if (h.kind === 'mid') {
+    } else if (h.kind === 'mid') { // the + in the middle of a wall: dragged it bends the wall, a click only selects the wall
       const a = pts[h.i], b = pts[(h.i + 1) % pts.length];
-      const m = [snapG((a[0] + b[0]) / 2), snapG((a[1] + b[1]) / 2)];
-      pts.splice(h.i + 1, 0, m); selected = h.i + 1; selEdge = -1;
-      drag = { kind: 'vertex', i: h.i + 1, start, orig: m.slice(), fresh: true };
+      selected = -1; selEdge = h.i;
+      drag = { kind: 'pending-mid', i: h.i, start, m: [snapG((a[0] + b[0]) / 2), snapG((a[1] + b[1]) / 2)] };
     } else {
       const a = pts[h.i], b = pts[(h.i + 1) % pts.length];
       selected = -1; selEdge = h.i;
@@ -254,6 +266,11 @@ export function mountOutlineEdit(app) {
     if (drag.kind === 'pending-edge') {
       if (moved < DRAG_PX) return;
       drag.kind = 'edge';
+    }
+    if (drag.kind === 'pending-mid') {
+      if (moved < DRAG_PX) return;
+      pts.splice(drag.i + 1, 0, drag.m); selected = drag.i + 1; selEdge = -1;
+      drag = { kind: 'vertex', i: drag.i + 1, start: drag.start, orig: drag.m.slice(), fresh: true };
     }
     if (drag.kind === 'vertex') {
       if (moved < DRAG_PX && !drag.fresh) return;
@@ -282,15 +299,7 @@ export function mountOutlineEdit(app) {
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
     const d = drag;
-    if (d.kind === 'pending-edge') { // a click on a wall selects it; a second click on it adds a break right there
-      const now = performance.now();
-      if (lastWall.i === d.i && now - lastWall.t < 400) {
-        lastWall = { t: 0, i: -1 };
-        const at = [snapG(d.at[0]), snapG(d.at[1])];
-        pts = floorPts().map((q) => [q[0], q[1]]); pts.splice(d.i + 1, 0, at); selected = d.i + 1; selEdge = -1;
-        commit('Add corner'); return;
-      }
-      lastWall = { t: now, i: d.i };
+    if (d.kind === 'pending-edge' || d.kind === 'pending-mid') { // a click on a wall only selects it (it is already selected)
       pts = null; drag = null; redraw(); return;
     }
     commit(d.kind === 'edge' ? 'Move wall' : d.fresh ? 'Add corner' : 'Move corner');
@@ -309,7 +318,7 @@ export function mountOutlineEdit(app) {
       if (!floorPts()) return;
       if (selEdge >= 0) { const base = floorPts(), n = base.length, i = selEdge; takeOut([i, (i + 1) % n], 'Remove wall'); }
       else if (selected >= 0) takeOut([selected], 'Remove corner');
-      else if (app.toast) app.toast('Click a corner or a wall first, then press Delete to remove it.');
+      else if (app.toast) app.toast('Click a corner or a wall first, then press Backspace to remove it.');
     }
   }
 
@@ -338,9 +347,10 @@ export function mountOutlineEdit(app) {
   function showPill() {
     if (pill) return;
     pill = document.createElement('div'); pill.className = 'oe-pill'; pill.setAttribute('role', 'status');
-    pill.innerHTML = '<span><b>Edit outline</b> &nbsp;Click to select, Delete removes &middot; drag to move &middot; double-click a wall to add a corner</span><button type="button">Done</button>';
+    pill.innerHTML = '<span></span><button type="button">Done</button>';
     pill.querySelector('button').addEventListener('click', () => setActive(false));
     (canvas.wrapperEl || upper.parentElement).appendChild(pill);
+    syncPill();
   }
 
   function setActive(on) {
