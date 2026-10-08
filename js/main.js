@@ -17,6 +17,7 @@ import { mountBuildings } from './view/panels/buildingsHome.js';
 import { mountBuildingPage } from './view/panels/buildingPage.js';
 import { showPrompt, showConfirm, showToast } from './view/panels/blueprint.js';
 import { createActions, createStudio } from './mainActions.js';
+import { readNavMode } from './view/wheelIntent.js';
 
 // ---------------------------------------------------------------- screens --
 const screens = {
@@ -129,6 +130,7 @@ function subscribe(fn) {
 }
 
 const app = {
+  navMode: readNavMode(), // how the scroll wheel behaves on the plan (View > Navigation): 'mouse' zooms, 'trackpad' two-finger scroll moves
   project: null,
   doc: null,
   selection: new Set(),

@@ -6,11 +6,32 @@
 // once a stream has started as a drag, every event in it is a drag, however big.
 // Pure. Depends on: nothing.
 
+// How the scroll wheel behaves on the plan, remembered on this computer: 'mouse' (the default, as in Lucid) or 'trackpad'.
+const NAV_KEY = 'fp.navMode';
+export function readNavMode() { try { return localStorage.getItem(NAV_KEY) === 'trackpad' ? 'trackpad' : 'mouse'; } catch (e) { return 'mouse'; } }
+export function saveNavMode(mode) { try { localStorage.setItem(NAV_KEY, mode); } catch (e) { /* private mode: just not remembered */ } }
+
 const GAP = 90; // ms: events closer than this belong to one gesture
 
-export function createWheelIntent() {
+// One event of a mouse wheel: whole notches of 120 in the legacy wheelDeltaY (positive = scrolled up), pixel mode, straight up / down.
+export function mouseTick(e) {
+  const w = e.wheelDeltaY;
+  return Number.isInteger(w) && w !== 0 && w % 120 === 0 && !e.deltaX && !e.deltaMode;
+}
+
+// mode() -> 'mouse' | 'trackpad' (read on every event, so a change takes effect at once). Like Lucid's navigation mode:
+//  'mouse'    the wheel ALWAYS zooms, whatever the mouse sends (any pixel size, hi-res free-spin, smooth-scroll drivers);
+//             only a sideways scroll (a trackpad, a tilt wheel, Shift + wheel) moves the map;
+//  'trackpad' the stream is read to tell a two-finger drag (moves the map) from a wheel notch (zooms), see below.
+export function createWheelIntent({ mode = () => 'trackpad' } = {}) {
   let lastT = -Infinity, lastKind = null;
-  const standardNotch = (dy) => { const a = Math.abs(dy); return Number.isInteger(dy) && a >= 50 && (a % 100 === 0 || a % 120 === 0 || a % 150 === 0); };
+  // A real mouse-wheel notch. Its pixel size depends on the display scaling and the page zoom (100 becomes 80, 66.67, 111 ...),
+  // but the legacy wheelDeltaY the browser also sends is always a whole number of 120s for a wheel notch, whatever the
+  // scaling; a trackpad sends small odd numbers there. So either the pixel size is a standard one or wheelDeltaY says "notch".
+  const standardNotch = (e) => {
+    const dy = e.deltaY, a = Math.abs(dy);
+    return mouseTick(e) || (Number.isInteger(dy) && a >= 50 && (a % 100 === 0 || a % 120 === 0 || a % 150 === 0));
+  };
   // e: { deltaX, deltaY, deltaMode, ctrlKey, metaKey, timeStamp } -> 'pinch' | 'wheel' | 'drag'
   return function classify(e) {
     const t = Number.isFinite(e.timeStamp) ? e.timeStamp : Date.now();
@@ -21,8 +42,9 @@ export function createWheelIntent() {
     else if (e.deltaMode !== 0) kind = 'wheel'; // lines / pages: only a mouse wheel does that
     else if (e.deltaX !== 0) kind = 'drag'; // sideways: a trackpad
     else if (gap <= GAP && lastKind === 'drag') kind = 'drag'; // inside a drag already
-    else if (standardNotch(e.deltaY) && gap > GAP) kind = 'wheel'; // alone and notch-sized
-    else if (gap <= GAP && lastKind === 'wheel' && standardNotch(e.deltaY)) kind = 'wheel'; // spinning a wheel quickly
+    else if (mode() === 'mouse') kind = 'wheel'; // a mouse: straight up / down is the wheel, always zoom
+    else if (standardNotch(e) && gap > GAP) kind = 'wheel'; // alone and notch-sized
+    else if (gap <= GAP && lastKind === 'wheel' && standardNotch(e)) kind = 'wheel'; // spinning a wheel quickly
     else kind = 'drag';
     lastKind = kind === 'pinch' ? lastKind : kind;
     return kind;
@@ -36,7 +58,8 @@ export function createWheelIntent() {
 // fixed 10% step, however many pixels the browser reports for it.
 export function zoomFactor(e, kind) {
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-  const dy = (e.deltaY || 0) * unit;
+  // a notch is a notch however many pixels the browser says it was: count the 120s
+  const dy = mouseTick(e) && kind === 'wheel' ? (-e.wheelDeltaY / 120) * 100 : (e.deltaY || 0) * unit;
   if (kind === 'wheel') return 1.1 ** -Math.max(-3, Math.min(3, dy / 100));
   return Math.exp(-Math.max(-40, Math.min(40, dy)) * 0.005); // at most about 22% for one event; a pinch (1..8) is 0.5..4%
 }

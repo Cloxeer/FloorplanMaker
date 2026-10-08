@@ -16,9 +16,10 @@ import { LEGEND_PX } from './stageObjects.js';
 import { dropOrphanConnects } from '../model/connect.js';
 
 const EDGE_TOL = 10;
+const DRAG_PX = 3; // screen px a press must travel before it becomes a drag: a click with a shaky hand moves nothing
 
 export function attachEditing(ctx) {
-  const { canvas, app, objects, extras, snapper, render, toPlan, setGuides } = ctx;
+  const { canvas, app, objects, extras, snapper, render, toPlan, setGuides, rebuildItems } = ctx;
   let syncing = false;
   // Guards re-entry: committing rebuilds objects and reselects, and Fabric's
   // discardActiveObject finalizes the running transform, which fires
@@ -87,7 +88,12 @@ export function attachEditing(ctx) {
     for (const obj of canvas.getActiveObjects()) paintBlue(obj);
   }
 
+  // Where a drag ends is where the object is drawn: the live snapping (grid, edges, walls) already placed it, so the
+  // commit only rounds to whole plan units. Nudges and turns still go by whole grid squares.
   function grid(v) {
+    return Math.round(v);
+  }
+  function gridSquare(v) {
     return app.gridOn ? snapToGrid(v, STD.grid) : Math.round(v);
   }
 
@@ -168,9 +174,26 @@ export function attachEditing(ctx) {
     app.setHint(`Compass: north points ${compassBearing(t.angle)} — let go to set it.`);
   });
 
+  // A press is not a drag until it has travelled DRAG_PX on screen. Before that the object is held where it was (so a
+  // click with a little jitter changes nothing, and adds no undo step); after it, the object follows the pointer.
+  let press = null; // { x, y, armed } for the current mouse press
+  canvas.on('mouse:down', (opt) => { press = opt.e ? { x: opt.e.clientX, y: opt.e.clientY, armed: false } : null; });
+  function holdUntilDrag(opt) {
+    if (!press || press.armed) return false;
+    const e = opt.e;
+    if (e && Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_PX) {
+      const o = opt.transform && opt.transform.original;
+      if (o) opt.target.set({ left: o.left, top: o.top });
+      return true;
+    }
+    press.armed = true;
+    return false;
+  }
+
   canvas.on('object:moving', (opt) => {
     const t = opt.target;
     if (!t) return;
+    if (holdUntilDrag(opt)) return;
     document.body.classList.add('dragging');
     paintYellow(t);
     const box = absBox(t);
@@ -319,6 +342,11 @@ export function attachEditing(ctx) {
     };
   }
 
+  // Is every field of `patch` already what the item has?
+  function samePatch(item, patch) {
+    return !!item && Object.keys(patch).every((k) => JSON.stringify(item[k]) === JSON.stringify(patch[k]));
+  }
+
   canvas.on('object:modified', (opt) => {
     const t = opt.target;
     if (!t || committing) return;
@@ -342,6 +370,7 @@ export function attachEditing(ctx) {
     if (!doc) return;
     if (t.itemType === 'floor') {
       const pts = polyPoints(t).map(([x, y]) => [grid(x), grid(y)]);
+      if (JSON.stringify(pts) === JSON.stringify(doc.floor && doc.floor.points)) { rebuildItems(['floor']); return; }
       app.commit(setFloor(doc, pts), 'Edit outline');
       return;
     }
@@ -360,11 +389,14 @@ export function attachEditing(ctx) {
       for (const obj of targets) {
         if (!obj.itemId) continue;
         if (obj.itemId === 'floor') { // the outline travels with a moved / resized selection
-          if (group) { next = setFloor(next, absPolyPoints(obj).map(([x, y]) => [grid(x), grid(y)])); changed = true; }
+          if (group) {
+            const pts = absPolyPoints(obj).map(([x, y]) => [grid(x), grid(y)]);
+            if (JSON.stringify(pts) !== JSON.stringify(doc.floor && doc.floor.points)) { next = setFloor(next, pts); changed = true; }
+          }
           continue;
         }
         const patch = patchFor(obj, doc, !!group);
-        if (!patch) continue;
+        if (!patch || samePatch(doc.items.find((it) => it.id === obj.itemId), patch)) continue;
         next = updateItem(next, obj.itemId, patch);
         changed = true;
       }
@@ -378,7 +410,7 @@ export function attachEditing(ctx) {
       for (const obj of targets) if (obj.itemId === 'floor') resetPolyTransform(obj);
     }
     if (changed) app.commit(next, turned ? 'Turn' : 'Move');
-    else render();
+    else rebuildItems(targets.map((o) => o.itemId).filter(Boolean)); // nothing moved: no undo step, just put it back exactly
   }
 
   canvas.on('mouse:up', () => {
@@ -432,7 +464,7 @@ export function attachEditing(ctx) {
     const edge = nearestEdge(pts, p);
     const scale = canvas.getZoom() || 1;
     if (!edge || edge.dist > EDGE_TOL / scale + 6) return;
-    const next = insertVertex(pts, p).map(([x, y]) => [grid(x), grid(y)]);
+    const next = insertVertex(pts, p).map(([x, y]) => [gridSquare(x), gridSquare(y)]);
     clearDot();
     if (poly.itemType === 'floor') app.commit(setFloor(app.doc, next), 'Add corner');
     else app.commit(updateItem(app.doc, poly.itemId, { points: next }), 'Add corner');

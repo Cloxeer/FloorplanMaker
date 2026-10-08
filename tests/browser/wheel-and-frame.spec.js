@@ -4,9 +4,12 @@
 
 import { test, expect } from '@playwright/test';
 
-async function openStudio(page) {
+// nav: the View > Navigation setting these tests run under. Their subject is the trackpad (two-finger scroll moves the map),
+// so they run in 'trackpad'; the default ('mouse': the wheel always zooms) is covered by the last tests of this file.
+async function openStudio(page, nav = 'trackpad') {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.stack || e)));
+  await page.addInitScript((n) => { try { localStorage.setItem('fp.navMode', n); } catch (e) { /* ok */ } }, nav);
   await page.goto('/#/new');
   await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
   await page.fill('#bp-building', 'Wheel Test'); await page.fill('#bp-property', '1'); await page.fill('#bp-floor', '1');

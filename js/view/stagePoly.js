@@ -6,7 +6,7 @@
 // Depends on: fabric@6.7.1 (jsDelivr), js/model/geometry.js.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { nearestPointOnSegment, snapToGrid } from '../model/geometry.js';
+import { nearestPointOnSegment, snapToGrid, segmentsIntersect } from '../model/geometry.js';
 
 // A polygon built from absolute plan points keeps points in plan space and
 // derives left/top from pathOffset. This is the constant offset between the
@@ -83,8 +83,13 @@ function actionHandler(eventData, transform, x, y) {
   const off = polyOffset(poly);
   const grid = poly.snapGrid;
   const useGrid = grid && !(eventData && eventData.altKey);
-  const px = useGrid ? snapToGrid(x, grid) : x;
-  const py = useGrid ? snapToGrid(y, grid) : y;
+  // the grid pulls a corner only from a few screen pixels away (about half a square when zoomed out), so a drag at
+  // high zoom follows the pointer instead of hopping a whole square at a time
+  const zoom = (poly.canvas && poly.canvas.getZoom()) || 1;
+  const win = useGrid ? Math.min(grid / 2, 3 / zoom) : 0;
+  const soft = (v) => { const g = snapToGrid(v, grid); return Math.abs(g - v) <= win ? g : v; };
+  const px = useGrid ? soft(x) : x;
+  const py = useGrid ? soft(y) : y;
   poly.points[control.pointIndex] = new fabric.Point(px - off.dx, py - off.dy);
   return true;
 }
@@ -148,4 +153,36 @@ export function insertVertex(pts, point) {
   const next = pts.slice();
   next.splice(edge.index + 1, 0, [Math.round(edge.x), Math.round(edge.y)]);
   return next;
+}
+
+// An outline polygon is filled (so it reads as the building's floor) but must not behave like a solid: a click or a
+// drag that starts in the empty floor has to reach the canvas (selection box, deselect), and only the wall itself
+// grabs it. Fabric's own test is the bounding box, so the polygon answers "is this point / this box on my wall?" itself.
+// `wallHit` is read by the stage's hit test (stage.js); the other two cover Fabric's selection box.
+export function wallOnlyHit(poly, reachPx = 6) {
+  const canvasOf = () => poly.canvas || (poly.group && poly.group.canvas) || null;
+  const reach = () => {
+    const c = canvasOf();
+    const z = (c && c.getZoom()) || 1;
+    return Math.max(reachPx / z, (poly.strokeWidth || 0) / 2 + 2 / z);
+  };
+  poly.wallHit = (pt) => {
+    const e = nearestEdge(absPolyPoints(poly), pt);
+    return !!e && e.dist <= reach();
+  };
+  poly.containsPoint = (pt) => poly.wallHit(pt);
+  poly.intersectsWithRect = (tl, br) => wallTouchesRect(absPolyPoints(poly), tl, br);
+}
+
+// Does any stretch of the closed outline `pts` lie inside, or cross, the box tl-br?
+export function wallTouchesRect(pts, tl, br) {
+  const inside = ([x, y]) => x >= tl.x && x <= br.x && y >= tl.y && y <= br.y;
+  const sides = [[[tl.x, tl.y], [br.x, tl.y]], [[br.x, tl.y], [br.x, br.y]], [[br.x, br.y], [tl.x, br.y]], [[tl.x, br.y], [tl.x, tl.y]]];
+  for (let i = 0; i < pts.length; i += 1) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    if (inside(a) || inside(b)) return true;
+    for (const [c, d] of sides) if (segmentsIntersect(a, b, c, d)) return true;
+  }
+  return false;
 }

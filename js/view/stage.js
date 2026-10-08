@@ -69,7 +69,13 @@ export function createStage(containerEl, app) {
   let planOpacity = 1;
   let destroyed = false;
 
-  const snapper = createSnapper(app);
+  const snapper = createSnapper(app, () => canvas.getZoom());
+
+  // Fabric tests "is the pointer on this object" against its bounding box. An object that answers for itself (the
+  // outline: only its wall counts, see stagePoly.wallOnlyHit) is asked instead. Fabric is pinned (6.7.1), so this
+  // private hook is stable.
+  const fabricInArea = canvas._pointIsInObjectSelectionArea.bind(canvas);
+  canvas._pointIsInObjectSelectionArea = (obj, point) => (obj && obj.wallHit ? obj.wallHit(point) : fabricInArea(obj, point));
 
   function render() {
     if (!destroyed) canvas.requestRenderAll();
@@ -132,6 +138,25 @@ export function createStage(containerEl, app) {
     resetPolyTransform(existing);
     rebuildFloorPoints(existing, pts);
     if (existingEdge) rebuildFloorEdgePoints(existingEdge, pts);
+  }
+
+  // Put the drawn objects of these items (or 'floor') back exactly as the document has them: used when a drag ended
+  // with nothing to commit, so no object is left a hair off its item.
+  function rebuildItems(ids) {
+    if (!doc) return;
+    editing.runSilently(() => {
+      for (const id of ids) {
+        if (id === 'floor') { syncFloor(doc, null); continue; }
+        const item = doc.items.find((it) => it.id === id);
+        if (!item) continue;
+        if (objects.has(id)) dropItem(id);
+        addItem(item, doc);
+      }
+      restack();
+    });
+    applyHidden();
+    editing.reselect();
+    render();
   }
 
   function setDoc(newDoc) {
@@ -245,7 +270,12 @@ export function createStage(containerEl, app) {
     for (const o of overlays[name]) canvas.remove(o);
     overlays[name] = [];
   }
+  let guideKey = '';
   function setGuides(list) {
+    // called on every mouse move of a drag: when the guides are the same as a moment ago there is nothing to redraw
+    const key = list && list.length ? JSON.stringify(list) : '';
+    if (key === guideKey) return;
+    guideKey = key;
     clearOverlay('guides');
     if (list && list.length) {
       const view = getView();
@@ -341,7 +371,7 @@ export function createStage(containerEl, app) {
 
   // ---------------------------------------------------------- composition --
   const ctx = {
-    fabric, canvas, app, objects, extras, snapper, render, restack, toPlan, getView, setGuides,
+    fabric, canvas, app, objects, extras, snapper, render, restack, toPlan, getView, setGuides, rebuildItems,
     getDoc: () => doc,
     isPanning: view.isPanning,
   };
@@ -387,7 +417,9 @@ export function createStage(containerEl, app) {
     setGuides,
     setGhosts,
     setRoutePath,
-    dropPiece: (key, clientX, clientY) => tools.dropPiece(key, clientX, clientY),
+    dropPiece: (key, clientX, clientY, alt) => tools.dropPiece(key, clientX, clientY, alt),
+    previewDrop: (key, clientX, clientY, alt) => tools.previewDrop(key, clientX, clientY, alt),
+    endPreviewDrop: () => tools.endPreviewDrop(),
     toPlan,
     zoomTo,
     getView,

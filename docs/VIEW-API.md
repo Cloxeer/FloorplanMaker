@@ -60,7 +60,9 @@ stage.setGrid(on)                  // cached 20-unit pattern rect behind everyth
 stage.setGuides([{axis,at}])       // magnet guide lines drawn during a drag
 stage.setGhosts([{x,y,w,h,number,index}])  // clicking one fires window 'ghost-accept' {index}
 stage.setRoutePath([[x,y]...])     // orange polyline + arrowhead
-stage.dropPiece(key, clientX, clientY)     // palette chip drop
+stage.dropPiece(key, clientX, clientY, alt) // palette chip drop (snapped exactly like previewDrop)
+stage.previewDrop(key, clientX, clientY, alt) // while a chip is dragged: draws the guides, returns where the piece will sit {x,y} in client px, or null off the plan
+stage.endPreviewDrop()                     // clears those guides
 stage.toPlan(clientX, clientY) -> {x,y}
 stage.zoomTo(fit=true) / getView() -> {x,y,w,h,zoom} / setView({x,y,zoom})
 stage.destroy()
@@ -96,10 +98,51 @@ crosshair cursor, Esc returns to select, Enter closes the outline.
 ### Snapping (`stageSnap.js`)
 
 `object:moving` / `object:scaling` snap the moving box's edges and centre to
-the 5-unit grid and, within 6 plan units, to other items' edges/centres and the
-outline's vertices; guides are drawn during the drag and Alt disables magnets.
-Targets are collected once per drag and cached, so a move stays cheap on a
-2,000-room plan (see `tests/browser/perf.spec.js`).
+other items' edges/centres and the outline's vertices (within 5 screen px) and
+to walls (6 px); the 5-unit grid pulls only from inside 3 screen px (or half a
+square when zoomed out, where that is smaller). All distances are in screen
+pixels, so a drag feels the same at every zoom and follows the pointer instead
+of hopping a grid square at a time. Guides are drawn during the drag (only when
+they change) and Alt disables magnets. A press must travel 3 px before it is a
+drag (`stageEdit.js` `DRAG_PX`); a drag that ends where it began commits nothing
+(no undo step) and the object is rebuilt exactly. A commit rounds to whole plan
+units: the live snapping already placed the object. Targets are collected once
+per drag and cached, so a move stays cheap on a 2,000-room plan (see
+`tests/browser/perf.spec.js`).
+
+### Navigation: the scroll wheel (`stageView.js`, `wheelIntent.js`)
+
+`app.navMode` (View > Navigation, remembered in `localStorage` as `fp.navMode`) is Lucid's
+navigation mode:
+
+* `'mouse'` (default): a straight up / down wheel event ALWAYS zooms about the pointer, whatever the mouse
+  sends (any pixel size, hi-res free-spin, smooth-scroll drivers, lines mode); small events zoom
+  proportionally, a notch is a 10% step, and the zoom glides (`createZoomSmoother`). Sideways scroll
+  (a trackpad, a tilt wheel, Shift + wheel) moves the map; Ctrl / pinch zooms. The first two-direction
+  scroll shows a one-time toast that says where to switch to Trackpad.
+* `'trackpad'`: the classifier reads the stream: a two-finger drag moves the map (axis-locked, no OS
+  momentum), a lone wheel notch (`wheelDeltaY` a whole number of 120s, so display scaling and page zoom
+  do not matter) or a pinch zooms.
+
+The Preview step follows the same setting. The zoom range is 2% to 800%.
+
+Holding Space, the hand tool and the wheel button all grab the map the same way: the press is taken
+before Fabric sees it, so nothing under the pointer moves and the selection stays.
+
+### Hit-testing the outline
+
+The outline polygon is filled but only its wall counts as "under the pointer"
+(`stagePoly.wallOnlyHit`, read through the stage's `_pointIsInObjectSelectionArea`
+hook), and only its wall counts for Fabric's selection box. A drag that starts in
+the empty floor is therefore a selection box, and clicking the wall selects the
+outline.
+
+### Drawn boxes
+
+A room / stair box stays on the plan (dashed) until the piece exists - a room asks
+for its number first - and the room and stair tools hand back to Select when the
+piece is placed (door and hallway stay armed to repeat). The same goes for a
+dropped chip: its box stays while the number is asked for.
 
 ## Panels (`js/view/panels/*.js`)
 
@@ -109,9 +152,10 @@ Each: `mountXxx(containerEl, app) -> { update(evt), destroy() }` and subscribes 
   "2. Add doors", "3. Add hallways", "4. Add rooms". Steps 2-4 (and the chips)
   are greyed out with the title "Draw the outline first" until a floor exists.
   Dragging a chip onto the stage (Pointer Events, works on touch) calls
-  `app.canvas.dropPiece(key, clientX, clientY)`, which places the piece at the
+  `app.canvas.dropPiece(key, clientX, clientY, alt)`, which places the piece at the
   pointer with the standard size from `STD.palette`, snapped; rooms prompt for
-  the number.
+  the number. While the chip is dragged over the plan the picture sits where
+  the piece will land (`previewDrop`) and the guide lines show.
 * `properties.js`: for the selection: number, name, class (radio 1-5), show name
   toggle, font-size override (auto / 24 / 19 / custom), label "Re-center" (un-pin,
   shows a pin icon when pinned), section dropdown, door kind toggle EXIT/Door,

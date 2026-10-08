@@ -10,8 +10,12 @@ import { STD } from '../model/document.js';
 import { bbox, snapToGrid } from '../model/geometry.js';
 import { openingCentres } from '../model/connect.js';
 
-const TOL = 6;
-const WALL_TOL = 8;
+// How near (in SCREEN pixels, so it feels the same at every zoom) an edge or centre must come to pull a dragged box onto
+// it. The grid is a softer pull: it only holds inside the same few pixels, so a drag at high zoom follows the pointer
+// instead of hopping a whole grid square at a time.
+const MAGNET_PX = 5;
+const WALL_PX = 6;
+const GRID_PX = 3;
 
 function itemBox(item) {
   if (item.type === 'room' && item.shape === 'poly') return bbox(item.points);
@@ -24,7 +28,8 @@ function itemBox(item) {
   return null;
 }
 
-export function createSnapper(app) {
+export function createSnapper(app, getZoom) {
+  const zoom = () => { const z = getZoom ? getZoom() : 1; return z > 0 ? z : 1; };
   let cache = null;
   let cacheDoc = null;
   let cacheKey = '';
@@ -129,12 +134,12 @@ export function createSnapper(app) {
   }
 
   // Best snap for one coordinate against a candidate list.
-  function best(value, list) {
+  function best(value, list, tol) {
     let bestDelta = null;
     let at = null;
     for (let i = 0; i < list.length; i += 1) {
       const d = list[i] - value;
-      if (Math.abs(d) <= TOL && (bestDelta === null || Math.abs(d) < Math.abs(bestDelta))) {
+      if (Math.abs(d) <= tol && (bestDelta === null || Math.abs(d) < Math.abs(bestDelta))) {
         bestDelta = d;
         at = list[i];
       }
@@ -148,29 +153,35 @@ export function createSnapper(app) {
     const alt = !!opts.alt;
     const magnet = app.magnet && !alt;
     const grid = app.gridOn && !alt ? STD.grid : null;
+    const z = zoom();
+    const tol = MAGNET_PX / z;
+    const wallTol = WALL_PX / z;
+    const gridWin = grid ? Math.min(grid / 2, GRID_PX / z) : 0;
     const guides = [];
     let dx = 0;
     let dy = 0;
+    let hasX = false; // a magnet already placed this axis
+    let hasY = false;
     const cx = opts.xEdges || [box.x, box.x + box.w / 2, box.x + box.w];
     const cy = opts.yEdges || [box.y, box.y + box.h / 2, box.y + box.h];
     if (magnet) {
       const { xs, ys } = collect(opts.ignoreIds);
       let bx = null;
       for (const v of cx) {
-        const r = best(v, xs);
+        const r = best(v, xs, tol);
         if (r && (bx === null || Math.abs(r.delta) < Math.abs(bx.delta))) bx = r;
       }
       let by = null;
       for (const v of cy) {
-        const r = best(v, ys);
+        const r = best(v, ys, tol);
         if (r && (by === null || Math.abs(r.delta) < Math.abs(by.delta))) by = r;
       }
-      if (bx) { dx = bx.delta; guides.push({ axis: 'x', at: bx.at }); }
-      if (by) { dy = by.delta; guides.push({ axis: 'y', at: by.at }); }
+      if (bx) { dx = bx.delta; hasX = true; guides.push({ axis: 'x', at: bx.at }); }
+      if (by) { dy = by.delta; hasY = true; guides.push({ axis: 'y', at: by.at }); }
     }
     if (grid) {
-      if (dx === 0 && cx.length) dx = snapToGrid(cx[0], grid) - cx[0];
-      if (dy === 0 && cy.length) dy = snapToGrid(cy[0], grid) - cy[0];
+      if (!hasX && cx.length) { const g = snapToGrid(cx[0], grid) - cx[0]; if (Math.abs(g) <= gridWin) dx = g; }
+      if (!hasY && cy.length) { const g = snapToGrid(cy[0], grid) - cy[0]; if (Math.abs(g) <= gridWin) dy = g; }
     }
     if (magnet) {
       const walls = collectWalls().concat(collectItemEdges(opts.ignoreIds));
@@ -182,18 +193,18 @@ export function createSnapper(app) {
       let wallDy = null;
       for (const w of walls) {
         if (w.orient === 'v') {
-          if (bottom < w.min - WALL_TOL || top > w.max + WALL_TOL) continue;
+          if (bottom < w.min - wallTol || top > w.max + wallTol) continue;
           for (const edge of [left, right]) {
             const d = w.at - edge;
-            if (Math.abs(d) <= WALL_TOL && (wallDx === null || Math.abs(d) < Math.abs(wallDx.delta))) {
+            if (Math.abs(d) <= wallTol && (wallDx === null || Math.abs(d) < Math.abs(wallDx.delta))) {
               wallDx = { delta: d, wall: w };
             }
           }
         } else {
-          if (right < w.min - WALL_TOL || left > w.max + WALL_TOL) continue;
+          if (right < w.min - wallTol || left > w.max + wallTol) continue;
           for (const edge of [top, bottom]) {
             const d = w.at - edge;
-            if (Math.abs(d) <= WALL_TOL && (wallDy === null || Math.abs(d) < Math.abs(wallDy.delta))) {
+            if (Math.abs(d) <= wallTol && (wallDy === null || Math.abs(d) < Math.abs(wallDy.delta))) {
               wallDy = { delta: d, wall: w };
             }
           }

@@ -310,6 +310,9 @@ body.dragging .suggest-bar { opacity: 0; pointer-events: none; }
   background: transparent; cursor: pointer; font-size: 0.85em; line-height: 1.3;
 }
 .chip.active { border-color: var(--accent, #4a90d9); background: rgba(74, 144, 217, 0.15); }
+/* the palette's pieces are dragged onto the plan: show the grab hand, and let a finger drag them instead of scrolling the panel */
+#chip-row .chip { cursor: grab; touch-action: none; }
+#chip-row .chip:active { cursor: grabbing; }
 .chip-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .chip-room .chip-swatch { background: #7ec4ff; }
 .chip-big .chip-swatch { background: #ffb454; }

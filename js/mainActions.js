@@ -13,6 +13,7 @@ import {
 } from './store/autosave.js';
 import * as folderStore from './store/folderStore.js';
 import { createStage } from './view/stage.js';
+import { saveNavMode } from './view/wheelIntent.js';
 import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
@@ -205,7 +206,7 @@ export function createStudio(app, deps) {
     if (!app.canvas) return;
     const v = app.canvas.getView();
     const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
-    const zoom = Math.max(0.1, Math.min(8, v.zoom * factor));
+    const zoom = Math.max(0.02, Math.min(8, v.zoom * factor));
     const w = (v.w * v.zoom) / zoom;
     const h = (v.h * v.zoom) / zoom;
     app.canvas.setView({ zoom, x: cx - w / 2, y: cy - h / 2 });
@@ -233,6 +234,19 @@ export function createStudio(app, deps) {
       if (e.key === 'Escape' && !pop.hidden) pop.hidden = true;
     });
     extraUnsubs.push(app.subscribe((evt) => { if (evt.type === 'tool') pop.hidden = true; }));
+    // Navigation: how the scroll wheel behaves on the plan (remembered on this computer)
+    const navBtns = { mouse: document.getElementById('nav-mouse'), trackpad: document.getElementById('nav-trackpad') };
+    const showNav = () => { for (const [mode, b] of Object.entries(navBtns)) if (b) b.setAttribute('aria-pressed', String(app.navMode === mode)); };
+    for (const [mode, b] of Object.entries(navBtns)) {
+      if (!b) continue;
+      onStudio(b, 'click', () => {
+        app.navMode = mode;
+        saveNavMode(mode);
+        showNav();
+        b.blur();
+      });
+    }
+    showNav();
   }
   function setupCanvas() {
     app.canvas = createStage(document.getElementById('stage'), app);

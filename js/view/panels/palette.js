@@ -325,9 +325,16 @@ export function mountPalette(el, app) {
     document.body.appendChild(g);
     return g;
   }
-  function drop(piece, clientX, clientY) {
+  function drop(piece, clientX, clientY, alt) {
     if (!app.canvas || !app.canvas.dropPiece) return;
-    app.canvas.dropPiece(piece.key, clientX, clientY);
+    app.canvas.dropPiece(piece.key, clientX, clientY, alt);
+  }
+  // The dragged picture sits where the piece will land: over the plan it takes the same snapping a moved room gets
+  // (with the guide lines drawn on the plan); anywhere else it simply follows the pointer.
+  function placeGhost(piece, ev) {
+    const at = app.canvas && app.canvas.previewDrop ? app.canvas.previewDrop(piece.key, ev.clientX, ev.clientY, ev.altKey) : null;
+    dragGhost.style.left = `${at ? at.x : ev.clientX}px`;
+    dragGhost.style.top = `${at ? at.y : ev.clientY}px`;
   }
   function chipToolName(key) {
     if (key === 'hall' || key === 'stair' || key === 'compass') return key;
@@ -351,21 +358,19 @@ export function mountPalette(el, app) {
         dragging = true;
         dragGhost = makeGhost(piece, ev.clientX, ev.clientY);
       }
-      if (dragging && dragGhost) {
-        dragGhost.style.left = `${ev.clientX}px`;
-        dragGhost.style.top = `${ev.clientY}px`;
-      }
+      if (dragging && dragGhost) placeGhost(piece, ev);
     };
     const onUp = (ev) => {
       chip.removeEventListener('pointermove', onMove);
       chip.removeEventListener('pointerup', onUp);
       chip.removeEventListener('pointercancel', onUp);
       if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+      if (app.canvas && app.canvas.endPreviewDrop) app.canvas.endPreviewDrop();
       const stage = document.getElementById('stage');
       const rect = stage ? stage.getBoundingClientRect() : null;
       const inside = rect && ev.clientX >= rect.left && ev.clientX <= rect.right
         && ev.clientY >= rect.top && ev.clientY <= rect.bottom;
-      if (dragging && inside) drop(piece, ev.clientX, ev.clientY);
+      if (dragging && inside) drop(piece, ev.clientX, ev.clientY, ev.altKey);
       else if (!dragging) {
         // A click places the legend beside the building; other pieces pick a tool.
         if (piece.key === 'legend') drop(piece, null, null);

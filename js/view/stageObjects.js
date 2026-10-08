@@ -7,7 +7,7 @@
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
-import { attachPolyControls, setPolyPoints } from './stagePoly.js';
+import { attachPolyControls, setPolyPoints, wallOnlyHit } from './stagePoly.js';
 import {
   ICONS, iconForRoom, iconRoomLayout, iconOnly,
 } from './icons.js';
@@ -409,6 +409,7 @@ export function buildFloor(points, grid) {
   });
   attachPolyControls(poly, grid);
   poly.setControlVisible('mtr', false);
+  wallOnlyHit(poly); // only the wall grabs it: a drag that starts in the empty floor is a selection box
   poly.itemId = 'floor';
   poly.itemType = 'floor';
   poly.zLayer = LAYER.floor;

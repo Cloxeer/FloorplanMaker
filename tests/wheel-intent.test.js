@@ -135,3 +135,39 @@ test('momentum cut: a new push ends the cut, a pause starts afresh, slow even dr
   const ramp = createMomentumCut();
   for (let i = 0; i < 30; i++) assert.equal(ramp(0, 5 + i, i * 8), false); // speeding up
 });
+
+test('a mouse-wheel notch zooms whatever its pixel size (display scaling / page zoom): wheelDeltaY is always whole 120s', () => {
+  const notch = (dy, t, o = {}) => ev(dy, t, { wheelDeltaY: dy > 0 ? -120 : 120, ...o });
+  for (const px of [80, 66.67, 53, 111.1, 125, 33.33]) {
+    assert.deepEqual(run([notch(px, 0), notch(-px, 400)]), ['wheel', 'wheel'], `${px}px notch`);
+  }
+  assert.deepEqual(run([notch(80, 0), notch(80, 40), notch(80, 80)]), ['wheel', 'wheel', 'wheel']); // spun quickly
+  // and a trackpad stream (small odd wheelDeltaY) still moves the map
+  assert.deepEqual(run([ev(9, 0, { wheelDeltaY: -10 }), ev(14, 16, { wheelDeltaY: -17 }), ev(22, 32, { wheelDeltaY: -26 })]), ['drag', 'drag', 'drag']);
+  // a flick that starts as a drag never turns into zoom steps, even when one event happens to read 120
+  assert.deepEqual(run([ev(9, 0, { wheelDeltaY: -10 }), ev(100, 16, { wheelDeltaY: -120 }), ev(30, 32, { wheelDeltaY: -36 })]), ['drag', 'drag', 'drag']);
+});
+
+test('zoomFactor: a wheel notch is a 10% step whatever the pixel size', () => {
+  const f = (dy, wd) => zoomFactor({ deltaY: dy, deltaMode: 0, wheelDeltaY: wd }, 'wheel');
+  for (const px of [100, 80, 66.67, 53, 125]) {
+    assert.ok(Math.abs(f(-px, 120) - 1.1) < 1e-9, `${px}px in`);
+    assert.ok(Math.abs(f(px, -120) - 1 / 1.1) < 1e-9, `${px}px out`);
+  }
+  assert.ok(Math.abs(f(-240, 240) - 1.1 ** 2) < 1e-9, 'two notches reported as one event');
+});
+
+test("mouse mode (Lucid's default): any straight up / down wheel event zooms, however small or odd; sideways still moves the map", () => {
+  const c = createWheelIntent({ mode: () => 'mouse' });
+  const k = (list) => list.map((e) => c(e));
+  assert.deepEqual(k([ev(7, 0), ev(9, 8), ev(12, 16), ev(10, 24)]), ['wheel', 'wheel', 'wheel', 'wheel']); // a hi-res / smooth-scroll mouse
+  assert.deepEqual(k([ev(66.67, 500), ev(53, 1000), ev(3, 1500, { deltaMode: 1 })]), ['wheel', 'wheel', 'wheel']);
+  assert.equal(k([ev(0, 2000, { deltaX: 15 })])[0], 'drag'); // sideways: a trackpad
+  assert.equal(k([ev(12, 2010)])[0], 'drag'); // the rest of that two-finger stroke stays a drag
+  assert.equal(k([ev(100, 2500, { ctrlKey: true })])[0], 'pinch');
+  assert.equal(k([ev(8, 4000)])[0], 'wheel'); // after a pause it is the wheel again
+});
+
+test('the default mode is the trackpad reading, so existing callers are unchanged', () => {
+  assert.equal(createWheelIntent()(ev(7, 0)), 'drag');
+});

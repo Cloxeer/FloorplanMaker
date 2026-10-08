@@ -77,7 +77,7 @@ test.describe('Floor Plan Studio smoke test', () => {
     expect(isAxisAligned(outline0)).toBe(true);
 
     // ---- 2. Select the outline and drag one vertex control ----
-    await page.mouse.click(P(0.3, 0.6).x, P(0.3, 0.6).y);
+    await page.mouse.click(P(0.2, 0.5).x, P(0.2, 0.5).y); // the outline is grabbed by its wall (the left wall), not by the empty floor
     await expect.poll(async () => page.evaluate(() => [...window.__app.selection].join())).toBe('floor');
     const v0 = await toClient(page, outline0[0][0], outline0[0][1]);
     await page.mouse.move(v0[0], v0[1]);
@@ -90,7 +90,7 @@ test.describe('Floor Plan Studio smoke test', () => {
     expect(outline1.slice(1)).toEqual(outline0.slice(1)); // the others did not
 
     // ---- 3. Double-click an edge to insert a vertex ----
-    await page.mouse.click(P(0.3, 0.6).x, P(0.3, 0.6).y);
+    await page.mouse.click(P(0.2, 0.5).x, P(0.2, 0.5).y); // the outline is grabbed by its wall (the left wall), not by the empty floor
     await page.waitForTimeout(150);
     const mid = await toClient(
       page,

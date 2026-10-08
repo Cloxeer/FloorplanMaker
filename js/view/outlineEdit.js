@@ -348,10 +348,10 @@ export function mountOutlineEdit(app) {
   let handT = 0;
   const light = (on) => { const b = hand(); if (b) b.classList.toggle('oe-held', on); };
   const holdLight = () => { light(true); clearTimeout(handT); handT = setTimeout(() => light(false), 260); };
-  const onHandDown = (e) => { if (e.button === 1) light(true); };
+  const onHandDown = (e) => { if (e.button === 1 && e.target === upper) light(true); }; // on the window: the map grab (stageView) takes the press first
   const onHandUp = (e) => { if (e.button === 1) light(false); };
   const onHandKey = (e) => { if (e.code === 'Space' && !/^(INPUT|TEXTAREA)$/.test((e.target || {}).tagName || '')) light(e.type === 'keydown'); };
-  upper.addEventListener('pointerdown', onHandDown, true);
+  window.addEventListener('pointerdown', onHandDown, true);
   window.addEventListener('pointerup', onHandUp, true);
   window.addEventListener('keydown', onHandKey, true);
   window.addEventListener('keyup', onHandKey, true);
@@ -362,9 +362,9 @@ export function mountOutlineEdit(app) {
     setActive,
     destroy() {
       alive = false; unsub(); clearTimeout(handT); if (raf) cancelAnimationFrame(raf);
-      try { upper.removeEventListener('pointerdown', onDown, true); upper.removeEventListener('pointermove', onMove, true); upper.removeEventListener('pointerup', onUp, true); upper.removeEventListener('pointercancel', onUp, true); upper.removeEventListener('pointerdown', onHandDown, true); upper.removeEventListener('wheel', holdLight); canvas.off('after:render', draw); } catch (e) { /* disposed */ }
+      try { upper.removeEventListener('pointerdown', onDown, true); upper.removeEventListener('pointermove', onMove, true); upper.removeEventListener('pointerup', onUp, true); upper.removeEventListener('pointercancel', onUp, true); upper.removeEventListener('wheel', holdLight); canvas.off('after:render', draw); } catch (e) { /* disposed */ }
       window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true);
-      window.removeEventListener('pointerup', onHandUp, true); window.removeEventListener('keydown', onHandKey, true); window.removeEventListener('keyup', onHandKey, true);
+      window.removeEventListener('pointerdown', onHandDown, true); window.removeEventListener('pointerup', onHandUp, true); window.removeEventListener('keydown', onHandKey, true); window.removeEventListener('keyup', onHandKey, true);
       if (pill) pill.remove(); if (button) button.remove(); styleEl.remove();
       light(false);
     },

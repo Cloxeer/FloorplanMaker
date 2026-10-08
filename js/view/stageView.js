@@ -8,7 +8,7 @@ import { unionBox } from '../model/photos.js';
 import { createWheelIntent, createZoomSmoother, createDragFilter, createMomentumCut, zoomFactor } from './wheelIntent.js';
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
 
-const MIN_ZOOM = 0.1;
+const MIN_ZOOM = 0.02; // a big plan (or a big photo) must still be able to zoom out to fit
 const MAX_ZOOM = 8;
 const DRAW_TOOLS = new Set(['room', 'poly', 'floor', 'door', 'hall', 'stair', 'compass', 'connect']);
 
@@ -83,7 +83,7 @@ export function attachView(canvas, app, containerEl, render) {
 
   // Two-finger drag on a trackpad moves the map; a pinch (ctrl + wheel) and a mouse wheel notch zoom.
   // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
-  const intent = createWheelIntent();
+  const intent = createWheelIntent({ mode: () => app.navMode || 'trackpad' }); // 'mouse': the wheel always zooms (View > Navigation)
   const dragFilter = createDragFilter(); // a straight up / down drag does not creep sideways
   const momentumCut = createMomentumCut(); // and the map stays where you let go: no coasting on the OS momentum
   const smoother = createZoomSmoother({
@@ -94,8 +94,18 @@ export function attachView(canvas, app, containerEl, render) {
   // Listen on the whole stage, not just the canvas: the zoom buttons, the hand button, the start card and the
   // floating bars sit on top of the canvas, and a wheel over them used to do nothing (and ctrl + scroll there
   // zoomed the whole web page instead).
+  // In Mouse mode a two-direction scroll can only be a trackpad: say once where to switch, so two-finger scroll can move the plan.
+  const SEEN = 'fp.navHintSeen';
+  let hinted = false;
+  function suggestTrackpad(e) {
+    if (hinted || !e.deltaX || !e.deltaY || !app.toast) return;
+    hinted = true;
+    try { if (localStorage.getItem(SEEN)) return; localStorage.setItem(SEEN, '1'); } catch (err) { /* private mode: just say it this session */ }
+    app.toast('Using a trackpad? In View, set Navigation to Trackpad so a two-finger scroll moves the plan.');
+  }
   const onWheel = (e) => {
     const kind = intent(e);
+    if (kind === 'drag' && app.navMode === 'mouse') suggestTrackpad(e);
     if (kind === 'drag') {
       if (momentumCut(e.deltaX, e.deltaY, e.timeStamp)) { e.preventDefault(); e.stopPropagation(); return; }
       const [dx, dy] = dragFilter(e.deltaX, e.deltaY, e.timeStamp);
@@ -126,68 +136,59 @@ export function attachView(canvas, app, containerEl, render) {
     }, { passive: false });
   }
 
-  // the scroll wheel pressed in: grab the map and drag it (fabric does not report the middle button)
+  // Grabbing the map: the wheel button, the left button with Space held, or the left button with the hand tool.
+  // All three are taken here, BEFORE Fabric sees the press, so nothing under the pointer is grabbed or moved, the
+  // selection is kept, and no selection box starts: the pointer only ever carries the map.
   let grab = null;
+  let spaceHeld = false;
   const upper = canvas.upperCanvasEl;
+  const wantsPan = (e) => e.button === 1 || (e.button === 0 && (spaceHeld || app.toolName === 'pan'));
   on(upper, 'mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // no browser auto-scroll circle
   on(upper, 'pointerdown', (e) => {
-    if (e.button !== 1) return;
+    if (!wantsPan(e)) return;
     e.preventDefault();
+    e.stopImmediatePropagation();
     grab = { x: e.clientX, y: e.clientY, view: getView() };
     try { upper.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
     canvas.setCursor('grabbing');
-  });
+  }, { capture: true });
   on(upper, 'pointermove', (e) => {
     if (!grab) return;
+    e.stopImmediatePropagation(); // Fabric's hover work (cursor, mouse:move tools) has nothing to do while the map is carried
     const z = grab.view.zoom;
     setView({ x: grab.view.x - (e.clientX - grab.x) / z, y: grab.view.y - (e.clientY - grab.y) / z });
+    canvas.setCursor('grabbing');
     app.emit({ type: 'view' });
-  });
+  }, { capture: true });
   const endGrab = (e) => { if (!grab) return; grab = null; try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ } applyCursor(); };
   on(upper, 'pointerup', endGrab);
   on(upper, 'pointercancel', endGrab);
 
-  // space / middle-button / pan-tool dragging
-  let spaceHeld = false;
-  let panning = null;
-  function wantsPan(e) {
-    return spaceHeld || e.button === 1 || app.toolName === 'pan';
+  // Space: hold it to carry the map. Typing in a field, or an open dialog, keeps its own spaces.
+  const spaceIsOurs = (e) => e.code === 'Space' && !document.querySelector('.modal-backdrop')
+    && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target || {}).tagName || '') && !(e.target && e.target.isContentEditable);
+  function releaseSpace() {
+    if (!spaceHeld) return;
+    spaceHeld = false;
+    applyCursor();
   }
   on(window, 'keydown', (e) => {
-    if (e.code === 'Space' && !spaceHeld && !/^(INPUT|TEXTAREA)$/.test((e.target || {}).tagName || '')) {
-      spaceHeld = true;
-      canvas.defaultCursor = 'grab';
-      canvas.selection = false;
-    }
+    if (!spaceIsOurs(e)) return;
+    e.preventDefault(); // no page scroll, and no "click" on whichever button last had focus
+    if (spaceHeld) return;
+    spaceHeld = true;
+    canvas.defaultCursor = 'grab';
+    canvas.skipTargetFind = true; // nothing under the pointer is hot while Space is down
+    canvas.selection = false;
   });
   on(window, 'keyup', (e) => {
-    if (e.code === 'Space') {
-      spaceHeld = false;
-      canvas.selection = app.toolName === 'select';
-      applyCursor();
-    }
+    if (e.code !== 'Space') return;
+    if (spaceHeld) e.preventDefault();
+    releaseSpace();
   });
-
-  canvas.on('mouse:down', (opt) => {
-    if (!wantsPan(opt.e)) return;
-    panning = { x: opt.e.clientX, y: opt.e.clientY, view: getView() };
-    canvas.selection = false;
-    canvas.setCursor('grabbing');
-  });
-  canvas.on('mouse:move', (opt) => {
-    if (!panning) return;
-    const zoom = canvas.getZoom();
-    setView({
-      x: panning.view.x - (opt.e.clientX - panning.x) / zoom,
-      y: panning.view.y - (opt.e.clientY - panning.y) / zoom,
-    });
-  });
-  canvas.on('mouse:up', () => {
-    if (!panning) return;
-    panning = null;
-    canvas.selection = app.toolName === 'select';
-    applyCursor();
-  });
+  // the key can go up while the window is not looking (Alt-Tab, a dialog opening): never stay stuck in "Space held"
+  on(window, 'blur', releaseSpace);
+  on(document, 'visibilitychange', () => { if (document.hidden) releaseSpace(); });
 
   // two-finger pan / pinch zoom
   let touch = null;
@@ -235,6 +236,6 @@ export function attachView(canvas, app, containerEl, render) {
 
   return {
     getView, setView, zoomTo, toPlan, applyCursor, destroyView,
-    isPanning: () => !!panning || spaceHeld,
+    isPanning: () => !!grab || spaceHeld,
   };
 }

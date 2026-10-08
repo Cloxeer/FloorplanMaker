@@ -36,7 +36,7 @@ const HINTS = {
 const SNAP_OPENING = 18; // screen px: how near a hallway end must come to the middle of an opening to lock onto it
 
 export function attachTools(ctx, editing) {
-  const { canvas, app, render, toPlan, getDoc, getView } = ctx;
+  const { canvas, app, render, toPlan, getDoc, getView, snapper, setGuides } = ctx;
   let draft = null; // { kind, points?, start?, objs:[] }
 
   function snapPt(p, e) {
@@ -168,16 +168,48 @@ export function attachTools(ctx, editing) {
 
   const MIN_STAIR = 20;
 
-  async function finishBox(kind, box) {
+  // A box that has been drawn or dropped stays on screen until the piece it stands for is in the plan (a room asks for
+  // its number first), so nothing vanishes and then reappears.
+  const held = new Set();
+  function holdBox(box, fill, stroke) {
+    const rect = new fabric.Rect({
+      left: box.x, top: box.y, width: Math.max(1, box.w), height: Math.max(1, box.h),
+      fill, stroke, strokeWidth: 2, strokeUniform: true, strokeDashArray: [6, 4],
+      selectable: false, evented: false, objectCaching: false,
+    });
+    rect.zLayer = 9;
+    rect.overlay = true;
+    canvas.add(rect);
+    held.add(rect);
+    render();
+    return rect;
+  }
+  function release(rect) {
+    if (!rect) return;
+    canvas.remove(rect);
+    held.delete(rect);
+    render();
+  }
+
+  // The tool goes back to Select once the piece is placed, except for the ones meant to be drawn several in a row.
+  function doneWith(tool) {
+    if (tool !== 'hall' && app.toolName === tool) app.setTool('select');
+  }
+
+  async function finishBox(kind, box, rect) {
+    const tool = app.toolName;
     if (kind === 'hall') {
       const item = { id: newId(), type: 'hall', x: box.x, y: box.y, w: box.w, h: box.h };
+      release(rect);
       app.commit(addItem(app.doc, item), 'Draw hallway');
       return;
     }
     if (kind === 'stair') {
-      if (box.w < MIN_STAIR || box.h < MIN_STAIR) return;
+      if (box.w < MIN_STAIR || box.h < MIN_STAIR) { release(rect); return; }
       const item = { id: newId(), type: 'stair', x: box.x, y: box.y, w: box.w, h: box.h, dir: 'v' };
+      release(rect);
       app.commit(addItem(app.doc, item), 'Draw stairs');
+      doneWith(tool);
       return;
     }
     // Room-tool box draw: the active piece (set by the palette chip that
@@ -187,19 +219,23 @@ export function attachTools(ctx, editing) {
     const std = STD.palette[pieceKey] || STD.palette.room;
     const cls = std.cls || 'room';
     if (cls === 'void') {
+      release(rect);
       app.commit(addItem(app.doc, makeRoom('void', box.x, box.y, box.w, box.h, '')), 'Draw void');
+      doneWith(tool);
       return;
     }
     let number = '';
     if (NUMBERED_CLASSES.has(cls)) {
       const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
-      if (value == null) return;
+      if (value == null) { release(rect); return; }
       number = value;
       app.lastNumber = value;
     }
     const item = makeRoom(cls, box.x, box.y, box.w, box.h, number);
     if (std.name) { item.name = std.name; item.showName = true; }
+    release(rect);
     app.commit(addItem(app.doc, item), 'Draw room');
+    doneWith(tool);
   }
 
   // ---------------------------------------------------------- staff wall --
@@ -407,9 +443,11 @@ export function attachTools(ctx, editing) {
     }
     const kind = draft.kind;
     const box = draft.box;
+    const rect = draft.rect;
+    if (rect) { draft.objs = draft.objs.filter((o) => o !== rect); held.add(rect); } // finishBox lets go of it
     clearDraft();
-    if (!box || box.w < MIN_BOX || box.h < MIN_BOX) return;
-    finishBox(kind === 'poly' ? 'room' : kind, box);
+    if (!box || box.w < MIN_BOX || box.h < MIN_BOX) { release(rect); return; }
+    finishBox(kind === 'poly' ? 'room' : kind, box, rect);
   });
 
   // ------------------------------------------------------- palette drops --
@@ -446,7 +484,37 @@ export function attachTools(ctx, editing) {
     if (app.setSelection) app.setSelection([item.id]);
   }
 
-  async function dropPieceAt(key, pt) {
+  // The box a palette piece takes when its middle is at plan point `pt`, magnet- and grid-snapped exactly the way a
+  // moved room is. The drag preview and the drop both come from here, so the piece lands where the preview showed.
+  // null for the pieces that are not a box (legend, compass).
+  function pieceSize(key) {
+    if (key === 'hall') return { w: 300, h: 60 };
+    const std = STD.palette[key];
+    return std && key !== 'legend' && key !== 'compass' ? { w: std.w, h: std.h } : null;
+  }
+  function snappedDrop(key, pt, alt) {
+    const size = pieceSize(key);
+    if (!size) return null;
+    const box = { x: pt.x - size.w / 2, y: pt.y - size.h / 2, w: size.w, h: size.h };
+    const { dx, dy, guides } = snapper.snapBox(box, { ignoreIds: new Set(), alt });
+    return { box: { ...box, x: Math.round(box.x + dx), y: Math.round(box.y + dy) }, guides };
+  }
+  // While a chip is dragged over the plan: draws the guides and returns where the piece will sit, in client pixels
+  // (the dragged picture follows it), or null when the pointer is off the plan.
+  function previewDrop(key, clientX, clientY, alt) {
+    const r = canvas.upperCanvasEl.getBoundingClientRect();
+    const on = clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    const s = on ? snappedDrop(key, toPlan(clientX, clientY), alt) : null;
+    setGuides(s ? s.guides : []);
+    if (!s) return null;
+    const z = canvas.getZoom() || 1;
+    const v = canvas.viewportTransform;
+    return { x: r.left + (s.box.x + s.box.w / 2) * z + v[4], y: r.top + (s.box.y + s.box.h / 2) * z + v[5] };
+  }
+  function endPreviewDrop() { setGuides([]); }
+
+  async function dropPieceAt(key, pt, alt) {
+    endPreviewDrop();
     if (key === 'legend') { placeLegend(pt); return; }
     if (key === 'door') {
       app.setTool('door');
@@ -460,40 +528,43 @@ export function attachTools(ctx, editing) {
       app.commit({ ...doc, items: [...items, { id: newId(), type: 'compass', x: p.x, y: p.y, deg: 0 }] }, 'Place compass');
       return;
     }
+    const drop = snappedDrop(key, pt, alt);
+    if (!drop) return;
+    const { x, y } = drop.box;
     if (key === 'stair') {
       const std = STD.palette.stair;
-      const p = snapPt({ x: pt.x - std.w / 2, y: pt.y - std.h / 2 });
-      app.commit(addItem(app.doc, { id: newId(), type: 'stair', x: p.x, y: p.y, w: std.w, h: std.h, dir: 'v' }), 'Place stair');
+      app.commit(addItem(app.doc, { id: newId(), type: 'stair', x, y, w: std.w, h: std.h, dir: 'v' }), 'Place stair');
       return;
     }
     if (key === 'hall') {
-      const p = snapPt({ x: pt.x - 150, y: pt.y - 30 });
-      app.commit(addItem(app.doc, { id: newId(), type: 'hall', x: p.x, y: p.y, w: 300, h: 60 }), 'Place hallway');
+      app.commit(addItem(app.doc, { id: newId(), type: 'hall', x, y, w: 300, h: 60 }), 'Place hallway');
       return;
     }
     const std = STD.palette[key];
     if (!std) return;
-    const p = snapPt({ x: pt.x - std.w / 2, y: pt.y - std.h / 2 });
     if (key === 'void') {
-      app.commit(addItem(app.doc, makeRoom('void', p.x, p.y, std.w, std.h, '')), 'Place void');
+      app.commit(addItem(app.doc, makeRoom('void', x, y, std.w, std.h, '')), 'Place void');
       return;
     }
     let number = '';
+    let rect = null;
     if (NUMBERED_CLASSES.has(std.cls)) {
+      rect = holdBox(drop.box, 'rgba(47,111,235,0.10)', '#2f6feb'); // stays put while the number is asked for
       const value = await app.prompt('Room number', '', { validate: 'roomNumber' });
-      if (value == null) return;
+      if (value == null) { release(rect); return; }
       number = value;
     }
-    const item = makeRoom(std.cls, p.x, p.y, std.w, std.h, number);
+    const item = makeRoom(std.cls, x, y, std.w, std.h, number);
     if (std.name) {
       item.name = std.name;
       item.showName = true;
     }
+    release(rect);
     app.commit(addItem(app.doc, item), 'Place room');
   }
-  function dropPiece(key, clientX, clientY) {
+  function dropPiece(key, clientX, clientY, alt) {
     if (clientX == null) return dropPieceAt(key, null); // clicked, not dropped
-    return dropPieceAt(key, toPlan(clientX, clientY));
+    return dropPieceAt(key, toPlan(clientX, clientY), alt);
   }
 
   // --------------------------------------------------------------- stubs --
@@ -518,7 +589,9 @@ export function attachTools(ctx, editing) {
   return {
     stubs,
     dropPiece,
+    previewDrop,
+    endPreviewDrop,
     cancel: clearDraft,
-    destroy() { clearDraft(); void editing; },
+    destroy() { clearDraft(); for (const r of [...held]) release(r); void editing; },
   };
 }
