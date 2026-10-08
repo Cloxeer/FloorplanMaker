@@ -4,12 +4,9 @@
 
 import { test, expect } from '@playwright/test';
 
-// nav: the View > Navigation setting these tests run under. Their subject is the trackpad (two-finger scroll moves the map),
-// so they run in 'trackpad'; the default ('mouse': the wheel always zooms) is covered by the last tests of this file.
-async function openStudio(page, nav = 'trackpad') {
+async function openStudio(page) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.stack || e)));
-  await page.addInitScript((n) => { try { localStorage.setItem('fp.navMode', n); } catch (e) { /* ok */ } }, nav);
   await page.goto('/#/new');
   await page.click('#folder-modal-skip', { timeout: 3000 }).catch(() => {});
   await page.fill('#bp-building', 'Wheel Test'); await page.fill('#bp-property', '1'); await page.fill('#bp-floor', '1');
@@ -179,6 +176,41 @@ test('the scroll wheel pressed in grabs and drags the map', async ({ page }) => 
   const after = await vt(page);
   await page.mouse.move(x + 30, y + 30, { steps: 3 }); // no drag after release
   expect(await vt(page)).toEqual(after);
+  expect(errors).toEqual([]);
+});
+
+test('every zoom and pan step REDRAWS the plan (ctrl + scroll, a wheel notch, a two-finger drag): the picture never waits for the cursor to move', async ({ page }) => {
+  const errors = await openStudio(page);
+  await page.evaluate(() => { const c = window.__app.canvas.fabricCanvas; window.__renders = 0; c.on('after:render', () => { window.__renders++; }); });
+  const box = await page.locator('#stage canvas.upper-canvas').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  const renders = () => page.evaluate(() => window.__renders);
+  // ctrl held, the wheel spun: real input events
+  let r = await renders(), z = (await vt(page))[0];
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(60); }
+  await page.waitForTimeout(500);
+  await page.keyboard.up('Control');
+  expect((await vt(page))[0]).toBeGreaterThan(z * 1.3); // zoomed in
+  expect(await renders()).toBeGreaterThan(r + 2); // and painted, frame after frame
+  // spun the other way it zooms back out, and paints
+  r = await renders(); z = (await vt(page))[0];
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 100); await page.waitForTimeout(60); }
+  await page.waitForTimeout(500);
+  await page.keyboard.up('Control');
+  expect((await vt(page))[0]).toBeLessThan(z / 1.3);
+  expect(await renders()).toBeGreaterThan(r + 2);
+  // a mouse that clicks sideways inches the map right / left, and paints
+  r = await renders(); const x0 = (await vt(page))[4];
+  await page.mouse.wheel(100, 0); await page.waitForTimeout(200);
+  expect((await vt(page))[4]).toBeLessThan(x0); // content moves left as the view moves right
+  expect(await renders()).toBeGreaterThan(r);
+  r = await renders(); const x1 = (await vt(page))[4];
+  await page.mouse.wheel(-100, 0); await page.waitForTimeout(200);
+  expect((await vt(page))[4]).toBeGreaterThan(x1);
+  expect(await renders()).toBeGreaterThan(r);
   expect(errors).toEqual([]);
 });
 

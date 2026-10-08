@@ -83,36 +83,27 @@ export function attachView(canvas, app, containerEl, render) {
 
   // Two-finger drag on a trackpad moves the map; a pinch (ctrl + wheel) and a mouse wheel notch zoom.
   // wheelIntent.js tells them apart by the whole stream of events, so a fast flick still moves the map.
-  const intent = createWheelIntent({ mode: () => app.navMode || 'trackpad' }); // 'mouse': the wheel always zooms (View > Navigation)
+  const intent = createWheelIntent();
   const dragFilter = createDragFilter(); // a straight up / down drag does not creep sideways
   const momentumCut = createMomentumCut(); // and the map stays where you let go: no coasting on the OS momentum
   const smoother = createZoomSmoother({
     min: MIN_ZOOM, max: MAX_ZOOM,
     get: () => canvas.getZoom(),
-    set: (z, x, y) => { canvas.zoomToPoint(new fabric.Point(x, y), z); app.emit({ type: 'view' }); },
+    set: (z, x, y) => { canvas.zoomToPoint(new fabric.Point(x, y), z); render(); app.emit({ type: 'view' }); }, // this canvas does not redraw on its own after a view change: ask for it
   });
   // Listen on the whole stage, not just the canvas: the zoom buttons, the hand button, the start card and the
   // floating bars sit on top of the canvas, and a wheel over them used to do nothing (and ctrl + scroll there
   // zoomed the whole web page instead).
-  // In Mouse mode a two-direction scroll can only be a trackpad: say once where to switch, so two-finger scroll can move the plan.
-  const SEEN = 'fp.navHintSeen';
-  let hinted = false;
-  function suggestTrackpad(e) {
-    if (hinted || !e.deltaX || !e.deltaY || !app.toast) return;
-    hinted = true;
-    try { if (localStorage.getItem(SEEN)) return; localStorage.setItem(SEEN, '1'); } catch (err) { /* private mode: just say it this session */ }
-    app.toast('Using a trackpad? In View, set Navigation to Trackpad so a two-finger scroll moves the plan.');
-  }
   const onWheel = (e) => {
     // a wheel button pressed to grab the map often sends tiny wheel ticks too: while the map is carried it only moves with the pointer
     if (grab) { e.preventDefault(); e.stopPropagation(); return; }
     const kind = intent(e);
-    if (kind === 'drag' && app.navMode === 'mouse') suggestTrackpad(e);
     if (kind === 'drag') {
       if (momentumCut(e.deltaX, e.deltaY, e.timeStamp)) { e.preventDefault(); e.stopPropagation(); return; }
       const [dx, dy] = dragFilter(e.deltaX, e.deltaY, e.timeStamp);
       canvas.relativePan(new fabric.Point(-dx, -dy));
       keepPlanInView();
+      render();
       e.preventDefault();
       e.stopPropagation();
       app.emit({ type: 'view' });

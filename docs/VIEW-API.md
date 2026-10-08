@@ -112,22 +112,17 @@ per drag and cached, so a move stays cheap on a 2,000-room plan (see
 
 ### Navigation: the scroll wheel (`stageView.js`, `wheelIntent.js`)
 
-`app.navMode` (View > Navigation, remembered in `localStorage` as `fp.navMode`) is Lucid's
-navigation mode:
+One way to navigate, for every device (there is no Mouse / Trackpad switch):
 
-* `'mouse'` (default): a straight up / down wheel event ALWAYS zooms about the pointer, whatever the mouse
-  sends (any pixel size, hi-res free-spin, smooth-scroll drivers, lines mode); small events zoom
-  proportionally, a notch is a 10% step, and the zoom glides (`createZoomSmoother`). Sideways scroll
-  (a trackpad, a tilt wheel, Shift + wheel) moves the map; Ctrl / pinch zooms. The first two-direction
-  scroll shows a one-time toast that says where to switch to Trackpad.
-* `'trackpad'`: the classifier reads the stream: a two-finger drag moves the map (axis-locked, no OS
-  momentum), a lone wheel notch (`wheelDeltaY` a whole number of 120s, so display scaling and page zoom
-  do not matter) or a pinch zooms.
-
-The Preview step follows the same setting. The zoom range is 2% to 800%.
-
-Holding Space, the hand tool and the wheel button all grab the map the same way: the press is taken
-before Fabric sees it, so nothing under the pointer moves and the selection stays.
+* Ctrl / Cmd + wheel, or a pinch, zooms about the pointer (spin up: in, down: out). A plain wheel notch zooms too
+  (`wheelDeltaY` a whole number of 120s, so display scaling and page zoom do not matter), and the zoom glides
+  (`createZoomSmoother`).
+* A sideways scroll (two fingers, a tilt wheel, Shift + wheel) and a two-finger drag move the map (axis-locked, no OS
+  momentum). The classifier reads the whole stream, so a fast flick still moves the map.
+* This canvas does not repaint after a view change by itself (`renderOnAddRemove` is off): every zoom and pan step
+  must call `render()` (`tests/browser/wheel-and-frame.spec.js` counts the repaints).
+* While the map is grabbed (wheel button, Space, hand tool) wheel events are ignored and the offset is the grab's plus
+  the pointer's travel, so nothing can pull the map off the pointer.
 
 ### Hit-testing the outline
 

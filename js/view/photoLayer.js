@@ -2,20 +2,21 @@
 // Several photos on one floor, and moving photos or the drawing to line them up.
 //  - Extra photos (project.extraPhotos) are drawn under the plan, next to the main photo.
 //  - View > the buttons left of "Photo" and "Drawing" select that layer. Photo: every photo is outlined, drag one
-//    to move it, drag a corner of the selected one to turn it (it locks to every 15 degrees when close, Shift: always
-//    15 degree steps, Alt: free; the cursor shows a turn arrow there), use - + to match size and the Opacity slider to
-//    see through the selected photo down to nothing (the selected photo is drawn on top); the drawing is shown faint. Drawing:
+//    to move it; its corners resize it (the opposite corner stays put) and the pivot dot in its middle turns it (it locks to
+//    every 15 degrees when close, Shift: always 15 degree steps, Alt: free); the Opacity slider sees through the selected
+//    photo down to nothing (the selected photo is drawn on top); the drawing is shown faint. Drawing (same handles: corners resize):
 //    drag anywhere to slide the whole drawing over the photos. "Done" (or Esc) puts you back to normal.
 //  - app._photoLayer.arrange() is used right after importing several photos: they arrive apart, ready to move.
 // A photo's placement is saved with the project (photo.t); sliding the drawing is one undo step.
 // Depends on: js/model/photos.js, fabric (same build as the stage), app.canvas.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { tOf, photoCorners, photoCentre, hitPhoto, unionBox, moved, scaledBy, turnedBy, translateDoc, scaleDoc, snapPhoto } from '../model/photos.js';
+import { tOf, photoCorners, photoCentre, hitPhoto, unionBox, moved, scaledAbout, turnedBy, translateDoc, scaleDoc, snapPhoto } from '../model/photos.js';
 
 const BLUE = '#0a84ff';
 const FAINT = 0.12;
-const GRAB_PX = 18; // a corner of the selected photo turns it when the pointer is within this many screen pixels
+const GRAB_PX = 16; // a corner or the pivot of the selected photo is grabbed within this many screen pixels
+const PIVOT_PX = 8; // the pivot dot's radius; a turn starts reading the pointer's angle once it is this far from the middle
 const TURN_STEP = 15; // degrees: a turn within TURN_LOCK of a step locks to it (Shift: always a step, Alt: free)
 const TURN_LOCK = 4;
 const TURN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(['<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">',
@@ -162,7 +163,12 @@ export function mountPhotoLayer(app) {
           ctx.beginPath(); c.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
           ctx.globalAlpha = on ? 0.12 : 0.05; ctx.fillStyle = BLUE; ctx.fill();
           ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = (on ? 4 : 2) * px; ctx.setLineDash(on ? [] : [10 * px, 6 * px]); ctx.stroke(); ctx.setLineDash([]);
-          if (on) c.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 7 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5 * px; ctx.stroke(); });
+          if (on) { // corners resize, the dot in the middle turns
+            c.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 7 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5 * px; ctx.stroke(); });
+            const [mx, my] = photoCentre(p);
+            ctx.beginPath(); ctx.arc(mx, my, PIVOT_PX * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5 * px; ctx.stroke();
+            ctx.beginPath(); ctx.arc(mx, my, 3 * px, 0, 7); ctx.fillStyle = BLUE; ctx.fill();
+          }
           // the name stays upright and above the photo's highest point, however far the photo is turned
           const top = Math.min(...c.map((q) => q[1])), hi = c.filter((q) => q[1] - top < px);
           ctx.font = `${600} ${14 * px}px sans-serif`; ctx.fillStyle = BLUE; ctx.textAlign = 'center';
@@ -188,15 +194,32 @@ export function mountPhotoLayer(app) {
   const upperRect = () => upper.getBoundingClientRect();
   function toPlan(e) { const r = upperRect(), vt = canvas.viewportTransform; return [(e.clientX - r.left - vt[4]) / vt[0], (e.clientY - r.top - vt[5]) / vt[3]]; }
   const busy = () => spaceHeld || app.toolName === 'pan';
-  // is the pointer on a corner of the selected photo? (the turn handles)
-  const onCorner = (p) => { const z = canvas.getZoom() || 1, ph = list()[sel]; return sel >= 0 && !!ph && photoCorners(ph).some(([x, y]) => Math.hypot(x - p[0], y - p[1]) * z <= GRAB_PX); };
+  // the handles of the selected photo: a corner (resize) or the pivot in the middle (turn); the pivot wins where they meet
+  function handleAt(p) {
+    const ph = list()[sel]; if (sel < 0 || !ph) return null;
+    const z = canvas.getZoom() || 1, near = ([x, y]) => Math.hypot(x - p[0], y - p[1]) * z <= GRAB_PX;
+    if (near(photoCentre(ph))) return { kind: 'pivot' };
+    const k = photoCorners(ph).findIndex(near);
+    return k < 0 ? null : { kind: 'corner', k };
+  }
+  // the cursor over a handle: the turn arrow on the pivot; on a corner the resize arrow that lies along the diagonal it is on
+  function handleCursor(h) {
+    if (!h) return 'default';
+    if (h.kind === 'pivot') return TURN_CURSOR;
+    const c = photoCorners(list()[sel]), [mx, my] = photoCentre(list()[sel]), vx = c[h.k][0] - mx, vy = c[h.k][1] - my;
+    return vx * vy > 0 ? 'nwse-resize' : 'nesw-resize';
+  }
   function onDown(e) {
     if (!mode || e.button !== 0 || busy()) return;
     const p = toPlan(e);
     if (mode === 'photo') {
-      if (onCorner(p)) {
-        const orig = list()[sel], c = photoCentre(orig);
-        drag = { kind: 'turn', i: sel, orig, c, a0: Math.atan2(p[1] - c[1], p[0] - c[0]) };
+      const h = handleAt(p);
+      if (h && h.kind === 'pivot') {
+        const orig = list()[sel];
+        drag = { kind: 'turn', i: sel, orig, c: photoCentre(orig), a0: null };
+      } else if (h) {
+        const orig = list()[sel], cs = photoCorners(orig);
+        drag = { kind: 'resize', i: sel, orig, corner: cs[h.k], anchor: cs[(h.k + 2) % 4], k: h.k };
       } else {
         const r = refs()[sel], i = r && !r.main && hitPhoto([list()[sel]], p) === 0 ? sel : hitPhoto(list(), p); // the selected extra is on top
         if (i < 0) { sel = -1; syncPill(); redraw(); return; }
@@ -214,12 +237,22 @@ export function mountPhotoLayer(app) {
   }
   function onMove(e) {
     if (!drag) { // hovering: the turn arrow shows on the corners of the selected photo
-      if (mode === 'photo' && !busy()) canvas.defaultCursor = onCorner(toPlan(e)) ? TURN_CURSOR : 'default';
+      if (mode === 'photo' && !busy()) canvas.defaultCursor = handleCursor(handleAt(toPlan(e)));
       return;
     }
     e.preventDefault(); e.stopImmediatePropagation();
     const p = toPlan(e);
+    if (drag.kind === 'resize') { // one factor for both sides (the photo keeps its shape): how far the corner went along its diagonal
+      const [ax, ay] = drag.anchor, vx = drag.corner[0] - ax, vy = drag.corner[1] - ay;
+      setPhoto(drag.i, scaledAbout(drag.orig, ((p[0] - ax) * vx + (p[1] - ay) * vy) / (vx * vx + vy * vy || 1), drag.anchor));
+      canvas.setCursor(handleCursor({ kind: 'corner', k: drag.k }));
+      return;
+    }
     if (drag.kind === 'turn') { // the photo follows the pointer's angle about its centre; Shift snaps the result to 15 degrees
+      if (drag.a0 == null) { // grabbed in the middle, the angle only means something once the pointer has left it
+        if (Math.hypot(p[0] - drag.c[0], p[1] - drag.c[1]) * (canvas.getZoom() || 1) < PIVOT_PX) return;
+        drag.a0 = Math.atan2(p[1] - drag.c[1], p[0] - drag.c[0]);
+      }
       const a = tOf(drag.orig).a;
       let deg = ((Math.atan2(p[1] - drag.c[1], p[0] - drag.c[0]) - drag.a0) * 180) / Math.PI;
       const step = Math.round((a + deg) / TURN_STEP) * TURN_STEP;
@@ -257,7 +290,7 @@ export function mountPhotoLayer(app) {
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
     const d = drag; drag = null;
-    if (d.kind === 'photo' || d.kind === 'turn') { moved_ = true; try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
+    if (d.kind === 'photo' || d.kind === 'turn' || d.kind === 'resize') { moved_ = true; try { app.canvas.setGuides([]); } catch (err) { /* gone */ } if (app.saveView) app.saveView(); }
     else if (d.kind === 'scale') {
       if (preview) { cancelAnimationFrame(preview); preview = 0; }
       if (Math.abs(d.f - 1) > 0.002) app.commit(scaleDoc(app.doc, d.f, d.anchor[0], d.anchor[1]), 'Scale drawing'); else app.canvas.setDoc(app.doc);
@@ -273,11 +306,10 @@ export function mountPhotoLayer(app) {
   }
 
   // ---- the pill and the View buttons
-  function nudge(fn) { if (sel < 0) return; moved_ = true; setPhoto(sel, fn(list()[sel])); if (app.saveView) app.saveView(); }
   function syncMsg() {
     if (!pill || mode !== 'photo') return;
     const has = sel >= 0 && !!list()[sel];
-    pill.querySelector('.pl-msg').innerHTML = has ? `<b>Photo selected</b> &nbsp;Drag to move, drag a corner to turn (${Math.round(tOf(list()[sel]).a)}°)` : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
+    pill.querySelector('.pl-msg').innerHTML = has ? `<b>Photo selected</b> &nbsp;Drag to move · corners resize · the middle dot turns (${Math.round(tOf(list()[sel]).a)}°)` : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
   }
   function syncPill() {
     raise();
@@ -294,15 +326,12 @@ export function mountPhotoLayer(app) {
     if (mode === 'photo') {
       pill.innerHTML = `<span class="pl-msg"></span><span class="pl-tools">
         <label class="pl-op" title="See through this photo, all the way to nothing, to line it up with another">Opacity <input type="range" min="0" max="1" step="0.01" aria-label="Photo opacity"></label>
-        <button type="button" data-pl="smaller" title="Smaller">−</button><button type="button" data-pl="bigger" title="Bigger">+</button>
         <button type="button" data-pl="remove" title="Remove this photo">Remove</button></span><button type="button" class="pl-done">Done</button>`;
       pill.querySelector('.pl-op input').addEventListener('input', (ev) => { const r = refs()[sel]; if (!r) return; ops.set(r.idx, Number(ev.target.value)); paintOpacity(); redraw(); });
       pill.addEventListener('click', async (ev) => {
         const b = ev.target.closest('[data-pl]'); if (!b || b.disabled) return;
         const k = b.dataset.pl;
-        if (k === 'smaller') nudge((p) => scaledBy(p, 1 / 1.05));
-        else if (k === 'bigger') nudge((p) => scaledBy(p, 1.05));
-        else if (k === 'remove') {
+        if (k === 'remove') {
           const r = refs()[sel]; if (!r || r.main) return;
           if (!(await app.confirm('Remove this photo from the floor?'))) return;
           app.project.extraPhotos = app.project.extraPhotos.filter((_, j) => j !== r.j);
@@ -310,14 +339,7 @@ export function mountPhotoLayer(app) {
         }
       });
     } else {
-      pill.innerHTML = `<span class="pl-msg"><b>Drawing selected</b> &nbsp;Drag to move it, drag a corner to resize it</span><span class="pl-tools">
-        <button type="button" data-pd="smaller" title="Smaller (keeps the proportions)">\u2212</button><button type="button" data-pd="bigger" title="Bigger (keeps the proportions)">+</button></span><button type="button" class="pl-done">Done</button>`;
-      pill.addEventListener('click', (ev) => {
-        const b = ev.target.closest('[data-pd]'); if (!b || !app.doc) return;
-        const box = drawingBox(); if (!box) return;
-        const f = b.dataset.pd === 'bigger' ? 1.05 : 1 / 1.05;
-        app.commit(scaleDoc(app.doc, f, box.x + box.w / 2, box.y + box.h / 2), 'Scale drawing');
-      });
+      pill.innerHTML = `<span class="pl-msg"><b>Drawing selected</b> &nbsp;Drag to move it · corners resize it</span><button type="button" class="pl-done">Done</button>`;
     }
     pill.querySelector('.pl-done').addEventListener('click', () => setMode(null));
     (canvas.wrapperEl || upper.parentElement).appendChild(pill);

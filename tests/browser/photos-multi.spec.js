@@ -77,25 +77,37 @@ const centreOf = (page, j) => page.evaluate(async (k) => {
   const p = window.__app.project;
   return photoCentre(k < 0 ? p.photo : p.extraPhotos[k]);
 }, j);
-// drag the top-left corner of extra photo j so the photo turns by `deg` about its centre; -> the photo's new angle
+// grab the pivot dot in the middle of extra photo j (selected) and spin it by `deg` about its centre; -> the photo's new angle
 async function turnBy(page, j, deg, shift = false) {
-  const g = await page.evaluate(async (k) => {
-    const { photoCorners, photoCentre } = await import('/js/model/photos.js');
-    const p = window.__app.project.extraPhotos[k];
-    return { c: photoCorners(p)[0], m: photoCentre(p) };
-  }, j);
-  const r = Math.hypot(g.c[0] - g.m[0], g.c[1] - g.m[1]), a0 = Math.atan2(g.c[1] - g.m[1], g.c[0] - g.m[0]), a1 = a0 + (deg * Math.PI) / 180;
-  const to = [g.m[0] + r * Math.cos(a1), g.m[1] + r * Math.sin(a1)];
-  const a = await toClient(page, g.c), b = await toClient(page, to);
+  const m = await centreOf(page, j);
+  const at = (ang) => [m[0] + 150 * Math.cos(ang), m[1] + 150 * Math.sin(ang)];
+  const a = await toClient(page, m), first = await toClient(page, at(0)), last = await toClient(page, at((deg * Math.PI) / 180));
   await page.mouse.move(a.x, a.y);
-  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor)).toContain('svg'); // the turn arrow shows on the handle
+  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor)).toContain('svg'); // the turn arrow shows on the pivot
   if (shift) await page.keyboard.down('Shift');
   await page.mouse.down();
-  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
-  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.move(first.x, first.y, { steps: 4 }); // out of the middle: from here the angle counts
+  await page.mouse.move(last.x, last.y, { steps: 8 });
   await page.mouse.up();
   if (shift) await page.keyboard.up('Shift');
   return (await proj(page)).extra[0].t.a;
+}
+// drag the bottom-right corner of extra photo j along its diagonal to `f` times its size; -> the photo's new placement and where its top-left corner is
+async function resizeBy(page, j, f) {
+  const g = await page.evaluate(async (k) => {
+    const { photoCorners } = await import('/js/model/photos.js');
+    const c = photoCorners(window.__app.project.extraPhotos[k]);
+    return { c: c[2], anchor: c[0] };
+  }, j);
+  const to = [g.anchor[0] + (g.c[0] - g.anchor[0]) * f, g.anchor[1] + (g.c[1] - g.anchor[1]) * f];
+  const a = await toClient(page, g.c), b = await toClient(page, to);
+  await page.mouse.move(a.x, a.y);
+  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor)).toBe('nwse-resize');
+  await page.mouse.down();
+  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+  await page.mouse.move(b.x, b.y, { steps: 4 });
+  await page.mouse.up();
+  return (await proj(page)).extra[0].t;
 }
 const imageObjs = (page) => page.evaluate(() => window.__app.canvas.fabricCanvas.getObjects().filter((o) => /^image$/i.test(o.type)).length);
 const savedProject = (page, id) => page.evaluate(async (i) => {
@@ -147,14 +159,14 @@ test('drag the extra photo, size and turn it, Done restores', async ({ page }) =
   expect(JSON.stringify(after.photo)).toBe(mainBefore);
 
   const t1 = after.extra[0].t;
-  await page.click('[data-pl="bigger"]');
-  const t2 = (await proj(page)).extra[0].t;
-  expect(t2.s).toBeGreaterThan(t1.s);
-  await page.click('[data-pl="smaller"]'); await page.click('[data-pl="smaller"]');
-  const t3 = (await proj(page)).extra[0].t;
-  expect(t3.s).toBeLessThan(t1.s);
-  // turn: drag the top-left corner of the selected photo a quarter turn about its centre (the old turn buttons are gone)
-  await expect(page.locator('[data-pl="left"], [data-pl="right"]')).toHaveCount(0);
+  // resize: a corner of the selected photo; the opposite corner stays exactly where it is (no -/+ or turn buttons any more)
+  await expect(page.locator('[data-pl="left"], [data-pl="right"], [data-pl="bigger"], [data-pl="smaller"]')).toHaveCount(0);
+  const t2 = await resizeBy(page, 0, 0.8);
+  expect(t2.s / t1.s).toBeCloseTo(0.8, 1);
+  expect(t2.x).toBeCloseTo(t1.x, 0); expect(t2.y).toBeCloseTo(t1.y, 0); // the top-left corner (opposite the dragged one) did not move
+  const t3 = await resizeBy(page, 0, 1.25);
+  expect(t3.s).toBeGreaterThan(t2.s);
+  // turn: the pivot dot in the middle of the selected photo, a quarter turn about its centre
   const tc = await turnBy(page, 0, 90);
   expect(tc).toBeCloseTo(90, 0);
   expect((await proj(page)).extra.length).toBe(1); // turning never adds a copy
@@ -185,7 +197,7 @@ test('placement survives a reload (extra fabric image present)', async ({ page }
   const id = (await proj(page)).id;
   const c0 = await centreOf(page, 0);
   await dragPlan(page, c0, [c0[0] - 120, c0[1] + 60]);
-  await page.click('[data-pl="bigger"]');
+  await resizeBy(page, 0, 1.2);
   await turnBy(page, 0, 30);
   await page.click('.pl-done');
   const want = (await proj(page)).extra[0].t;
@@ -368,16 +380,15 @@ test('Drawing select: a corner handle resizes everything 1:1 (one undo step); ev
   const s0 = await size();
   await page.click('#btn-view');
   await page.locator('.vp-sel[data-sel="drawing"]').click();
-  await expect(page.locator('.pl-pill')).toContainText('resize');
+  await expect(page.locator('.pl-pill')).toContainText('corners resize');
+  await expect(page.locator('[data-pd]')).toHaveCount(0); // one way to resize: the corners
   await dragPlan(page, [500, 300], [700, 400]); // bottom-right corner out to 1.5x about the top-left
   await expect.poll(async () => (await size()).w).toBe(600);
   const s1 = await size();
   expect(s1.h).toBe(300); // 1.5x both ways, never stretched
   expect([s1.rw, s1.rh]).toEqual([300, 300]);
   expect(s1.past).toBe(s0.past + 1);
-  await page.click('[data-pd="bigger"]');
-  expect((await size()).w).toBeGreaterThan(600);
-  await page.evaluate(() => { window.__app.undo(); window.__app.undo(); });
+  await page.evaluate(() => { window.__app.undo(); });
   expect(await size()).toEqual(s0);
 });
 

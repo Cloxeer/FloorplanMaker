@@ -13,7 +13,7 @@ import { legendHtml, LEGEND_NOTE } from './legend.js';
 import { checklistHtml } from './validation.js';
 import { createLayoutBox } from './pageLayout.js';
 import { mountPreviewScope } from './previewScope.js';
-import { createZoomSmoother, createDragFilter, zoomFactor, readNavMode } from '../wheelIntent.js';
+import { createZoomSmoother, createDragFilter, zoomFactor } from '../wheelIntent.js';
 
 const PAGE_BUTTONS = [
   ['fit', 'Fit to SVG'],
@@ -188,11 +188,6 @@ export function showPreviewStep({
       if (e.ctrlKey || e.metaKey) { // pinch / ctrl + scroll: eased, so a burst (or the tail of a gesture) glides
         e.preventDefault();
         zs.push(zoomFactor(e, 'pinch'), e.clientX, e.clientY);
-        return;
-      }
-      if (readNavMode() === 'mouse' && !e.deltaX) { // a mouse: the wheel zooms at the pointer (View > Navigation)
-        e.preventDefault();
-        zs.push(zoomFactor(e, 'wheel'), e.clientX, e.clientY);
         return;
       }
       if (zoom.z === 1) return;

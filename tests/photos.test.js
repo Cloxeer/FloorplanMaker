@@ -133,7 +133,7 @@ test('normalizeToMain: the first photo ends with no placement and every other ph
   const m = list[0].t, a = (-m.a * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
   const into = ([x, y]) => { const dx = x - m.x, dy = y - m.y; return [(dx * c - dy * s) / m.s, (dx * s + dy * c) / m.s]; };
   for (const i of [1, 2]) {
-    const want = corners4(list[i]).map(into), got = corners4(out[i]);
+    const want = photoCorners(list[i]).map(into), got = photoCorners(out[i]);
     want.forEach((w, k) => { assert.ok(Math.abs(w[0] - got[k][0]) < 1e-6 && Math.abs(w[1] - got[k][1]) < 1e-6, `photo ${i} corner ${k}`); });
   }
   assert.deepEqual(list[0].t, { x: 40, y: 30, s: 1.25, a: 20 }, 'input untouched');
@@ -145,4 +145,20 @@ test('layoutExtras: a smaller gap puts photos closer, side by side', () => {
   const [e] = lay(main, [{ width: 500, height: 800 }], 20);
   assert.equal(e.t.x, 1020);
   assert.equal(e.t.y, 0);
+});
+
+import { scaledAbout } from '../js/model/photos.js';
+test('scaledAbout: the opposite corner stays put (also when the photo is turned); the size is kept within 0.05x..10x', () => {
+  for (const a of [0, 30, 90, 200]) {
+    const p = { width: 400, height: 300, t: { x: 100, y: 50, s: 1, a } };
+    const c = photoCorners(p), anchor = c[0];
+    const q = scaledAbout(p, 1.5, anchor);
+    const d = photoCorners(q);
+    assert.ok(Math.abs(d[0][0] - anchor[0]) < 1e-9 && Math.abs(d[0][1] - anchor[1]) < 1e-9, `corner 0 fixed at ${a} deg`);
+    assert.ok(Math.abs(Math.hypot(d[2][0] - anchor[0], d[2][1] - anchor[1]) - 1.5 * Math.hypot(c[2][0] - anchor[0], c[2][1] - anchor[1])) < 1e-9);
+    assert.equal(q.t.a, a);
+  }
+  const p = { width: 100, height: 100, t: { x: 0, y: 0, s: 1, a: 0 } };
+  assert.equal(scaledAbout(p, 1e-6, [0, 0]).t.s, 0.05);
+  assert.equal(scaledAbout(p, 1e6, [0, 0]).t.s, 10);
 });

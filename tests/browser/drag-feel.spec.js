@@ -162,9 +162,11 @@ test('Space or the hand tool carries the map: nothing under the pointer moves, i
   expect(await selected(page)).toEqual(['102']);
 });
 
-test('Navigation Mouse (the default): whatever the wheel sends, it zooms; sideways scroll moves the map; Trackpad brings back two-finger moves', async ({ page }) => {
+test('one way to navigate: a wheel notch zooms, a two-finger stream and a sideways click move the map, nothing in View to switch', async ({ page }) => {
   await setup(page);
-  expect(await page.evaluate(() => window.__app.navMode)).toBe('mouse');
+  await page.click('#btn-view');
+  await expect(page.locator('#nav-mouse, #nav-trackpad')).toHaveCount(0);
+  await page.click('#btn-view');
   const send = (dy, o = {}) => page.evaluate(([d, opt]) => {
     const st = document.getElementById('stage'), r = st.getBoundingClientRect();
     const e = new WheelEvent('wheel', { deltaY: d, deltaX: opt.dx || 0, deltaMode: opt.mode || 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true });
@@ -173,7 +175,7 @@ test('Navigation Mouse (the default): whatever the wheel sends, it zooms; sidewa
   }, [dy, o]);
   const view = () => page.evaluate(() => window.__app.canvas.getView());
   const reset = async () => { await page.evaluate(() => window.__app.canvas.setView({ zoom: 1, x: 0, y: 0 })); await page.waitForTimeout(400); };
-  for (const [name, dy, o] of [['notch 100', 100, { wd: -120 }], ['notch 66.67 (150% scaling)', 66.67, { wd: -120 }], ['odd 53 with no wheelDelta', 53, {}], ['lines mode', 3, { mode: 1 }]]) {
+  for (const [name, dy, o] of [['notch 100', 100, { wd: -120 }], ['notch 66.67 (150% scaling)', 66.67, { wd: -120 }]]) {
     await reset();
     await send(dy, o);
     await page.waitForTimeout(600);
@@ -181,34 +183,17 @@ test('Navigation Mouse (the default): whatever the wheel sends, it zooms; sidewa
     expect(v.zoom, name).toBeLessThan(0.97);
     expect(v.zoom, name).toBeGreaterThan(0.85);
   }
-  // a free-spinning / smooth-scroll mouse: many small events in a burst, each a few pixels
-  await reset();
-  for (let i = 0; i < 30; i += 1) { await send(10); await page.waitForTimeout(8); }
-  await page.waitForTimeout(700);
-  expect((await view()).zoom).toBeLessThan(0.85);
-  await reset();
-  for (let i = 0; i < 30; i += 1) { await send(-10); await page.waitForTimeout(8); }
-  await page.waitForTimeout(700);
-  expect((await view()).zoom).toBeGreaterThan(1.2);
-  // sideways scroll is a trackpad: it moves the map, it does not zoom
-  await reset();
+  await reset(); // sideways: moves the map, does not zoom
   const x0 = (await view()).x;
   await send(0, { dx: 20 }); await send(0, { dx: 20 });
   await page.waitForTimeout(300);
   const v = await view();
   expect(v.zoom).toBeCloseTo(1, 3);
   expect(v.x).toBeGreaterThan(x0);
-  // View > Navigation: Trackpad -> a two-finger stream moves the map, and the choice is remembered
-  await page.click('#btn-view');
-  await page.click('#nav-trackpad');
-  expect(await page.evaluate(() => [window.__app.navMode, localStorage.getItem('fp.navMode')])).toEqual(['trackpad', 'trackpad']);
-  await reset();
+  await reset(); // a two-finger stream moves the map
   const y0 = (await view()).y;
   for (const [d, w] of [[9, -10], [14, -17], [22, -26]]) { await send(d, { wd: w }); await page.waitForTimeout(16); }
   await page.waitForTimeout(300);
   expect((await view()).zoom).toBeCloseTo(1, 3);
   expect((await view()).y).toBeGreaterThan(y0);
-  await page.reload();
-  await page.waitForFunction(() => !!window.__app && window.__app.navMode);
-  expect(await page.evaluate(() => window.__app.navMode)).toBe('trackpad');
 });

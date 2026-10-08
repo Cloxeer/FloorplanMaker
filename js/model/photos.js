@@ -92,6 +92,11 @@ function about(p, next) { // keep the centre where it is while s / a change
   return moved(q, cx - nx, cy - ny);
 }
 export function scaledBy(p, f) { const t = tOf(p); return about(p, { s: Math.max(0.05, Math.min(10, t.s * f)) }); }
+// grow or shrink about a fixed point (a corner being dragged leaves the opposite corner where it is); the size stays within 0.05x..10x
+export function scaledAbout(p, f, [ax, ay]) {
+  const t = tOf(p), s = Math.max(0.05, Math.min(10, t.s * f)), k = s / t.s;
+  return { ...p, t: { ...t, s, x: ax + (t.x - ax) * k, y: ay + (t.y - ay) * k } };
+}
 export function turnedBy(p, deg) { const t = tOf(p); return about(p, { a: ((t.a + deg) % 360 + 360) % 360 }); }
 
 // ---- the drawing: slide everything by (dx, dy)

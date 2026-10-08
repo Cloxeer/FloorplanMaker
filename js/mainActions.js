@@ -13,7 +13,6 @@ import {
 } from './store/autosave.js';
 import * as folderStore from './store/folderStore.js';
 import { createStage } from './view/stage.js';
-import { saveNavMode } from './view/wheelIntent.js';
 import { mountPalette } from './view/panels/palette.js';
 import { mountStepStrip } from './view/panels/stepStrip.js';
 import { mountProperties } from './view/panels/properties.js';
@@ -240,19 +239,6 @@ export function createStudio(app, deps) {
       if (e.key === 'Escape' && !pop.hidden) pop.hidden = true;
     });
     extraUnsubs.push(app.subscribe((evt) => { if (evt.type === 'tool') pop.hidden = true; }));
-    // Navigation: how the scroll wheel behaves on the plan (remembered on this computer)
-    const navBtns = { mouse: document.getElementById('nav-mouse'), trackpad: document.getElementById('nav-trackpad') };
-    const showNav = () => { for (const [mode, b] of Object.entries(navBtns)) if (b) b.setAttribute('aria-pressed', String(app.navMode === mode)); };
-    for (const [mode, b] of Object.entries(navBtns)) {
-      if (!b) continue;
-      onStudio(b, 'click', () => {
-        app.navMode = mode;
-        saveNavMode(mode);
-        showNav();
-        b.blur();
-      });
-    }
-    showNav();
   }
   function setupCanvas() {
     app.canvas = createStage(document.getElementById('stage'), app);

@@ -6,11 +6,6 @@
 // once a stream has started as a drag, every event in it is a drag, however big.
 // Pure. Depends on: nothing.
 
-// How the scroll wheel behaves on the plan, remembered on this computer: 'mouse' (the default, as in Lucid) or 'trackpad'.
-const NAV_KEY = 'fp.navMode';
-export function readNavMode() { try { return localStorage.getItem(NAV_KEY) === 'trackpad' ? 'trackpad' : 'mouse'; } catch (e) { return 'mouse'; } }
-export function saveNavMode(mode) { try { localStorage.setItem(NAV_KEY, mode); } catch (e) { /* private mode: just not remembered */ } }
-
 const GAP = 90; // ms: events closer than this belong to one gesture
 
 // One event of a mouse wheel: whole notches of 120 in the legacy wheelDeltaY (positive = scrolled up), pixel mode, straight up / down.
@@ -19,11 +14,9 @@ export function mouseTick(e) {
   return Number.isInteger(w) && w !== 0 && w % 120 === 0 && !e.deltaX && !e.deltaMode;
 }
 
-// mode() -> 'mouse' | 'trackpad' (read on every event, so a change takes effect at once). Like Lucid's navigation mode:
-//  'mouse'    the wheel ALWAYS zooms, whatever the mouse sends (any pixel size, hi-res free-spin, smooth-scroll drivers);
-//             only a sideways scroll (a trackpad, a tilt wheel, Shift + wheel) moves the map;
-//  'trackpad' the stream is read to tell a two-finger drag (moves the map) from a wheel notch (zooms), see below.
-export function createWheelIntent({ mode = () => 'trackpad' } = {}) {
+// One way to navigate, for every device: Ctrl / pinch zooms, a sideways scroll (two fingers, a tilt wheel, Shift + wheel) moves
+// the map, and a straight up / down stream is read to tell a two-finger drag (moves the map) from a wheel notch (zooms).
+export function createWheelIntent() {
   let lastT = -Infinity, lastKind = null;
   // A real mouse-wheel notch. Its pixel size depends on the display scaling and the page zoom (100 becomes 80, 66.67, 111 ...),
   // but the legacy wheelDeltaY the browser also sends is always a whole number of 120s for a wheel notch, whatever the
@@ -42,7 +35,6 @@ export function createWheelIntent({ mode = () => 'trackpad' } = {}) {
     else if (e.deltaMode !== 0) kind = 'wheel'; // lines / pages: only a mouse wheel does that
     else if (e.deltaX !== 0) kind = 'drag'; // sideways: a trackpad
     else if (gap <= GAP && lastKind === 'drag') kind = 'drag'; // inside a drag already
-    else if (mode() === 'mouse') kind = 'wheel'; // a mouse: straight up / down is the wheel, always zoom
     else if (standardNotch(e) && gap > GAP) kind = 'wheel'; // alone and notch-sized
     else if (gap <= GAP && lastKind === 'wheel' && standardNotch(e)) kind = 'wheel'; // spinning a wheel quickly
     else kind = 'drag';

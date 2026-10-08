@@ -157,17 +157,6 @@ test('zoomFactor: a wheel notch is a 10% step whatever the pixel size', () => {
   assert.ok(Math.abs(f(-240, 240) - 1.1 ** 2) < 1e-9, 'two notches reported as one event');
 });
 
-test("mouse mode (Lucid's default): any straight up / down wheel event zooms, however small or odd; sideways still moves the map", () => {
-  const c = createWheelIntent({ mode: () => 'mouse' });
-  const k = (list) => list.map((e) => c(e));
-  assert.deepEqual(k([ev(7, 0), ev(9, 8), ev(12, 16), ev(10, 24)]), ['wheel', 'wheel', 'wheel', 'wheel']); // a hi-res / smooth-scroll mouse
-  assert.deepEqual(k([ev(66.67, 500), ev(53, 1000), ev(3, 1500, { deltaMode: 1 })]), ['wheel', 'wheel', 'wheel']);
-  assert.equal(k([ev(0, 2000, { deltaX: 15 })])[0], 'drag'); // sideways: a trackpad
-  assert.equal(k([ev(12, 2010)])[0], 'drag'); // the rest of that two-finger stroke stays a drag
-  assert.equal(k([ev(100, 2500, { ctrlKey: true })])[0], 'pinch');
-  assert.equal(k([ev(8, 4000)])[0], 'wheel'); // after a pause it is the wheel again
-});
-
-test('the default mode is the trackpad reading, so existing callers are unchanged', () => {
+test('a small straight up / down stream is a two-finger drag', () => {
   assert.equal(createWheelIntent()(ev(7, 0)), 'drag');
 });
