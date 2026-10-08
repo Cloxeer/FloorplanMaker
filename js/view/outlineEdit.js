@@ -1,7 +1,8 @@
 // outlineEdit.js (view)
-// "Edit outline": grab a corner or a wall of the building outline and move it, click a wall to add a
-// break (a new corner), drag a "+" in the middle of a wall to bend it, double-click a corner to remove it.
-// Corners have a big hit area. Moves snap to the 5-unit grid and line up with the neighbouring corners.
+// "Edit outline": grab a corner or a wall of the building outline and move it. Click a corner or a wall to SELECT it; Delete /
+// Backspace removes the selected corner or wall and the outline closes over the gap (a notch fills in, square walls stay square,
+// see model/outlineTidy.js). Double-click a wall to add a corner there, drag a "+" in the middle of a wall to bend it, double-click
+// a corner to remove it; a corner dropped on its neighbour merges with it. Corners have a big hit area. Moves snap to the 5-unit grid and line up with the neighbouring corners.
 // Doors that sit on a wall travel with it. One undo step per gesture. Also a small hint that lights the
 // hand button while the middle button, Space or a two-finger scroll is panning the plan.
 // Drawn on the stage canvas after each render; never touches the document until a gesture ends.
@@ -9,10 +10,11 @@
 
 import { setFloor } from '../model/document.js';
 import { cleanRing } from '../model/fixOverlaps.js';
+import { tidyRing, removeVertices, removeEdge } from '../model/outlineTidy.js';
 
 const BLUE = '#0a84ff', RED = '#ff453a';
 const G = 5;
-const VERT_HIT = 18, MID_HIT = 12, EDGE_HIT = 9, DRAG_PX = 4, ALIGN_PX = 8; // screen pixels
+const VERT_HIT = 18, MID_HIT = 12, EDGE_HIT = 9, DRAG_PX = 4, ALIGN_PX = 8, MERGE_PX = 12; // screen pixels
 const snapG = (v) => Math.round(v / G) * G;
 
 const CSS = `
@@ -66,7 +68,9 @@ export function mountOutlineEdit(app) {
   let pts = null; // working outline while a gesture is running (plan units)
   let drag = null; // { kind:'vertex'|'edge'|'mid'|'pending-edge', ... }
   let hover = null; // { kind, i }
-  let selected = -1;
+  let selected = -1; // the selected corner
+  let selEdge = -1; // or the selected wall (from corner i to i + 1)
+  let lastWall = { t: 0, i: -1 };
   let bad = false;
   let pill = null, button = null, raf = 0, lastDown = { t: 0, i: -1 };
   let spaceHeld = false;
@@ -133,9 +137,11 @@ export function mountOutlineEdit(app) {
       if (hover && hover.kind === 'edge' && !drag) {
         const a = P[hover.i], b = P[(hover.i + 1) % P.length];
         ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineWidth = 5 * px; ctx.stroke();
-        if (hover.at) { // the break that a click would add
-          ctx.beginPath(); ctx.arc(snapG(hover.at[0]), snapG(hover.at[1]), 5 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2 * px; ctx.stroke();
-        }
+      }
+      if (selEdge >= 0 && selEdge < P.length && !drag) { // the selected wall, bold, with its two corners
+        const a = P[selEdge], b = P[(selEdge + 1) % P.length];
+        ctx.globalAlpha = 0.45; ctx.lineWidth = 20 * px; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.lineWidth = 7 * px; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
       }
       // middle "+" handles
       for (let i = 0; i < P.length; i++) {
@@ -183,12 +189,22 @@ export function mountOutlineEdit(app) {
       if (app.toast) app.toast('That would make the outline cross itself, so it was put back.');
       return;
     }
-    // drop exact duplicate corners (never collinear ones: a break on a straight wall is wanted)
-    const clean = next.filter((p, i) => { const q = next[(i + 1) % next.length]; return !(p[0] === q[0] && p[1] === q[1]); });
+    // corners on the same spot merge, a spike (a wall that turns straight back) goes; a break on a straight wall stays
+    const clean = tidyRing(next);
     const doc = followDoors(setFloor(app.doc, clean), base, clean);
+    if (clean.length !== base.length) { selected = -1; selEdge = -1; } // the numbers of the corners have moved on
     bad = false;
     app.commit(doc, label);
     redraw();
+  }
+
+  // take corners out (Delete, double-click): the outline closes over the gap
+  function takeOut(idxs, label) {
+    const base = floorPts(); if (!base) return;
+    const next = removeVertices(base, idxs);
+    selected = -1; selEdge = -1; drag = null; pts = null;
+    if (!next) { if (app.toast) app.toast('That would not leave an outline, so it was kept.'); redraw(); return; }
+    pts = next; commit(label);
   }
 
   function onDown(e) {
@@ -196,7 +212,7 @@ export function mountOutlineEdit(app) {
     const base = floorPts(); if (!base) return;
     const p = toPlan(e);
     const h = hitTest(p);
-    if (!h) { selected = -1; redraw(); return; } // let fabric deal with it (nothing to select in edit mode)
+    if (!h) { selected = -1; selEdge = -1; redraw(); return; } // let fabric deal with it (nothing to select in edit mode)
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
     pts = base.map((q) => [q[0], q[1]]);
@@ -204,18 +220,18 @@ export function mountOutlineEdit(app) {
     if (h.kind === 'vertex') {
       const now = performance.now();
       if (lastDown.i === h.i && now - lastDown.t < 350 && pts.length > 3) { // double-click: remove this corner
-        pts.splice(h.i, 1); selected = -1; lastDown = { t: 0, i: -1 };
-        commit('Remove corner'); return;
+        lastDown = { t: 0, i: -1 }; pts = null; takeOut([h.i], 'Remove corner'); return;
       }
-      lastDown = { t: now, i: h.i }; selected = h.i;
+      lastDown = { t: now, i: h.i }; selected = h.i; selEdge = -1;
       drag = { kind: 'vertex', i: h.i, start, orig: pts[h.i].slice() };
     } else if (h.kind === 'mid') {
       const a = pts[h.i], b = pts[(h.i + 1) % pts.length];
       const m = [snapG((a[0] + b[0]) / 2), snapG((a[1] + b[1]) / 2)];
-      pts.splice(h.i + 1, 0, m); selected = h.i + 1;
+      pts.splice(h.i + 1, 0, m); selected = h.i + 1; selEdge = -1;
       drag = { kind: 'vertex', i: h.i + 1, start, orig: m.slice(), fresh: true };
     } else {
       const a = pts[h.i], b = pts[(h.i + 1) % pts.length];
+      selected = -1; selEdge = h.i;
       drag = { kind: 'pending-edge', i: h.i, start, p0: p, a: a.slice(), b: b.slice(), at: h.at };
     }
     redraw();
@@ -243,6 +259,10 @@ export function mountOutlineEdit(app) {
       if (moved < DRAG_PX && !drag.fresh) return;
       canvas.defaultCursor = 'grabbing';
       pts[drag.i] = snapPoint(p, [drag.i]);
+      const n = pts.length, z = zoom();
+      for (const k of [(drag.i + n - 1) % n, (drag.i + 1) % n]) { // close to a neighbouring corner: they become one
+        if (Math.hypot(pts[k][0] - p[0], pts[k][1] - p[1]) * z <= MERGE_PX) { pts[drag.i] = [pts[k][0], pts[k][1]]; break; }
+      }
       drag.moved = true;
     } else if (drag.kind === 'edge') {
       const n = pts.length, i = drag.i, j = (i + 1) % n;
@@ -262,10 +282,16 @@ export function mountOutlineEdit(app) {
     e.preventDefault(); e.stopImmediatePropagation();
     try { upper.releasePointerCapture(e.pointerId); } catch (err) { /* ok */ }
     const d = drag;
-    if (d.kind === 'pending-edge') { // a click on a wall: add a break right there
-      const at = [snapG(d.at[0]), snapG(d.at[1])];
-      pts.splice(d.i + 1, 0, at); selected = d.i + 1;
-      commit('Add corner'); return;
+    if (d.kind === 'pending-edge') { // a click on a wall selects it; a second click on it adds a break right there
+      const now = performance.now();
+      if (lastWall.i === d.i && now - lastWall.t < 400) {
+        lastWall = { t: 0, i: -1 };
+        const at = [snapG(d.at[0]), snapG(d.at[1])];
+        pts = floorPts().map((q) => [q[0], q[1]]); pts.splice(d.i + 1, 0, at); selected = d.i + 1; selEdge = -1;
+        commit('Add corner'); return;
+      }
+      lastWall = { t: now, i: d.i };
+      pts = null; drag = null; redraw(); return;
     }
     commit(d.kind === 'edge' ? 'Move wall' : d.fresh ? 'Add corner' : 'Move corner');
     canvas.defaultCursor = 'default';
@@ -277,9 +303,13 @@ export function mountOutlineEdit(app) {
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.key === 'Escape') { setActive(false); e.stopImmediatePropagation(); return; }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && selected >= 0 && floorPts() && floorPts().length > 3) {
-      pts = floorPts().map((q) => [q[0], q[1]]); pts.splice(selected, 1); selected = -1;
-      commit('Remove corner'); e.preventDefault(); e.stopImmediatePropagation();
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      // always ours while editing: Delete here never removes the whole outline
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (!floorPts()) return;
+      if (selEdge >= 0) { const base = floorPts(), n = base.length, i = selEdge; takeOut([i, (i + 1) % n], 'Remove wall'); }
+      else if (selected >= 0) takeOut([selected], 'Remove corner');
+      else if (app.toast) app.toast('Click a corner or a wall first, then press Delete to remove it.');
     }
   }
 
@@ -308,7 +338,7 @@ export function mountOutlineEdit(app) {
   function showPill() {
     if (pill) return;
     pill = document.createElement('div'); pill.className = 'oe-pill'; pill.setAttribute('role', 'status');
-    pill.innerHTML = '<span><b>Edit outline</b> &nbsp;Drag a corner or wall &middot; click a wall to add a corner &middot; double-click a corner to remove</span><button type="button">Done</button>';
+    pill.innerHTML = '<span><b>Edit outline</b> &nbsp;Click to select, Delete removes &middot; drag to move &middot; double-click a wall to add a corner</span><button type="button">Done</button>';
     pill.querySelector('button').addEventListener('click', () => setActive(false));
     (canvas.wrapperEl || upper.parentElement).appendChild(pill);
   }
@@ -316,7 +346,7 @@ export function mountOutlineEdit(app) {
   function setActive(on) {
     on = !!on && !!floorPts();
     if (on === active) return;
-    active = on; pts = null; drag = null; hover = null; selected = -1; bad = false;
+    active = on; pts = null; drag = null; hover = null; selected = -1; selEdge = -1; bad = false;
     if (on) {
       if (app.toolName !== 'select' && app.toolName !== 'pan') app.setTool('select');
       try { canvas.discardActiveObject(); } catch (e) { /* none */ }
