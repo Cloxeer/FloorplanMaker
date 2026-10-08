@@ -14,7 +14,7 @@ import { tidyRing, removeVertices, removeEdge } from '../model/outlineTidy.js';
 
 const BLUE = '#0a84ff', RED = '#ff453a';
 const G = 5;
-const VERT_HIT = 18, MID_HIT = 12, EDGE_HIT = 12, DRAG_PX = 4, ALIGN_PX = 8, MERGE_PX = 12; // screen pixels
+const VERT_HIT = 18, MID_HIT = 8, EDGE_HIT = 12, DRAG_PX = 4, ALIGN_PX = 8, MERGE_PX = 12; // screen pixels
 const snapG = (v) => Math.round(v / G) * G;
 
 const CSS = `
@@ -103,6 +103,10 @@ export function mountOutlineEdit(app) {
     }
     return best;
   }
+
+  // The cursor says what a press would do: the grab hand on a corner or a wall (select, then move it); the plus only on the little
+  // + in the middle of a wall, the one place something is added; nowhere else.
+  const cursorFor = (h) => (!h ? 'default' : h.kind === 'mid' ? 'copy' : 'grab');
 
   // ---- snapping: grid, then line up with other corners when close
   function snapPoint(p, skip) {
@@ -256,7 +260,7 @@ export function mountOutlineEdit(app) {
       const h = hitTest(toPlan(e));
       const same = (!h && !hover) || (h && hover && h.kind === hover.kind && h.i === hover.i && !(h.kind === 'edge'));
       hover = h;
-      canvas.defaultCursor = h ? (h.kind === 'vertex' ? 'grab' : h.kind === 'mid' ? 'copy' : 'pointer') : 'default';
+      canvas.defaultCursor = cursorFor(h);
       if (!same || (h && h.kind === 'edge')) redraw();
       return;
     }
@@ -282,6 +286,7 @@ export function mountOutlineEdit(app) {
       }
       drag.moved = true;
     } else if (drag.kind === 'edge') {
+      canvas.defaultCursor = 'grabbing';
       const n = pts.length, i = drag.i, j = (i + 1) % n;
       const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
       const horiz = drag.a[1] === drag.b[1], vert = drag.a[0] === drag.b[0];
@@ -303,7 +308,7 @@ export function mountOutlineEdit(app) {
       pts = null; drag = null; redraw(); return;
     }
     commit(d.kind === 'edge' ? 'Move wall' : d.fresh ? 'Add corner' : 'Move corner');
-    canvas.defaultCursor = 'default';
+    canvas.defaultCursor = cursorFor(hitTest(toPlan(e))); // right where the pointer is now
   }
 
   function onKey(e) {

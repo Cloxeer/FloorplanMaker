@@ -171,6 +171,20 @@ test('a corner dropped on its neighbour merges with it', async ({ page }) => {
   expect(await pastLen(page)).toBe(before + 1);
 });
 
+test('the cursor says what a press does: grab on a corner or a wall, a plus only on the + in the middle of a wall', async ({ page }) => {
+  await setup(page);
+  const cursor = async (plan) => { const c = await toClient(page, plan); await page.mouse.move(c.x, c.y); await page.waitForTimeout(60); return page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor); };
+  expect(await cursor([100, 100])).toBe('grab'); // a corner
+  expect(await cursor([500, 180])).toBe('grab'); // a wall
+  expect(await cursor([500, 280])).toBe('grab'); // the wall's middle area, off the +: still a wall
+  expect(await cursor([500, 250])).toBe('copy'); // the + itself
+  expect(await cursor([300, 250])).toBe('default'); // off the outline
+  const c = await toClient(page, [500, 180]);
+  await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.mouse.move(c.x + 30, c.y);
+  expect(await page.evaluate(() => window.__app.canvas.fabricCanvas.defaultCursor)).toBe('grabbing');
+  await page.mouse.up();
+});
+
 test('Esc exits edit mode', async ({ page }) => {
   await setup(page);
   await page.keyboard.press('Escape');
