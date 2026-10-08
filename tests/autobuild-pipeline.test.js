@@ -63,17 +63,10 @@ test('synthetic poster: scale normalisation, straight outline, no overlaps', asy
   }
 });
 
-test('synthetic poster: exit door sits on the outline', async () => {
+test('synthetic poster: no door is placed automatically, even where an exit sign is read', async () => {
   const res = await build();
-  const doors = res.items.filter((i) => i.type === 'door');
-  assert.ok(doors.length >= 1, 'exit sign became a door');
-  const ring = res.floor.points;
-  for (const d of doors) {
-    for (const p of [[d.x1, d.y1], [d.x2, d.y2]]) {
-      const near = nearestPointOnPolyline(p, ring, true);
-      assert.ok(near && near.dist <= 1, `door end ${p} is ${near && near.dist} from the outline`);
-    }
-  }
+  assert.ok(res.stats.exits >= 1, 'the exit sign is still found (so it is not taken for a room)');
+  assert.equal(res.items.filter((i) => i.type === 'door').length, 0);
 });
 
 test('synthetic poster: review list explains every guess and only those', async () => {

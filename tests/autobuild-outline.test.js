@@ -35,7 +35,7 @@ test('extendOutline: shape outside gets its box added, still rectilinear', () =>
   assert.ok(rectilinear(far));
 });
 
-test('assemble: a room outside the traced outline is contained after assembly; doors stay on it', () => {
+test('assemble: a room outside the traced outline is contained after assembly; no door is added for an exit sign', () => {
   const w = 300, h = 200, foot = new Uint8Array(w * h);
   for (let y = 20; y < 160; y++) for (let x = 20; x < 180; x++) foot[y * w + x] = 1;
   const poly = [[20, 20], [180, 20], [180, 160], [20, 160]];
@@ -47,9 +47,7 @@ test('assemble: a room outside the traced outline is contained after assembly; d
   const res = assemble({ w, h, L: 300, textH: 10, kept, halls: [], elevators: [], stairs: [], exits, compass: null, footFinal: foot, polyRing: poly, prof: resolveProfile(), opts: {} });
   assert.ok(rectilinear(res.floor.points));
   for (const it of res.items.filter((i) => i.type === 'room')) for (const c of corners(it)) assert.ok(inOrOn(res.floor.points, c), 'room corner inside');
-  for (const d of res.items.filter((i) => i.type === 'door')) {
-    for (const p of [[d.x1, d.y1], [d.x2, d.y2]]) assert.ok(nearestPointOnPolyline(p, res.floor.points, true).dist < 2, 'door end on outline');
-  }
+  assert.equal(res.items.filter((i) => i.type === 'door').length, 0);
 });
 
 test('pipeline: every item of a synthetic poster is inside the outline', async () => {

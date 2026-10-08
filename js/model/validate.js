@@ -7,6 +7,7 @@
 // Errors are sorted before warnings; each group preserves discovery order.
 
 import { isOnOutline, dist, pointInPolygon, polygonsOverlap, polygonArea } from './geometry.js';
+import { ringsOf } from './connect.js';
 import { roomPolygon, labelPos, NUMBER_RE, NUMBERED_CLASSES } from './document.js';
 import { floorLead, wrongFloor } from './autobuild/floorRule.js';
 
@@ -154,7 +155,7 @@ export function validate(doc) {
         });
       } else {
         const seg = { x1: item.x1, y1: item.y1, x2: item.x2, y2: item.y2 };
-        if (!isOnOutline(seg, floor.points)) {
+        if (!ringsOf(doc).some((ring) => isOnOutline(seg, ring))) { // on the wall of any building's outline
           errors.push({
             level: 'error',
             code: 'door-off-outline',

@@ -65,8 +65,8 @@ export function mountProperties(el, app) {
     if (item.type === 'compass') return renderCompass(item);
     if (item.type === 'legend') return renderLegend(item);
     if (item.type === 'outline' || item.type === 'connect') {
-      const what = item.type === 'outline' ? `The outline round ${item.piece || 'one building'}` : `Connection point ${item.slot === 2 ? 2 : 1}`;
-      const more = item.type === 'outline' ? 'It is a working outline for joining buildings: it is not exported. Select its piece in Layers to move or turn it with its rooms.' : 'It marks where a hallway meets a building wall. Press its number in Connect hallways to move it.';
+      const what = item.type === 'outline' ? `The outline round ${item.name || item.piece || 'one building'}` : `Connection point ${item.slot === 2 ? 2 : 1}`;
+      const more = item.type === 'outline' ? 'It is the wall round one building and it is exported with the plan. Redraw it from step 1 (Outline the building). Select its piece in Layers to move or turn it with its rooms.' : 'It marks where a hallway meets a building wall. Press its number in Connect hallways to move it.';
       el.innerHTML = `<div class="section-title">${what}</div><p style="color:var(--muted)">${more}</p>${deleteButtonHtml()}`;
       el.querySelector('#p-delete').addEventListener('click', () => {
         app.commit(dropOrphanConnects(removeItems(app.doc, [item.id])), 'Delete');

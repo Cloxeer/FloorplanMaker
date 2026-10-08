@@ -2,8 +2,9 @@
 // Several photos on one floor, and moving photos or the drawing to line them up.
 //  - Extra photos (project.extraPhotos) are drawn under the plan, next to the main photo.
 //  - View > the buttons left of "Photo" and "Drawing" select that layer. Photo: every photo is outlined, drag one
-//    to move it, drag a corner of the selected one to turn it (Shift: 15 degree steps; the cursor shows a turn arrow
-//    there), use - + to match size; the drawing is shown faint. Drawing:
+//    to move it, drag a corner of the selected one to turn it (it locks to every 15 degrees when close, Shift: always
+//    15 degree steps, Alt: free; the cursor shows a turn arrow there), use - + to match size and the Opacity slider to
+//    see through the selected photo down to nothing (the selected photo is drawn on top); the drawing is shown faint. Drawing:
 //    drag anywhere to slide the whole drawing over the photos. "Done" (or Esc) puts you back to normal.
 //  - app._photoLayer.arrange() is used right after importing several photos: they arrive apart, ready to move.
 // A photo's placement is saved with the project (photo.t); sliding the drawing is one undo step.
@@ -15,7 +16,8 @@ import { tOf, photoCorners, photoCentre, hitPhoto, unionBox, moved, scaledBy, tu
 const BLUE = '#0a84ff';
 const FAINT = 0.12;
 const GRAB_PX = 18; // a corner of the selected photo turns it when the pointer is within this many screen pixels
-const TURN_STEP = 15; // degrees, with Shift held
+const TURN_STEP = 15; // degrees: a turn within TURN_LOCK of a step locks to it (Shift: always a step, Alt: free)
+const TURN_LOCK = 4;
 const TURN_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(['<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">',
   ...[['#fff', 4.5], ['#111', 2]].map(([c, w]) => `<path d="M18.5 12a6.5 6.5 0 1 1-1.9-4.6M19 4v4.5h-4.5" stroke="${c}" stroke-width="${w}"/>`), '</svg>'].join(''))}") 12 12, crosshair`;
 const CSS = `
@@ -27,7 +29,9 @@ const CSS = `
 .pl-pill button { border:1px solid #d2d2d7; border-radius:999px; background:#fff; color:#1d1d1f; font:600 13px inherit; padding:5px 11px; cursor:pointer; }
 .pl-pill button:disabled { opacity:.4; cursor:default; }
 .pl-pill button.pl-done { border:0; background:${BLUE}; color:#fff; padding:6px 16px; }
-.pl-pill .pl-tools { display:inline-flex; gap:4px; }
+.pl-pill .pl-tools { display:inline-flex; gap:4px; align-items:center; }
+.pl-pill .pl-op { display:inline-flex; align-items:center; gap:6px; color:#515154; margin-right:4px; }
+.pl-pill .pl-op input { width:90px; margin:0; }
 #view-popover .vp-sel { border:1px solid #d2d2d7; border-radius:999px; background:#fff; font-size:11px; padding:2px 9px; cursor:pointer; flex:none; }
 #view-popover .vp-sel[aria-pressed="true"] { background:${BLUE}; border-color:${BLUE}; color:#fff; }
 `;
@@ -40,6 +44,7 @@ export function mountPhotoLayer(app) {
 
   let alive = true, mode = null, sel = -1, drag = null, raf = 0;
   let extraObjs = []; // [{ key, obj }] fabric images for project.extraPhotos
+  const ops = new Map(); // opacity of one photo while arranging, by photo index (0 = main); a photo with none follows the shared slider
   let lastBg = null, savedView = null, pill = null, preview = null, spaceHeld = false, moved_ = false;
 
   // ---- the photos, as one list: main photo first, then the extras
@@ -81,10 +86,18 @@ export function mountPhotoLayer(app) {
     });
     paintOpacity();
   }
+  const opOf = (idx) => (ops.has(idx) ? ops.get(idx) : arrangeOpacity);
   function paintOpacity() {
-    const op = mode === 'photo' ? arrangeOpacity : bgOpacity();
-    if (canvas.backgroundImage && mode === 'photo') canvas.backgroundImage.opacity = op;
-    for (const { obj } of extraObjs) obj.opacity = op;
+    const op = bgOpacity();
+    if (canvas.backgroundImage && mode === 'photo') canvas.backgroundImage.opacity = opOf(0);
+    for (const { obj, j } of extraObjs) obj.opacity = mode === 'photo' ? opOf(j + 1) : op;
+  }
+  // draw order, back to front: the main photo, then the extras in order, and the selected extra above them all
+  // (so it can be laid over another photo; hits use the same order)
+  function raise() {
+    const r = refs()[sel], top = r && !r.main ? r.j : -1;
+    for (const { obj, j } of extraObjs) obj.zLayer = j === top ? -19 : -20 + j * 0.01;
+    try { app.canvas.restack(); } catch (e) { /* gone */ }
   }
   let syncing = null, again = false; // one sync at a time: overlapping runs each added their own copy of the same photo
   function sync() {
@@ -104,11 +117,12 @@ export function mountPhotoLayer(app) {
         const obj = await fabric.FabricImage.fromURL(e.dataUrl);
         if (!alive) return;
         obj.set({ originX: 'left', originY: 'top', selectable: false, evented: false, opacity: bgOpacity() });
-        obj.zLayer = -20; obj.overlay = false;
-        canvas.add(obj); canvas.sendObjectToBack(obj);
+        obj.zLayer = -20 + w.j * 0.01; obj.overlay = false;
+        canvas.add(obj);
         extraObjs.push({ key: w.key, j: w.j, obj });
       } catch (err) { /* an unreadable photo: skip it */ }
     }
+    raise();
     place();
     redraw();
   }
@@ -149,8 +163,11 @@ export function mountPhotoLayer(app) {
           ctx.globalAlpha = on ? 0.12 : 0.05; ctx.fillStyle = BLUE; ctx.fill();
           ctx.globalAlpha = 1; ctx.strokeStyle = BLUE; ctx.lineWidth = (on ? 4 : 2) * px; ctx.setLineDash(on ? [] : [10 * px, 6 * px]); ctx.stroke(); ctx.setLineDash([]);
           if (on) c.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 7 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5 * px; ctx.stroke(); });
-          ctx.font = `${600} ${14 * px}px sans-serif`; ctx.fillStyle = BLUE;
-          ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${refs()[i] ? refs()[i].idx + 1 : i + 1}`, c[0][0] + 8 * px, c[0][1] + 20 * px);
+          // the name stays upright and above the photo's highest point, however far the photo is turned
+          const top = Math.min(...c.map((q) => q[1])), hi = c.filter((q) => q[1] - top < px);
+          ctx.font = `${600} ${14 * px}px sans-serif`; ctx.fillStyle = BLUE; ctx.textAlign = 'center';
+          ctx.fillText(refs()[i] && refs()[i].main ? 'Main photo' : `Photo ${refs()[i] ? refs()[i].idx + 1 : i + 1}`, hi.reduce((a, q) => a + q[0], 0) / hi.length, top - 8 * px);
+          ctx.textAlign = 'start';
         });
       } else if (mode === 'drawing') {
         const b = currentFrame();
@@ -181,7 +198,7 @@ export function mountPhotoLayer(app) {
         const orig = list()[sel], c = photoCentre(orig);
         drag = { kind: 'turn', i: sel, orig, c, a0: Math.atan2(p[1] - c[1], p[0] - c[0]) };
       } else {
-        const i = hitPhoto(list(), p);
+        const r = refs()[sel], i = r && !r.main && hitPhoto([list()[sel]], p) === 0 ? sel : hitPhoto(list(), p); // the selected extra is on top
         if (i < 0) { sel = -1; syncPill(); redraw(); return; }
         sel = i; drag = { kind: 'photo', i, p0: p, orig: list()[i] };
       }
@@ -205,9 +222,11 @@ export function mountPhotoLayer(app) {
     if (drag.kind === 'turn') { // the photo follows the pointer's angle about its centre; Shift snaps the result to 15 degrees
       const a = tOf(drag.orig).a;
       let deg = ((Math.atan2(p[1] - drag.c[1], p[0] - drag.c[0]) - drag.a0) * 180) / Math.PI;
-      if (e.shiftKey) deg = Math.round((a + deg) / TURN_STEP) * TURN_STEP - a;
+      const step = Math.round((a + deg) / TURN_STEP) * TURN_STEP;
+      if (e.shiftKey || (app.magnet !== false && Math.abs(a + deg - step) <= TURN_LOCK)) deg = step - a;
       canvas.setCursor(TURN_CURSOR);
       setPhoto(drag.i, turnedBy(drag.orig, deg));
+      syncMsg();
       return;
     }
     const dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
@@ -255,19 +274,29 @@ export function mountPhotoLayer(app) {
 
   // ---- the pill and the View buttons
   function nudge(fn) { if (sel < 0) return; moved_ = true; setPhoto(sel, fn(list()[sel])); if (app.saveView) app.saveView(); }
+  function syncMsg() {
+    if (!pill || mode !== 'photo') return;
+    const has = sel >= 0 && !!list()[sel];
+    pill.querySelector('.pl-msg').innerHTML = has ? `<b>Photo selected</b> &nbsp;Drag to move, drag a corner to turn (${Math.round(tOf(list()[sel]).a)}°)` : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
+  }
   function syncPill() {
+    raise();
     if (!pill || mode !== 'photo') return; // the drawing pill has its own fixed text
-    const has = sel >= 0, isExtra = has && refs()[sel] && !refs()[sel].main;
+    const has = sel >= 0, r = refs()[sel], isExtra = has && r && !r.main;
     pill.querySelectorAll('[data-pl]').forEach((b) => { b.disabled = b.dataset.pl === 'remove' ? !isExtra : !has; });
-    pill.querySelector('.pl-msg').innerHTML = has ? '<b>Photo selected</b> &nbsp;Drag to move, drag a corner to turn' : '<b>Arrange photos</b> &nbsp;Click a photo, then drag it';
+    const op = pill.querySelector('.pl-op input'); op.disabled = !has; op.value = has && r ? opOf(r.idx) : arrangeOpacity;
+    syncMsg();
+    redraw();
   }
   function showPill() {
     if (pill) pill.remove();
     pill = document.createElement('div'); pill.className = 'pl-pill'; pill.setAttribute('role', 'status');
     if (mode === 'photo') {
       pill.innerHTML = `<span class="pl-msg"></span><span class="pl-tools">
+        <label class="pl-op" title="See through this photo, all the way to nothing, to line it up with another">Opacity <input type="range" min="0" max="1" step="0.01" aria-label="Photo opacity"></label>
         <button type="button" data-pl="smaller" title="Smaller">−</button><button type="button" data-pl="bigger" title="Bigger">+</button>
         <button type="button" data-pl="remove" title="Remove this photo">Remove</button></span><button type="button" class="pl-done">Done</button>`;
+      pill.querySelector('.pl-op input').addEventListener('input', (ev) => { const r = refs()[sel]; if (!r) return; ops.set(r.idx, Number(ev.target.value)); paintOpacity(); redraw(); });
       pill.addEventListener('click', async (ev) => {
         const b = ev.target.closest('[data-pl]'); if (!b || b.disabled) return;
         const k = b.dataset.pl;
@@ -277,7 +306,7 @@ export function mountPhotoLayer(app) {
           const r = refs()[sel]; if (!r || r.main) return;
           if (!(await app.confirm('Remove this photo from the floor?'))) return;
           app.project.extraPhotos = app.project.extraPhotos.filter((_, j) => j !== r.j);
-          sel = -1; await sync(); if (app.saveView) app.saveView(); syncPill();
+          ops.clear(); sel = -1; await sync(); if (app.saveView) app.saveView(); syncPill();
         }
       });
     } else {
@@ -304,9 +333,10 @@ export function mountPhotoLayer(app) {
     if (next === mode) return;
     const was = mode;
     mode = next; sel = -1; drag = null;
+    raise();
     if (preview) { cancelAnimationFrame(preview); preview = 0; }
     try { app.canvas.setGuides([]); } catch (e) { /* gone */ }
-    if (was === 'photo') { try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } place(); }
+    if (was === 'photo') { ops.clear(); try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } place(); }
     if (was === 'drawing') { try { app.canvas.setDoc(app.doc); } catch (e) { /* gone */ } }
     if (was && !next) {
       // photos were moved: show them where they are now; otherwise go back to the view you had

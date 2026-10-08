@@ -5,7 +5,7 @@
 // Only existing studio item types are emitted: room (cls room / core / void),
 // hall, stair, door, compass. Pure. Depends on: ../document.js, ../geometry.js.
 
-import { newId, doorFor } from '../document.js';
+import { newId } from '../document.js';
 import { flagOutliers, floorPrior } from './text.js';
 import { cleanRing } from '../fixOverlaps.js';
 import { nearestPointOnPolyline, pointInPolygon } from '../geometry.js';
@@ -134,17 +134,7 @@ export function assemble(ctx) {
   const mopt = { tol: Math.max(3, Math.round(textH * 0.3)), hole: Math.max(16, textH * 4), minRun: Math.max(10, textH * 2) };
   // a closing line across empty paper (no wall behind it) moves in to the rooms next to it
   if (inkMask) outline = pullGaps(outline, items.filter((it) => it.type === 'room' || it.type === 'hall' || it.type === 'stair'), inkMask, w, h, scale, { ...mopt, minPull: Math.max(15, 2.5 * textH * scale) });
-  const reach = Math.max(w, h) * scale * 0.1;
-  for (const ex of exits) {
-    const near = nearestPointOnPolyline([ex.cx * scale, ex.cy * scale], outline, true);
-    if (!near || near.dist > reach) continue;
-    const door = doorFor(outline, { x: ex.cx * scale, y: ex.cy * scale });
-    if (!door) continue;
-    // one doorway per exit sign: a sign seen twice (or two signs beside one door) must not give two doors on top of each other
-    const mx = (door.x1 + door.x2) / 2, my = (door.y1 + door.y2) / 2;
-    if (items.some((d) => d.type === 'door' && Math.hypot((d.x1 + d.x2) / 2 - mx, (d.y1 + d.y2) / 2 - my) < 60)) continue;
-    items.push({ id: newId(), type: 'door', ...door, kind: 'EXIT' });
-  }
+  // no doors are placed here: exit signs are only read so they are not mistaken for rooms; doors are the user's to place
   if (compass) {
     // the compass graphic is big; slide it away from the building until it clears
     let cx = compass.x * scale, cy = compass.y * scale;

@@ -78,3 +78,42 @@ test('removing an outline takes its connect points with it', () => {
   const out = dropOrphanConnects({ ...d, items: d.items.filter((i) => i.id !== a.id) });
   assert.equal(out.items.filter((i) => i.type === 'connect').length, 1);
 });
+
+// ---- extra outlines: several separate buildings on one floor
+import { ringsOf, withOutline, withoutOutline, nextOutlineName, outlineLabel } from '../js/model/connect.js';
+import { createDoc, setFloor } from '../js/model/document.js';
+import { validate } from '../js/model/validate.js';
+import { exportSvg } from '../js/model/svgExport.js';
+
+const twoBuildings = () => {
+  let d = setFloor(createDoc({ building: 'B', property: '1', floor: 1, slug: 'b-1' }, { x: 0, y: 0, w: 2000, h: 600 }), [[0, 0], [400, 0], [400, 300], [0, 300]]);
+  d = withOutline(d, [[1000, 0], [1400, 0], [1400, 300], [1000, 300]], { name: 'North wing' });
+  return d;
+};
+
+test('extra outlines: add keeps the first outline, names default to Outline 2, 3...; redraw keeps id and name; remove drops its connect points', () => {
+  let d = twoBuildings();
+  assert.equal(d.floor.points.length, 4);
+  const o = d.items.find((i) => i.type === 'outline');
+  assert.equal(outlineLabel(o), 'North wing');
+  assert.equal(nextOutlineName(d), 'Outline 2');
+  d = withOutline(d, [[0, 400], [300, 400], [300, 500]]);
+  assert.equal(d.items.filter((i) => i.type === 'outline').map(outlineLabel).join(','), 'North wing,Outline 2');
+  const again = withOutline(d, [[1000, 0], [1500, 0], [1500, 300]], { id: o.id });
+  assert.equal(again.items.filter((i) => i.type === 'outline').length, 2);
+  assert.equal(again.items.find((i) => i.id === o.id).name, 'North wing');
+  assert.equal(again.items.find((i) => i.id === o.id).points[1][0], 1500);
+  const withConnect = { ...d, items: [...d.items, { id: 'c9', type: 'connect', pair: 'p', slot: 1, color: '#e5484d', outline: o.id, x: 1000, y: 100 }] };
+  assert.equal(withoutOutline(withConnect, o.id).items.some((i) => i.id === 'c9' || i.id === o.id), false);
+  assert.equal(ringsOf(d).length, 3);
+});
+
+test('extra outlines: a door on the second building is on an outline; one in the open is not; the export draws every building', () => {
+  let d = twoBuildings();
+  const door = (id, x1, y1, x2, y2) => ({ id, type: 'door', x1, y1, x2, y2, kind: 'EXIT', label: { x: x1 - 20, y: y1 } });
+  d = { ...d, items: [...d.items, door('d1', 1000, 100, 1000, 160), door('d2', 700, 100, 700, 160)] };
+  const bad = validate(d).filter((e) => e.code === 'door-off-outline').map((e) => e.itemId);
+  assert.deepEqual(bad, ['d2']);
+  const svg = exportSvg(d);
+  assert.equal((svg.match(/class="floor-edge"/g) || []).length, 2);
+});

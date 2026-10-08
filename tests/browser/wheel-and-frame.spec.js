@@ -182,6 +182,26 @@ test('the scroll wheel pressed in grabs and drags the map', async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+test('wheel ticks and a gliding zoom during a grab never pull the map off the pointer', async ({ page }) => {
+  const errors = await openStudio(page);
+  const box = await page.locator('#stage canvas.upper-canvas').boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.wheel(0, -100); // a zoom starts gliding, and the grab begins right away
+  await page.mouse.down({ button: 'middle' });
+  const start = await vt(page);
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(x + i * 8, y + i * 3);
+    if (i % 3 === 0) await page.mouse.wheel(0, 100); // the tiny tick a pressed wheel can send
+    const now = await vt(page);
+    expect(now[0]).toBeCloseTo(start[0], 6); // zoom untouched while carrying
+    expect(now[4]).toBeCloseTo(start[4] + i * 8, 0);
+    expect(now[5]).toBeCloseTo(start[5] + i * 3, 0);
+  }
+  await page.mouse.up({ button: 'middle' });
+  expect(errors).toEqual([]);
+});
+
 // ---- the Preview: the same two things
 test('Preview: ctrl + scroll glides, and the scroll wheel pressed in drags the plan', async ({ page }) => {
   const errors = await openStudio(page);

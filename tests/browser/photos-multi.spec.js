@@ -411,3 +411,43 @@ test('hand tool on and off leaves photo mode locked: no ghost outlines, no room 
   await page.click('.pl-done');
   expect(await locked()).toEqual([false, true]); // leaving the mode gives the plan back
 });
+
+test('turning locks to 15 degrees when close (Alt: free); the Opacity slider fades only the selected photo to nothing and Done gives the shared opacity back', async ({ page }) => {
+  await importMulti(page, [A(), B()]);
+  const c0 = await toClient(page, await centreOf(page, 0));
+  await page.mouse.click(c0.x, c0.y);
+  expect(await turnBy(page, 0, 88)).toBeCloseTo(90, 5); // within 4 degrees of a step: locked
+  await page.mouse.click(c0.x, c0.y);
+  const free = await turnBy(page, 0, 7); // 90 + 7 = 97: 7 away from 90 and 105, so it stays as dragged
+  expect(Math.abs(free - 97)).toBeLessThan(1.5);
+  expect(Math.abs(free % 15)).toBeGreaterThan(1);
+
+  const ops = () => page.evaluate(() => {
+    const c = window.__app.canvas.fabricCanvas;
+    return [c.backgroundImage.opacity, ...c.getObjects().filter((o) => /^image$/i.test(o.type)).map((o) => o.opacity)];
+  });
+  const before = await ops();
+  await expect(page.locator('.pl-op input')).toBeEnabled();
+  await page.locator('.pl-op input').fill('0'); // the extra is selected
+  const after = await ops();
+  expect(after[0]).toBeCloseTo(before[0], 5); // the main photo is untouched
+  expect(after[1]).toBe(0);
+  await page.locator('.pl-op input').fill('0.4');
+  expect((await ops())[1]).toBeCloseTo(0.4, 2);
+  await page.click('.pl-done');
+  expect(new Set(await ops()).size).toBe(1); // back to one opacity for every photo
+});
+
+test('Ctrl + / Ctrl - / Ctrl 0 zoom the plan, not the web page', async ({ page }) => {
+  await importMulti(page, [A(), B()]);
+  await page.click('.pl-done');
+  const z = () => page.evaluate(() => window.__app.canvas.fabricCanvas.getZoom());
+  const z0 = await z();
+  await page.keyboard.press('Control+=');
+  const z1 = await z();
+  expect(z1).toBeGreaterThan(z0);
+  await page.keyboard.press('Control+-'); await page.keyboard.press('Control+-');
+  expect(await z()).toBeLessThan(z1);
+  await page.keyboard.press('Control+0');
+  expect(await z()).toBeCloseTo(z0, 1);
+});

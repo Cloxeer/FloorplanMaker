@@ -104,6 +104,8 @@ export function attachView(canvas, app, containerEl, render) {
     app.toast('Using a trackpad? In View, set Navigation to Trackpad so a two-finger scroll moves the plan.');
   }
   const onWheel = (e) => {
+    // a wheel button pressed to grab the map often sends tiny wheel ticks too: while the map is carried it only moves with the pointer
+    if (grab) { e.preventDefault(); e.stopPropagation(); return; }
     const kind = intent(e);
     if (kind === 'drag' && app.navMode === 'mouse') suggestTrackpad(e);
     if (kind === 'drag') {
@@ -148,15 +150,19 @@ export function attachView(canvas, app, containerEl, render) {
     if (!wantsPan(e)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    grab = { x: e.clientX, y: e.clientY, view: getView() };
+    smoother.cancel(); // a zoom still gliding would pull the map away from the pointer
+    const v = canvas.viewportTransform;
+    grab = { x: e.clientX, y: e.clientY, tx: v[4], ty: v[5] };
     try { upper.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
     canvas.setCursor('grabbing');
   }, { capture: true });
   on(upper, 'pointermove', (e) => {
     if (!grab) return;
     e.stopImmediatePropagation(); // Fabric's hover work (cursor, mouse:move tools) has nothing to do while the map is carried
-    const z = grab.view.zoom;
-    setView({ x: grab.view.x - (e.clientX - grab.x) / z, y: grab.view.y - (e.clientY - grab.y) / z });
+    // the map's offset is the one it had when grabbed plus how far the pointer went: whatever the zoom does, it never jumps
+    const v = canvas.viewportTransform;
+    canvas.setViewportTransform([v[0], v[1], v[2], v[3], grab.tx + e.clientX - grab.x, grab.ty + e.clientY - grab.y]);
+    render();
     canvas.setCursor('grabbing');
     app.emit({ type: 'view' });
   }, { capture: true });

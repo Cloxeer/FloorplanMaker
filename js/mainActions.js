@@ -125,6 +125,11 @@ export function createStudio(app, deps) {
     if (mod && ((e.shiftKey && key.toLowerCase() === 'z') || key.toLowerCase() === 'y')) { e.preventDefault(); app.redo(); return; }
     if (mod && key.toLowerCase() === 'c') { e.preventDefault(); app.copy(); return; }
     if (mod && key.toLowerCase() === 'v') { e.preventDefault(); app.paste(); return; }
+    if (mod && (key === '=' || key === '+' || key === '-' || key === '_' || key === '0')) { // Ctrl +, Ctrl -, Ctrl 0 zoom the plan, not the web page
+      e.preventDefault();
+      if (key === '0') { if (app.canvas) { app.canvas.zoomTo(true); scheduleSaveView(); } } else zoomBy(key === '-' || key === '_' ? 0.8 : 1.25);
+      return;
+    }
     if (mod) return;
     if (key === 'g' || key === 'G') { toggleGrid(); return; }
     if (key === 'h' || key === 'H') { app.canvas.flashPhoto(true); return; }
@@ -144,11 +149,12 @@ export function createStudio(app, deps) {
     if (nameEl) nameEl.textContent = (app.project && (app.project.name || app.project.doc.meta.building)) || 'Untitled';
     if (floorEl && app.project) floorEl.textContent = `Floor ${app.project.doc.meta.floor}`;
   }
-  function updateSavedChip() {
+  function updateSavedChip(quiet) {
     const chip = document.getElementById('saved-chip');
     if (!chip) return;
     let text = formatSavedAgo(lastSavedAt());
     if (app.folder && app.folder.state === 'granted') text = text.replace('Saved', 'Saved to folder');
+    if (quiet && chip.textContent === text) return; // panning sends a 'view' on every move: no reflow, no fade-in restart, when nothing changed
     chip.textContent = text;
     chip.classList.remove('flash');
     // eslint-disable-next-line no-unused-expressions
@@ -270,7 +276,7 @@ export function createStudio(app, deps) {
     studioUnsub = app.subscribe((evt) => {
       if (evt.type === 'doc') { updateUndoRedoButtons(); updateOverlay(); updateSuggestButton(); }
       if (evt.type === 'doc' || evt.type === 'validation') updateExportButton();
-      if (evt.type === 'saved' || evt.type === 'view') updateSavedChip();
+      if (evt.type === 'saved') updateSavedChip(); else if (evt.type === 'view') updateSavedChip(true);
     });
   }
   function wireTopbar() {

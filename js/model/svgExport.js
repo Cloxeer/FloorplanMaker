@@ -3,8 +3,9 @@
 // Depends on: ./document.js (roomPolygon, labelPos, labelClass, labelText,
 // stairTreads, STD).
 
-import { labelPos, labelClass, labelText, stairTreads } from './document.js';
+import { labelPos, labelClass, labelText, stairTreads, doorSymbol } from './document.js';
 import { bbox } from './geometry.js';
+import { outlinesOf } from './connect.js';
 import { hallLabels } from './hallLabels.js';
 import {
   iconForRoom, iconSvg, iconRoomLayout, iconOnly,
@@ -138,15 +139,25 @@ function stairLines(item) {
   return lines;
 }
 
+// -> [door line, EXIT / Door text, swing group]: the first two share one line of the file (the build tools read them as a pair)
 function doorLines(item) {
   const lines = [];
   lines.push(`${IND}<line class="door" x1="${r(item.x1)}" y1="${r(item.y1)}" x2="${r(item.x2)}" y2="${r(item.y2)}"/>`);
-  const lx = r(item.label.x);
-  const ly = r(item.label.y);
+  const sym = doorSymbol(item);
+  const lx = r(sym ? sym.label.x : item.label.x);
+  const ly = r(sym ? sym.label.y : item.label.y);
   if (item.kind === 'Door') {
     lines.push(`${IND}<text class="exit" fill="#5f6368" x="${lx}" y="${ly}">Door</text>`);
   } else {
     lines.push(`${IND}<text class="exit" x="${lx}" y="${ly}">EXIT</text>`);
+  }
+  if (sym) { // the door as an architect draws it: each leaf as a line, and the quarter circle it sweeps (the studio reads past this group)
+    const parts = sym.leaves.map((lf) => {
+      const sweep = (lf.open.x - lf.hinge.x) * (lf.closed.y - lf.hinge.y) - (lf.open.y - lf.hinge.y) * (lf.closed.x - lf.hinge.x) > 0 ? 1 : 0;
+      return `<line x1="${r(lf.hinge.x)}" y1="${r(lf.hinge.y)}" x2="${r(lf.open.x)}" y2="${r(lf.open.y)}"/>`
+        + `<path d="M${r(lf.open.x)},${r(lf.open.y)} A${r(sym.w)},${r(sym.w)} 0 0 ${sweep} ${r(lf.closed.x)},${r(lf.closed.y)}" stroke-width="2"/>`;
+    });
+    lines.push(`${IND}<g class="door-swing" fill="none" stroke="#3a3d42" stroke-width="3" stroke-linecap="round">${parts.join('')}</g>`);
   }
   return lines;
 }
@@ -214,6 +225,9 @@ export function exportSvg(doc) {
     lines.push(`${IND}<polygon class="floor" points="${pointsAttr(doc.floor.points)}"/>`);
     lines.push('');
   }
+  const extraRings = outlinesOf(doc).map((o) => o.points); // the other buildings on this floor
+  for (const ring of extraRings) lines.push(`${IND}<polygon class="floor" points="${pointsAttr(ring)}"/>`);
+  if (extraRings.length) lines.push('');
 
   const halls = doc.items.filter((it) => it.type === 'hall');
   if (halls.length) {
@@ -271,11 +285,13 @@ export function exportSvg(doc) {
   if (doc.floor && doc.floor.points && doc.floor.points.length) {
     lines.push(`${IND}<polygon class="floor-edge" points="${pointsAttr(doc.floor.points)}"/>`);
   }
+  for (const ring of extraRings) lines.push(`${IND}<polygon class="floor-edge" points="${pointsAttr(ring)}"/>`);
 
   const doors = doc.items.filter((it) => it.type === 'door');
   for (const door of doors) {
-    const [d, t] = doorLines(door);
+    const [d, t, swing] = doorLines(door);
     lines.push(d + t.trim());
+    if (swing) lines.push(swing);
   }
 
   const compasses = doc.items.filter((it) => it.type === 'compass');

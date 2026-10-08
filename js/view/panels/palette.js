@@ -9,7 +9,7 @@ import { setFloor, removeItems, findLegend } from '../../model/document.js';
 import { straightenOutline } from '../rectify.js';
 import { autoOutline } from '../../model/outlineRestore.js';
 import {
-  hasPieces, outlinesOf, pieceOutlines, linksOf, linkState, mergeReady, mergeOutlines, nextColor, LINK_COLORS, COLOR_NAMES,
+  hasPieces, outlinesOf, outlineLabel, withoutOutline, pieceOutlines, linksOf, linkState, mergeReady, mergeOutlines, nextColor, LINK_COLORS, COLOR_NAMES,
 } from '../../model/connect.js';
 
 const PIECES = [
@@ -33,6 +33,8 @@ export function mountPalette(el, app) {
       <h4>1. Outline the building</h4>
       <p class="step-desc">Trace the outer walls once, from the photo.</p>
       <button type="button" class="btn-big-tool" id="btn-tool-floor">Draw outline <span class="hotkey-hint">F</span></button>
+      <div class="outline-list" id="outline-list" hidden></div>
+      <button type="button" class="btn-big-tool" id="btn-add-outline" hidden title="Outline another building on this floor">+ Add another outline</button>
       <button type="button" class="btn-big-tool" id="btn-auto-outline" hidden title="Draw the outline round the rooms, halls and stairs that are on the plan">Auto-outline</button>
       <button type="button" class="btn-big-tool" id="btn-straighten" hidden>Straighten lines</button>
       <div class="connect-section" id="connect-section" hidden>
@@ -96,6 +98,26 @@ export function mountPalette(el, app) {
   Object.entries(toolButtons).forEach(([name, btn]) => {
     if (btn) btn.addEventListener('click', () => toggleTool(name));
   });
+
+  // --- more than one outline: a floor of several separate buildings. The first is "Redraw the outline"; each other building is a row
+  // (its name, Redraw, remove) and "+ Add another outline" starts the next one. Redraw selects that building and draws it again.
+  const outlineList = el.querySelector('#outline-list');
+  const addOutlineBtn = el.querySelector('#btn-add-outline');
+  const drawOutlineAs = (target) => { app.drawTarget = target; app.setTool('floor'); };
+  addOutlineBtn.addEventListener('click', () => { addOutlineBtn.blur(); drawOutlineAs({}); });
+  outlineList.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const id = b.closest('.outline-row').dataset.id;
+    if (b.dataset.act === 'redraw') { if (app.setSelection) app.setSelection([id]); drawOutlineAs({ id }); }
+    else if (b.dataset.act === 'remove') app.commit(withoutOutline(app.doc, id), 'Remove outline');
+  });
+  const escapeText = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function renderOutlines() {
+    const list = outlinesOf(app.doc);
+    outlineList.hidden = !list.length;
+    addOutlineBtn.hidden = !(hasFloor() || list.length);
+    outlineList.innerHTML = list.map((o) => `<div class="outline-row" data-id="${escapeText(o.id)}"><span class="outline-name">${escapeText(outlineLabel(o))}</span><button type="button" data-act="redraw" title="Select ${escapeText(outlineLabel(o))} and draw it again">Redraw</button><button type="button" class="link-x" data-act="remove" title="Remove this outline" aria-label="Remove this outline">×</button></div>`).join('');
+  }
 
   const detectDoorsBtn = el.querySelector('#btn-detect-doors');
   const detectHallsBtn = el.querySelector('#btn-detect-halls');
@@ -269,7 +291,7 @@ export function mountPalette(el, app) {
     });
     if (toolButtons.floor) {
       toolButtons.floor.innerHTML = hasFloor()
-        ? 'Redraw the outline <span class="hotkey-hint">F</span>'
+        ? `${outlinesOf(app.doc).length ? 'Redraw outline 1' : 'Redraw the outline'} <span class="hotkey-hint">F</span>`
         : 'Draw outline <span class="hotkey-hint">F</span>';
     }
     if (straightenBtn) straightenBtn.hidden = !hasFloor();
@@ -278,6 +300,8 @@ export function mountPalette(el, app) {
       autoBtn.textContent = (hasFloor() || outlinesOf(app.doc).length) ? 'Auto-outline again' : 'Auto-outline';
       autoBtn.title = piecesMode() ? 'Draw an outline round each building (each photo), without joining them' : 'Draw the outline round the rooms, halls and stairs that are on the plan';
     }
+    if (app.toolName !== 'floor') app.drawTarget = null; // a building's outline is being drawn only while the outline tool is
+    renderOutlines();
     if (app.toolName !== 'connect') app.connectArm = null; // a placing mode ends with its tool (Esc, another tool, or a click)
     renderLinks();
     if (detectDoorsBtn) detectDoorsBtn.disabled = !STEP_UNLOCKED.door();

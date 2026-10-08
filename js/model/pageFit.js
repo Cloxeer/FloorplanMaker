@@ -15,8 +15,9 @@
 // Depends on: ./document.js (labelPos, labelText, labelClass, STD),
 // ../view/panels/legend.js (legendGroupSize).
 
-import { labelPos, labelText, labelClass, STD } from './document.js';
+import { labelPos, labelText, labelClass, STD, doorSymbol } from './document.js';
 import { legendGroupSize } from '../view/panels/legend.js';
+import { outlinesOf } from './connect.js';
 
 export const PAGES = {
   fit: { label: 'Fit to SVG' },
@@ -60,6 +61,7 @@ export function contentBounds(doc, legend = null, legendSize = null) {
   const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const floor = doc.floor && doc.floor.points;
   if (floor) for (const [x, y] of floor) growBox(b, x, y, 0, 0, WALL_PAD);
+  for (const o of outlinesOf(doc)) for (const [x, y] of o.points) growBox(b, x, y, 0, 0, WALL_PAD); // the other buildings' walls
 
   for (const it of doc.items || []) {
     if (it.type === 'room') {
@@ -75,7 +77,9 @@ export function contentBounds(doc, legend = null, legendSize = null) {
       growBox(b, it.x, it.y, it.w, it.h, 1);
     } else if (it.type === 'door') {
       growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 5);
-      if (it.label) growBox(b, it.label.x - EXIT_HALF_W, it.label.y - EXIT_HALF_H, EXIT_HALF_W * 2, EXIT_HALF_H * 2);
+      const sym = doorSymbol(it), lab = sym ? sym.label : it.label;
+      if (lab) growBox(b, lab.x - EXIT_HALF_W, lab.y - EXIT_HALF_H, EXIT_HALF_W * 2, EXIT_HALF_H * 2);
+      if (sym) for (const lf of sym.leaves) growBox(b, lf.open.x, lf.open.y, 0, 0, 2); // the swing
     } else if (it.type === 'authwall') {
       // 12 covers the padlock drawn at the wall's middle.
       growBox(b, Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1), 12);

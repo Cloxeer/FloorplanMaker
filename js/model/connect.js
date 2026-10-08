@@ -20,6 +20,24 @@ export const outlinesOf = (doc) => ((doc && doc.items) || []).filter((i) => i &&
 export const connectsOf = (doc) => ((doc && doc.items) || []).filter((i) => i && i.type === 'connect' && ok(i.x) && ok(i.y));
 export const hasPieces = (doc) => ((doc && doc.items) || []).some((i) => i && typeof i.piece === 'string' && i.piece);
 
+// ---- extra outlines
+// A floor with several separate buildings: the first outline is doc.floor (what the checks and the export are built on); every
+// other building has an outline item of its own, with the name the person gave it. All of them are drawn, exported and carry doors.
+export const floorRing = (doc) => (doc && doc.floor && Array.isArray(doc.floor.points) && doc.floor.points.length >= 3 ? doc.floor.points : null);
+export const ringsOf = (doc) => [floorRing(doc), ...outlinesOf(doc).map((o) => o.points)].filter(Boolean);
+export const outlineLabel = (o) => o.name || o.piece || 'Outline';
+export function nextOutlineName(doc) {
+  const used = new Set(outlinesOf(doc).map(outlineLabel));
+  for (let n = 2; ; n++) if (!used.has(`Outline ${n}`)) return `Outline ${n}`;
+}
+// add a building's outline, or (with an id) redraw that one in place: its name and its connection points stay
+export function withOutline(doc, points, { id = null, name = '' } = {}) {
+  const pts = points.map((p) => [p[0], p[1]]);
+  if (id && outlinesOf(doc).some((o) => o.id === id)) return { ...doc, items: doc.items.map((i) => (i.id === id ? { ...i, points: pts } : i)) };
+  return { ...doc, items: [...doc.items, { id: newId(), type: 'outline', name: name || nextOutlineName(doc), points: pts }] };
+}
+export const withoutOutline = (doc, id) => dropOrphanConnects({ ...doc, items: doc.items.filter((i) => !(i && i.id === id && i.type === 'outline')) });
+
 // the point of an outline's wall nearest to (x, y): a click near a wall lands ON the wall
 export function onWall(doc, outlineId, [x, y]) {
   const o = outlinesOf(doc).find((i) => i.id === outlineId);

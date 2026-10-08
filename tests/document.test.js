@@ -137,3 +137,26 @@ test('compassBearing says where the N arrow points on the page', async () => {
   assert.equal(compassBearing(-15), '345° (up)');
   assert.equal(compassBearing(720 + 180), '180° (down)');
 });
+
+// ---- the door symbol: leaves from the width, swing into the building, EXIT on the middle
+import { doorSymbol } from '../js/model/document.js';
+test('doorSymbol: 36 is one door, 72 two, 108 three, 144 four; EXIT sits on the middle of the opening whatever the stored label did', () => {
+  const door = (len, label) => ({ x1: 200, y1: 100, x2: 200 + len, y2: 100, label });
+  for (const [len, n] of [[36, 1], [54, 2], [72, 2], [108, 3], [144, 4]]) {
+    const s = doorSymbol(door(len, { x: 200 + len / 2, y: 155 }));
+    assert.equal(s.n, n, `${len} wide`);
+    assert.equal(s.leaves.length, n);
+    assert.ok(Math.abs(s.label.x - (200 + len / 2)) < 1e-9, 'label is on the middle of the opening');
+    assert.ok(s.label.y >= 155 - 1e-9 && s.label.y <= 175, 'on the inside, clear of the swing');
+    for (const lf of s.leaves) { // every leaf is as long as its share, stands square to the wall and swings to the label's side
+      assert.ok(Math.abs(Math.hypot(lf.open.x - lf.hinge.x, lf.open.y - lf.hinge.y) - len / n) < 1e-9);
+      assert.ok(Math.abs(lf.open.x - lf.hinge.x) < 1e-9 && lf.open.y > 100);
+      assert.ok(Math.abs(Math.hypot(lf.closed.x - lf.hinge.x, lf.closed.y - lf.hinge.y) - len / n) < 1e-9);
+    }
+  }
+  // a label far off to the side (a door that was moved) still gives a centred EXIT; the side it sits on still decides the swing
+  const off = doorSymbol(door(36, { x: 400, y: 45 }));
+  assert.ok(Math.abs(off.label.x - 218) < 1e-9 && off.label.y < 100);
+  assert.ok(off.leaves[0].open.y < 100);
+  assert.equal(doorSymbol({ x1: 5, y1: 5, x2: 5, y2: 5 }), null);
+});

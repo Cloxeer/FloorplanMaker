@@ -271,6 +271,30 @@ function doorOnEdge(outlinePoints, a, b, s1, s2) {
   };
 }
 
+// How a door is drawn, from its two ends alone (so it is right however the door was made, moved or turned). The opening is
+// split into leaves of about STD.doorLen each: one leaf is a single door, two a double door, three, four... Every leaf is
+// hinged at an end of the opening (the left half of the leaves at the left end, the rest at the right) and swings into the
+// building: leaf = { hinge, closed (where it lies when shut), open (its tip when swung 90 degrees) }. EXIT / Door sits
+// exactly on the middle of the opening, beyond the swing, on the side the stored label is on (inside the wall).
+// -> { n, w, leaves, label: { x, y } } or null for a zero-length door
+export function doorSymbol(door) {
+  const { x1, y1, x2, y2 } = door || {};
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  if (![x1, y1, x2, y2].every(Number.isFinite) || !(len > 0)) return null;
+  const ux = (x2 - x1) / len, uy = (y2 - y1) / len, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  let nx = -uy, ny = ux;
+  const l = door.label;
+  if (l && Number.isFinite(l.x) && Number.isFinite(l.y) && (l.x - mx) * nx + (l.y - my) * ny < 0) { nx = -nx; ny = -ny; }
+  const n = Math.max(1, Math.round(len / STD.doorLen)), w = len / n;
+  const at = (s, d = 0) => ({ x: x1 + ux * s + nx * d, y: y1 + uy * s + ny * d });
+  const leaves = Array.from({ length: n }, (_, i) => {
+    const left = i < n / 2, h = left ? i * w : (i + 1) * w;
+    return { hinge: at(h), closed: at(left ? h + w : h - w), open: at(h, w) };
+  });
+  const off = Math.max(STD.exitInset, w + 20);
+  return { n, w, leaves, label: { x: mx + nx * off, y: my + ny * off } };
+}
+
 // A default-width (STD.doorLen) door centered on the wall point nearest to
 // `point`. Used for a plain click and for door detection.
 export function doorFor(outlinePoints, point) {

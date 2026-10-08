@@ -6,7 +6,7 @@
 // Depends on: fabric@6.7.1 (jsDelivr), js/model/document.js, js/view/stagePoly.js.
 
 import * as fabric from 'https://cdn.jsdelivr.net/npm/fabric@6.7.1/dist/index.min.mjs';
-import { labelPos, labelClass, labelText, stairTreads, STD } from '../model/document.js';
+import { labelPos, labelClass, labelText, stairTreads, STD, doorSymbol } from '../model/document.js';
 import { attachPolyControls, setPolyPoints, wallOnlyHit } from './stagePoly.js';
 import {
   ICONS, iconForRoom, iconRoomLayout, iconOnly,
@@ -286,12 +286,21 @@ function buildDoor(item) {
     stroke: '#ffffff', strokeWidth: 10, strokeUniform: true, selectable: false, evented: false, objectCaching: false,
   });
   const isDoor = item.kind === 'Door';
+  const sym = doorSymbol(item);
+  const swing = []; // each leaf and the quarter circle it sweeps, the way an architect draws a door (same as the export)
+  for (const lf of sym ? sym.leaves : []) {
+    const cross = (lf.open.x - lf.hinge.x) * (lf.closed.y - lf.hinge.y) - (lf.open.y - lf.hinge.y) * (lf.closed.x - lf.hinge.x);
+    const common = { fill: null, stroke: STROKE, strokeUniform: true, selectable: false, evented: false, objectCaching: false };
+    swing.push(new fabric.Line([lf.hinge.x, lf.hinge.y, lf.open.x, lf.open.y], { ...common, strokeWidth: 2.5, strokeLineCap: 'round' }));
+    swing.push(new fabric.Path(`M ${lf.open.x} ${lf.open.y} A ${sym.w} ${sym.w} 0 0 ${cross > 0 ? 1 : 0} ${lf.closed.x} ${lf.closed.y}`, { ...common, strokeWidth: 1.5 }));
+  }
+  const at = sym ? sym.label : item.label;
   const label = new fabric.FabricText(isDoor ? 'Door' : 'EXIT', {
-    left: item.label.x, top: item.label.y, originX: 'center', originY: 'center',
+    left: at.x, top: at.y, originX: 'center', originY: 'center',
     fontSize: 20, fontWeight: 700, fill: isDoor ? '#5f6368' : '#1a7f37', fontFamily: FONT,
     selectable: false, evented: false, objectCaching: false,
   });
-  const g = new fabric.Group([line, label], {
+  const g = new fabric.Group([line, ...swing, label], {
     ...BASE, subTargetCheck: false, hasControls: false,
     lockMovementX: true, lockMovementY: true, lockRotation: true,
     lockScalingX: true, lockScalingY: true,

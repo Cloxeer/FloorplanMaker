@@ -11,7 +11,7 @@ import {
 } from '../model/document.js';
 import { legendGroupSize } from './panels/legend.js';
 import { snapToGrid, dist, nearestPointOnPolyline } from '../model/geometry.js';
-import { openingCentres, wallAt, outlinesOf, OPENING } from '../model/connect.js';
+import { openingCentres, wallAt, outlinesOf, OPENING, ringsOf, withOutline, nextOutlineName } from '../model/connect.js';
 
 const DOOR_REACH = 12;
 const DOOR_START_REACH = 40; // plan units: how close to the wall a door drag may start
@@ -95,8 +95,24 @@ export function attachTools(ctx, editing) {
     if (!draft || draft.kind !== 'floor' || draft.points.length < 3) return;
     const pts = draft.points.map(([x, y]) => [Math.round(x), Math.round(y)]);
     clearDraft();
+    const target = app.drawTarget; // set by "Add another outline" / an outline's Redraw (palette): that building's outline, not the first one
+    if (target) { closeExtra(pts, target); return; }
     app.commit(setFloor(app.doc, pts), 'Draw outline');
     app.setTool('select');
+  }
+  async function closeExtra(pts, target) {
+    app.drawTarget = null;
+    app.setTool('select');
+    let name = '';
+    if (!target.id) { // a new building's outline gets the name the person gives it
+      const def = nextOutlineName(app.doc);
+      const asked = await app.prompt('Name this outline', def);
+      if (asked === null) return; // cancelled: nothing was added
+      name = String(asked).trim() || def;
+    }
+    const next = withOutline(app.doc, pts, { id: target.id, name });
+    app.commit(next, target.id ? 'Redraw outline' : 'Add outline');
+    if (app.setSelection) app.setSelection([target.id || next.items[next.items.length - 1].id]);
   }
 
   // ------------------------------------------------------------ box draw --
@@ -276,17 +292,18 @@ export function attachTools(ctx, editing) {
   //   - dragging along the wall sizes the opening to the drag length.
   // While dragging we show a live green bar (matching the EXIT green) so it is
   // obvious how wide the entrance will be.
-  function outline() {
-    const doc = app.doc;
-    return doc.floor && doc.floor.points && doc.floor.points.length >= 3 ? doc.floor.points : null;
+  // the wall of whichever building's outline the pointer is nearest to (the first outline, or an extra one)
+  function wallRing(pt) {
+    let best = null;
+    for (const ring of ringsOf(app.doc)) {
+      const near = nearestPointOnPolyline([pt.x, pt.y], ring, true);
+      const d = near ? dist([near.x, near.y], [pt.x, pt.y]) : Infinity;
+      if (d <= DOOR_START_REACH && (!best || d < best.d)) best = { ring, near, d };
+    }
+    return best;
   }
-  function nearWall(pt) {
-    const o = outline();
-    if (!o) return null;
-    const near = nearestPointOnPolyline([pt.x, pt.y], o, true);
-    if (!near) return null;
-    return dist([near.x, near.y], [pt.x, pt.y]) <= DOOR_START_REACH ? near : null;
-  }
+  const outline = () => (ringsOf(app.doc).length ? true : null);
+  const nearWall = (pt) => { const w = wallRing(pt); return w && w.near; };
   function doorPreview(door) {
     if (!door) return;
     if (!draft.line) {
@@ -353,7 +370,7 @@ export function attachTools(ctx, editing) {
     if (tool === 'door') {
       if (!outline()) { app.toast('Draw the building outline first.'); return; }
       if (!nearWall(pt)) return; // ignore clicks/drags that don't start on the wall
-      draft = { kind: 'door', downPt: pt, objs: [], door: null };
+      draft = { kind: 'door', downPt: pt, objs: [], door: null, ring: wallRing(pt).ring };
       return;
     }
     if (tool === 'authwall') {
@@ -391,7 +408,7 @@ export function attachTools(ctx, editing) {
       return;
     }
     if (draft.kind === 'door') {
-      const o = outline();
+      const o = draft.ring;
       const span = o && doorSpanFor(o, draft.downPt, pt);
       // Preview the dragged opening once it is meaningfully wide; before that,
       // preview the default-width opening so the user sees where it will land.
@@ -418,7 +435,7 @@ export function attachTools(ctx, editing) {
   canvas.on('mouse:up', () => {
     if (!draft || draft.kind === 'floor') return;
     if (draft.kind === 'door') {
-      const o = outline();
+      const o = draft.ring;
       const downPt = draft.downPt;
       const dragged = draft.door;
       clearDraft();

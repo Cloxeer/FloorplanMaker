@@ -344,7 +344,7 @@ export function importSvg(svgText) {
     // importer just skips these groups (and everything inside them) rather
     // than re-deriving anything from them.
     if (t.kind === 'open' && t.name === 'g'
-      && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch' || t.attrs.class === 'authwall-lock')) {
+      && (t.attrs.class === 'icon' || t.attrs.class === 'void-hatch' || t.attrs.class === 'authwall-lock' || t.attrs.class === 'door-swing')) {
       // An elevator is written as its icon alone (no words), so remember
       // which icon sits where; the room it's in is marked afterwards.
       if (t.attrs.class === 'icon') {
