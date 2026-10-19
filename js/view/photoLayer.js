@@ -45,7 +45,7 @@ export function mountPhotoLayer(app) {
 
   let alive = true, mode = null, sel = -1, drag = null, raf = 0;
   let extraObjs = []; // [{ key, obj }] fabric images for project.extraPhotos
-  const ops = new Map(); // opacity of one photo while arranging, by photo index (0 = main); a photo with none follows the shared slider
+  let flashing = false; // the H key shows every photo at full strength while it is held
   let lastBg = null, savedView = null, pill = null, preview = null, spaceHeld = false, moved_ = false;
 
   // ---- the photos, as one list: main photo first, then the extras
@@ -67,7 +67,10 @@ export function mountPhotoLayer(app) {
 
   // ---- drawing the photos on the stage
   let arrangeOpacity = 1; // while arranging, every photo (main and extras) shares ONE opacity; the Photo slider changes it
-  const bgOpacity = () => (canvas.backgroundImage ? canvas.backgroundImage.opacity : 0.5);
+  // A photo's own opacity (photo.opacity, set with the Opacity slider while it is selected) is part of the project: it stays when you
+  // leave Select, comes back after a reload, and the shared Photo slider no longer touches that photo. Photos with none follow the slider.
+  const sharedOpacity = () => (mode === 'photo' ? arrangeOpacity : (Number.isFinite(app.onion) ? app.onion : 0.5));
+  const opacityOf = (ph) => (ph && Number.isFinite(ph.opacity) ? ph.opacity : sharedOpacity());
   function place() {
     const p = app.project; if (!p) return;
     const bg = canvas.backgroundImage, hid = hiddenPh();
@@ -87,11 +90,10 @@ export function mountPhotoLayer(app) {
     });
     paintOpacity();
   }
-  const opOf = (idx) => (ops.has(idx) ? ops.get(idx) : arrangeOpacity);
   function paintOpacity() {
-    const op = bgOpacity();
-    if (canvas.backgroundImage && mode === 'photo') canvas.backgroundImage.opacity = opOf(0);
-    for (const { obj, j } of extraObjs) obj.opacity = mode === 'photo' ? opOf(j + 1) : op;
+    const p = app.project; if (!p) return;
+    if (canvas.backgroundImage) canvas.backgroundImage.opacity = flashing ? 1 : opacityOf(p.photo);
+    for (const { obj, j } of extraObjs) obj.opacity = flashing ? 1 : opacityOf((p.extraPhotos || [])[j]);
   }
   // draw order, back to front: the main photo, then the extras in order, and the selected extra above them all
   // (so it can be laid over another photo; hits use the same order)
@@ -117,7 +119,7 @@ export function mountPhotoLayer(app) {
         const e = p.extraPhotos[w.j];
         const obj = await fabric.FabricImage.fromURL(e.dataUrl);
         if (!alive) return;
-        obj.set({ originX: 'left', originY: 'top', selectable: false, evented: false, opacity: bgOpacity() });
+        obj.set({ originX: 'left', originY: 'top', selectable: false, evented: false, opacity: opacityOf(e) });
         obj.zLayer = -20 + w.j * 0.01; obj.overlay = false;
         canvas.add(obj);
         extraObjs.push({ key: w.key, j: w.j, obj });
@@ -316,7 +318,7 @@ export function mountPhotoLayer(app) {
     if (!pill || mode !== 'photo') return; // the drawing pill has its own fixed text
     const has = sel >= 0, r = refs()[sel], isExtra = has && r && !r.main;
     pill.querySelectorAll('[data-pl]').forEach((b) => { b.disabled = b.dataset.pl === 'remove' ? !isExtra : !has; });
-    const op = pill.querySelector('.pl-op input'); op.disabled = !has; op.value = has && r ? opOf(r.idx) : arrangeOpacity;
+    const op = pill.querySelector('.pl-op input'); op.disabled = !has; op.value = has && r ? opacityOf(r.photo) : arrangeOpacity;
     syncMsg();
     redraw();
   }
@@ -327,7 +329,9 @@ export function mountPhotoLayer(app) {
       pill.innerHTML = `<span class="pl-msg"></span><span class="pl-tools">
         <label class="pl-op" title="See through this photo, all the way to nothing, to line it up with another">Opacity <input type="range" min="0" max="1" step="0.01" aria-label="Photo opacity"></label>
         <button type="button" data-pl="remove" title="Remove this photo">Remove</button></span><button type="button" class="pl-done">Done</button>`;
-      pill.querySelector('.pl-op input').addEventListener('input', (ev) => { const r = refs()[sel]; if (!r) return; ops.set(r.idx, Number(ev.target.value)); paintOpacity(); redraw(); });
+      const slider = pill.querySelector('.pl-op input');
+      slider.addEventListener('input', (ev) => { const r = refs()[sel]; if (r) setPhoto(sel, { ...r.photo, opacity: Number(ev.target.value) }); }); // lives on the photo
+      slider.addEventListener('change', () => { if (app.saveView) app.saveView(); }); // and is saved when the slider is let go
       pill.addEventListener('click', async (ev) => {
         const b = ev.target.closest('[data-pl]'); if (!b || b.disabled) return;
         const k = b.dataset.pl;
@@ -335,7 +339,7 @@ export function mountPhotoLayer(app) {
           const r = refs()[sel]; if (!r || r.main) return;
           if (!(await app.confirm('Remove this photo from the floor?'))) return;
           app.project.extraPhotos = app.project.extraPhotos.filter((_, j) => j !== r.j);
-          ops.clear(); sel = -1; await sync(); if (app.saveView) app.saveView(); syncPill();
+          sel = -1; await sync(); if (app.saveView) app.saveView(); syncPill();
         }
       });
     } else {
@@ -358,7 +362,7 @@ export function mountPhotoLayer(app) {
     raise();
     if (preview) { cancelAnimationFrame(preview); preview = 0; }
     try { app.canvas.setGuides([]); } catch (e) { /* gone */ }
-    if (was === 'photo') { ops.clear(); try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } place(); }
+    if (was === 'photo') { try { app.canvas.setPlanOpacity(app.planOpacity); app.canvas.setOnion(app.onion); } catch (e) { /* gone */ } place(); }
     if (was === 'drawing') { try { app.canvas.setDoc(app.doc); } catch (e) { /* gone */ } }
     if (was && !next) {
       // photos were moved: show them where they are now; otherwise go back to the view you had
@@ -402,7 +406,7 @@ export function mountPhotoLayer(app) {
   // keep the extras' opacity in step with the Photo slider / the H key flash
   const origOnion = app.canvas.setOnion, origFlash = app.canvas.flashPhoto;
   app.canvas.setOnion = (op) => { if (mode === 'photo') arrangeOpacity = op; else origOnion(op); paintOpacity(); canvas.requestRenderAll(); };
-  app.canvas.flashPhoto = (on) => { if (mode === 'photo') return; origFlash(on); for (const { obj } of extraObjs) obj.opacity = on ? 1 : bgOpacity(); canvas.requestRenderAll(); };
+  app.canvas.flashPhoto = (on) => { if (mode === 'photo') return; origFlash(on); flashing = !!on; paintOpacity(); canvas.requestRenderAll(); };
   const unsub = app.subscribe((e) => { if (e.type === 'project' || e.type === 'step') { sync(); watchBg(); } if (e.type === 'hidden') { sel = -1; drag = null; place(); syncPill(); redraw(); } if (e.type === 'tool' && mode && app.toolName !== 'select' && app.toolName !== 'pan') setMode(null); });
   const poll = setInterval(watchBg, 400); // the main photo loads after the studio opens
   sync();

@@ -423,7 +423,7 @@ test('hand tool on and off leaves photo mode locked: no ghost outlines, no room 
   expect(await locked()).toEqual([false, true]); // leaving the mode gives the plan back
 });
 
-test('turning locks to 15 degrees when close (Alt: free); the Opacity slider fades only the selected photo to nothing and Done gives the shared opacity back', async ({ page }) => {
+test('turning locks to 15 degrees when close (Alt: free); the Opacity slider fades only the selected photo to nothing, and it STAYS that opacity (Done, Select again, the shared slider, a reload)', async ({ page }) => {
   await importMulti(page, [A(), B()]);
   const c0 = await toClient(page, await centreOf(page, 0));
   await page.mouse.click(c0.x, c0.y);
@@ -446,7 +446,30 @@ test('turning locks to 15 degrees when close (Alt: free); the Opacity slider fad
   await page.locator('.pl-op input').fill('0.4');
   expect((await ops())[1]).toBeCloseTo(0.4, 2);
   await page.click('.pl-done');
-  expect(new Set(await ops()).size).toBe(1); // back to one opacity for every photo
+  // it does not revert: the photo keeps the opacity it was given, the other one is untouched
+  let now = await ops();
+  expect(now[1]).toBeCloseTo(0.4, 2);
+  expect(now[0]).toBeCloseTo(0.5, 2); // the main photo is back to the shared (Photo slider) opacity
+  // select again: the slider shows what the photo has, and the shared Photo slider leaves that photo alone
+  await page.evaluate(() => window.__app._photoLayer.setMode('photo'));
+  const c1 = await toClient(page, await centreOf(page, 0));
+  await page.mouse.click(c1.x, c1.y);
+  expect(Number(await page.locator('.pl-op input').inputValue())).toBeCloseTo(0.4, 2);
+  await page.evaluate(() => { const sl = document.getElementById('onion'); sl.value = '0.8'; sl.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('.pl-done');
+  now = await ops();
+  expect(now[1]).toBeCloseTo(0.4, 2);
+  expect(now[0]).toBeCloseTo(0.8, 2); // the main photo follows the slider
+  // saved with the project: it is still there after a reload
+  const id = (await proj(page)).id;
+  await flushSave(page);
+  const slug = await page.evaluate(() => window.__app.project.slug);
+  await page.reload();
+  await page.waitForFunction(() => !!window.__app);
+  await page.evaluate((sg) => { location.hash = `#/p/${sg}/trace`; }, slug);
+  await page.waitForFunction((i) => window.__app.project && window.__app.project.id === i && !document.getElementById('studio').hidden, id);
+  await expect.poll(() => imageObjs(page), { timeout: 15000 }).toBe(1);
+  await expect.poll(async () => (await ops())[1]).toBeCloseTo(0.4, 2);
 });
 
 test('Ctrl + / Ctrl - / Ctrl 0 zoom the plan, not the web page', async ({ page }) => {

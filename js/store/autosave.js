@@ -54,6 +54,7 @@ export function projectSignature(project) {
     hidden: project.hidden || null, // items hidden from view (the eye in Layers)
     photo: photoSig,
     placement: p && p.t ? p.t : null,
+    opacity: [p && p.opacity, ...(project.extraPhotos || []).map((e) => e.opacity)], // a photo's own opacity (View > Select > Photo)
     extra: (project.extraPhotos || []).map((e) => `${e.width || 0}x${e.height || 0}:${e.dataUrl ? e.dataUrl.length : 0}:${JSON.stringify(e.t || null)}`),
   });
 }
